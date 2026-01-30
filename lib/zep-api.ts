@@ -41,6 +41,16 @@ export interface ZepEmployee {
   email: string | null;
 }
 
+export interface ZepEmployeeProject {
+  id: number;
+  employee_id: string;
+  project_id: number;
+  from: string | null; // ISO date or null
+  to: string | null; // ISO date or null
+  note: string | null;
+  availability: number | null;
+}
+
 export interface ZepAttendance {
   id?: number;
   date: string; // ISO date format: "2026-01-30T00:00:00.000000Z"
@@ -151,6 +161,56 @@ export async function getZepActivities(token: string): Promise<ZepActivity[]> {
 // Get current employee info
 export async function getZepEmployees(token: string): Promise<ZepEmployee[]> {
   return fetchAllPages<ZepEmployee>("/api/v1/employees", token);
+}
+
+// Get projects assigned to a specific employee
+export async function getZepEmployeeProjects(
+  token: string,
+  employeeId: string
+): Promise<ZepEmployeeProject[]> {
+  return fetchAllPages<ZepEmployeeProject>(
+    `/api/v1/employees/${employeeId}/projects`,
+    token
+  );
+}
+
+// Get projects for employee, filtered by date range
+export async function getZepProjectsForEmployee(
+  token: string,
+  employeeId: string,
+  startDate?: string,
+  endDate?: string
+): Promise<ZepProject[]> {
+  // First get all employee project assignments
+  const assignments = await getZepEmployeeProjects(token, employeeId);
+  
+  // Filter assignments by date range if provided
+  const validAssignments = assignments.filter((a) => {
+    // If no date filter, include all
+    if (!startDate && !endDate) return true;
+    
+    const assignmentFrom = a.from ? new Date(a.from) : null;
+    const assignmentTo = a.to ? new Date(a.to) : null;
+    const rangeStart = startDate ? new Date(startDate) : null;
+    const rangeEnd = endDate ? new Date(endDate) : null;
+    
+    // If assignment has no date restrictions, it's always valid
+    if (!assignmentFrom && !assignmentTo) return true;
+    
+    // Check if date ranges overlap
+    // Assignment is valid if: assignmentFrom <= rangeEnd AND assignmentTo >= rangeStart
+    const fromOk = !assignmentFrom || !rangeEnd || assignmentFrom <= rangeEnd;
+    const toOk = !assignmentTo || !rangeStart || assignmentTo >= rangeStart;
+    
+    return fromOk && toOk;
+  });
+  
+  // Get unique project IDs
+  const projectIds = [...new Set(validAssignments.map((a) => a.project_id))];
+  
+  // Get all projects and filter to assigned ones
+  const allProjects = await getZepProjects(token);
+  return allProjects.filter((p) => projectIds.includes(p.id));
 }
 
 // Create a new attendance (time entry)

@@ -90,17 +90,7 @@ export default function Dashboard() {
       setEmployeeId(storedEmployeeId);
     }
 
-    // Load projects
-    fetch(`/api/zep/projects?token=${encodeURIComponent(token)}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data)) {
-          setProjects(data);
-        }
-      })
-      .catch(console.error);
-
-    // Load activities
+    // Load activities (these are global, not per employee)
     fetch(`/api/zep/activities?token=${encodeURIComponent(token)}`)
       .then((res) => res.json())
       .then((data) => {
@@ -110,6 +100,31 @@ export default function Dashboard() {
       })
       .catch(console.error);
   }, [router]);
+
+  // Load projects when employeeId or date range changes
+  const loadProjects = useCallback(async () => {
+    if (!zepToken || !employeeId) return;
+
+    try {
+      const params = new URLSearchParams({
+        token: zepToken,
+        employeeId: employeeId,
+        startDate: startDate,
+        endDate: endDate,
+      });
+      const res = await fetch(`/api/zep/employee-projects?${params}`);
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setProjects(data);
+      }
+    } catch (error) {
+      console.error("Failed to load projects:", error);
+    }
+  }, [zepToken, employeeId, startDate, endDate]);
+
+  useEffect(() => {
+    loadProjects();
+  }, [loadProjects]);
 
   const loadTasksForProject = useCallback(async (projectId: number) => {
     if (tasks[projectId] || !zepToken) return;
