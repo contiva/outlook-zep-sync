@@ -2,13 +2,20 @@ import { NextResponse } from "next/server";
 import { getZepProjectTasks } from "@/lib/zep-api";
 
 export async function GET(request: Request) {
+  const token = process.env.ZEP_API_TOKEN;
   const { searchParams } = new URL(request.url);
-  const token = searchParams.get("token");
   const projectId = searchParams.get("projectId");
 
-  if (!token || !projectId) {
+  if (!token) {
     return NextResponse.json(
-      { error: "token and projectId required" },
+      { error: "ZEP_API_TOKEN not configured" },
+      { status: 500 }
+    );
+  }
+
+  if (!projectId) {
+    return NextResponse.json(
+      { error: "projectId required" },
       { status: 400 }
     );
   }

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createZepAttendance, ZepAttendance } from "@/lib/zep-api";
+import { createZepAttendance } from "@/lib/zep-api";
 
 interface AttendanceInput {
   date: string;
@@ -14,17 +14,25 @@ interface AttendanceInput {
 }
 
 interface RequestBody {
-  token: string;
   entries: AttendanceInput[];
 }
 
 export async function POST(request: Request) {
-  const body: RequestBody = await request.json();
-  const { token, entries } = body;
+  const token = process.env.ZEP_API_TOKEN;
 
-  if (!token || !entries?.length) {
+  if (!token) {
     return NextResponse.json(
-      { error: "token and entries required" },
+      { error: "ZEP_API_TOKEN not configured" },
+      { status: 500 }
+    );
+  }
+
+  const body: RequestBody = await request.json();
+  const { entries } = body;
+
+  if (!entries?.length) {
+    return NextResponse.json(
+      { error: "entries required" },
       { status: 400 }
     );
   }

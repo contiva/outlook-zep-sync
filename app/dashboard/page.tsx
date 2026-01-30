@@ -67,7 +67,6 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
-  const [zepToken, setZepToken] = useState<string | null>(null);
   const [employeeId, setEmployeeId] = useState<string>("rfels");
 
   useEffect(() => {
@@ -77,21 +76,14 @@ export default function Dashboard() {
   }, [status, router]);
 
   useEffect(() => {
-    const token = localStorage.getItem("zepToken");
+    // Load stored employee ID
     const storedEmployeeId = localStorage.getItem("zepEmployeeId");
-
-    if (!token) {
-      router.push("/");
-      return;
-    }
-
-    setZepToken(token);
     if (storedEmployeeId) {
       setEmployeeId(storedEmployeeId);
     }
 
-    // Load activities (these are global, not per employee)
-    fetch(`/api/zep/activities?token=${encodeURIComponent(token)}`)
+    // Load activities (global, not per employee)
+    fetch("/api/zep/activities")
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {
@@ -99,15 +91,14 @@ export default function Dashboard() {
         }
       })
       .catch(console.error);
-  }, [router]);
+  }, []);
 
   // Load projects when employeeId or date range changes
   const loadProjects = useCallback(async () => {
-    if (!zepToken || !employeeId) return;
+    if (!employeeId) return;
 
     try {
       const params = new URLSearchParams({
-        token: zepToken,
         employeeId: employeeId,
         startDate: startDate,
         endDate: endDate,
@@ -120,19 +111,17 @@ export default function Dashboard() {
     } catch (error) {
       console.error("Failed to load projects:", error);
     }
-  }, [zepToken, employeeId, startDate, endDate]);
+  }, [employeeId, startDate, endDate]);
 
   useEffect(() => {
     loadProjects();
   }, [loadProjects]);
 
   const loadTasksForProject = useCallback(async (projectId: number) => {
-    if (tasks[projectId] || !zepToken) return;
+    if (tasks[projectId]) return;
 
     try {
-      const res = await fetch(
-        `/api/zep/tasks?token=${encodeURIComponent(zepToken)}&projectId=${projectId}`
-      );
+      const res = await fetch(`/api/zep/tasks?projectId=${projectId}`);
       const data = await res.json();
       if (Array.isArray(data)) {
         setTasks((prev) => ({ ...prev, [projectId]: data }));
@@ -140,7 +129,7 @@ export default function Dashboard() {
     } catch (error) {
       console.error("Failed to load tasks:", error);
     }
-  }, [zepToken, tasks]);
+  }, [tasks]);
 
   const loadAppointments = async () => {
     setLoading(true);
@@ -202,11 +191,6 @@ export default function Dashboard() {
   };
 
   const submitToZep = async () => {
-    if (!zepToken) {
-      setMessage("ZEP-Token fehlt");
-      return;
-    }
-
     const selectedAppointments = appointments.filter((a) => a.selected);
     const entries = selectedAppointments.map((apt) => {
       const startDt = new Date(apt.start.dateTime);
@@ -230,7 +214,7 @@ export default function Dashboard() {
       const res = await fetch("/api/zep/timeentries", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: zepToken, entries }),
+        body: JSON.stringify({ entries }),
       });
 
       const result = await res.json();

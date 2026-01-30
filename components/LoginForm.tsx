@@ -1,25 +1,23 @@
 "use client";
 
 import { signIn, useSession } from "next-auth/react";
-import { useState } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { LogIn, Key } from "lucide-react";
+import { LogIn } from "lucide-react";
 
 export default function LoginForm() {
   const { data: session } = useSession();
   const router = useRouter();
-  const [zepToken, setZepToken] = useState("");
 
-  const handleMicrosoftLogin = () => {
-    signIn("azure-ad");
-  };
-
-  const handleConnect = () => {
-    if (session && zepToken) {
-      // ZEP Token im localStorage speichern
-      localStorage.setItem("zepToken", zepToken);
+  // Automatisch zum Dashboard weiterleiten wenn eingeloggt
+  useEffect(() => {
+    if (session) {
       router.push("/dashboard");
     }
+  }, [session, router]);
+
+  const handleMicrosoftLogin = () => {
+    signIn("azure-ad", { callbackUrl: "/dashboard" });
   };
 
   return (
@@ -37,9 +35,6 @@ export default function LoginForm() {
         <div className="space-y-6">
           {/* Microsoft Login */}
           <div>
-            <h2 className="text-sm font-medium text-gray-700 mb-2">
-              1. Microsoft-Konto
-            </h2>
             {session ? (
               <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
                 <span className="text-green-600">✓</span>
@@ -58,44 +53,9 @@ export default function LoginForm() {
             )}
           </div>
 
-          {/* ZEP Token */}
-          <div>
-            <h2 className="text-sm font-medium text-gray-700 mb-2">
-              2. ZEP API Token
-            </h2>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">
-                  API Token (aus ZEP → Einstellungen → API)
-                </label>
-                <div className="relative">
-                  <Key
-                    size={18}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                  />
-                  <input
-                    type="password"
-                    value={zepToken}
-                    onChange={(e) => setZepToken(e.target.value)}
-                    placeholder="Dein ZEP API Token"
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-              <p className="text-xs text-gray-400">
-                ZEP URL ist vorkonfiguriert für Contiva.
-              </p>
-            </div>
-          </div>
-
-          {/* Connect Button */}
-          <button
-            onClick={handleConnect}
-            disabled={!session || !zepToken}
-            className="w-full py-3 px-4 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:bg-gray-300 disabled:cursor-not-allowed"
-          >
-            Verbinden
-          </button>
+          <p className="text-xs text-gray-400 text-center">
+            ZEP-Verbindung ist bereits konfiguriert.
+          </p>
         </div>
       </div>
     </div>

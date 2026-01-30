@@ -2,14 +2,17 @@ import { NextResponse } from "next/server";
 import { getZepProjectsForEmployee } from "@/lib/zep-api";
 
 export async function GET(request: Request) {
+  const token = process.env.ZEP_API_TOKEN;
   const { searchParams } = new URL(request.url);
-  const token = searchParams.get("token");
   const employeeId = searchParams.get("employeeId");
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
 
   if (!token) {
-    return NextResponse.json({ error: "Token required" }, { status: 401 });
+    return NextResponse.json(
+      { error: "ZEP_API_TOKEN not configured" },
+      { status: 500 }
+    );
   }
 
   if (!employeeId) {
