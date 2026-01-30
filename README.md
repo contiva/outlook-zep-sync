@@ -1,36 +1,115 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Outlook → ZEP Sync
 
-## Getting Started
+Eine Web-Anwendung zum Übertragen von Outlook-Terminen zur ZEP Zeiterfassung.
 
-First, run the development server:
+## Features
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- Microsoft OAuth2 Login für sicheren Kalender-Zugriff
+- Datumsbereich-Auswahl für Termine
+- Projektzuordnung für jeden Termin
+- Batch-Übertragung zu ZEP
+
+## Setup
+
+### 1. Azure App Registration
+
+1. Gehe zu [Azure Portal](https://portal.azure.com) → Microsoft Entra ID → App registrations
+2. Neue Registrierung erstellen:
+   - Name: `Outlook ZEP Sync`
+   - Supported account types: Single tenant (oder Multi-tenant)
+3. Redirect URI hinzufügen:
+   - Platform: Web
+   - URI: `http://localhost:3000/api/auth/callback/azure-ad`
+4. API Permissions hinzufügen:
+   - `Microsoft Graph` → `User.Read` (Delegated)
+   - `Microsoft Graph` → `Calendars.Read` (Delegated)
+   - Admin consent erteilen
+5. Client Secret erstellen:
+   - Certificates & secrets → New client secret
+   - Wert kopieren (wird nur einmal angezeigt!)
+
+### 2. Environment Variables
+
+Kopiere `.env.local.example` zu `.env.local` und fülle die Werte aus:
+
+```env
+AZURE_AD_CLIENT_ID=deine-application-client-id
+AZURE_AD_CLIENT_SECRET=dein-client-secret
+AZURE_AD_TENANT_ID=dein-tenant-id
+
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=ein-langes-zufaelliges-secret-min-32-zeichen
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+**NEXTAUTH_SECRET generieren:**
+```bash
+openssl rand -base64 32
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 3. Installation & Start
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+cd outlook-zep-sync
+npm install
+npm run dev
+```
 
-## Learn More
+Öffne http://localhost:3000
 
-To learn more about Next.js, take a look at the following resources:
+## Verwendung
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. **Microsoft Login** - Klicke auf "Mit Microsoft anmelden"
+2. **ZEP Verbindung** - Gib deine ZEP URL und deinen API-Token ein
+   - ZEP URL: z.B. `https://deine-firma.zep.de`
+   - API Token: In ZEP unter Einstellungen → API-Zugang generieren
+3. **Termine laden** - Wähle Datumsbereich und klicke "Termine laden"
+4. **Projektzuordnung** - Wähle für jeden Termin das passende ZEP-Projekt
+5. **Übertragen** - Klicke "An ZEP übertragen"
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Projektstruktur
 
-## Deploy on Vercel
+```
+outlook-zep-sync/
+├── app/
+│   ├── api/
+│   │   ├── auth/[...nextauth]/  # NextAuth Handler
+│   │   ├── calendar/            # Outlook Kalender API
+│   │   └── zep/                 # ZEP API (projects, timeentries)
+│   ├── dashboard/               # Hauptansicht
+│   ├── layout.tsx
+│   └── page.tsx                 # Login
+├── components/
+│   ├── AppointmentList.tsx
+│   ├── AppointmentRow.tsx
+│   ├── DateRangePicker.tsx
+│   ├── LoginForm.tsx
+│   └── Providers.tsx
+├── lib/
+│   ├── auth.ts                  # NextAuth Konfiguration
+│   ├── microsoft-graph.ts       # Graph API Client
+│   └── zep-api.ts               # ZEP API Client
+└── types/
+    └── next-auth.d.ts           # Session Typen
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Tech Stack
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Next.js 16** - React Framework
+- **NextAuth.js** - OAuth2 Authentifizierung
+- **Tailwind CSS** - Styling
+- **Microsoft Graph API** - Outlook Kalender
+- **ZEP REST API** - Zeiterfassung
+
+## Troubleshooting
+
+### "Unauthorized" beim Laden der Termine
+- Prüfe ob die Azure App die Berechtigung `Calendars.Read` hat
+- Lösche Cookies und melde dich neu an
+
+### ZEP-Projekte werden nicht geladen
+- Prüfe ob die ZEP URL korrekt ist (mit https://)
+- Prüfe ob der API-Token gültig ist
+
+### "Failed to fetch" Fehler
+- Prüfe die Netzwerkverbindung
+- Prüfe die Browser-Konsole für Details
