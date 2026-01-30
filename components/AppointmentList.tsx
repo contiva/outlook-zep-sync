@@ -1,6 +1,8 @@
 "use client";
 
+import { useMemo } from "react";
 import AppointmentRow from "./AppointmentRow";
+import SeriesGroup from "./SeriesGroup";
 
 interface Project {
   id: number;
@@ -42,6 +44,8 @@ interface Appointment {
   activityId: string;
   attendees?: Attendee[];
   isOrganizer?: boolean;
+  seriesMasterId?: string;
+  type?: string;
 }
 
 interface AppointmentListProps {
@@ -50,11 +54,25 @@ interface AppointmentListProps {
   tasks: Record<number, Task[]>;
   activities: Activity[];
   onToggle: (id: string) => void;
+  onToggleSeries: (seriesId: string, selected: boolean) => void;
   onProjectChange: (id: string, projectId: number | null) => void;
   onTaskChange: (id: string, taskId: number | null) => void;
   onActivityChange: (id: string, activityId: string) => void;
+  onApplyToSeries: (
+    seriesId: string,
+    projectId: number | null,
+    taskId: number | null,
+    activityId: string
+  ) => void;
   onSubmit: () => void;
   submitting: boolean;
+}
+
+interface GroupedItem {
+  type: "single" | "series";
+  seriesId?: string;
+  appointments: Appointment[];
+  firstStart: Date;
 }
 
 export default function AppointmentList({
@@ -63,12 +81,67 @@ export default function AppointmentList({
   tasks,
   activities,
   onToggle,
+  onToggleSeries,
   onProjectChange,
   onTaskChange,
   onActivityChange,
+  onApplyToSeries,
   onSubmit,
   submitting,
 }: AppointmentListProps) {
+  // Gruppiere Termine nach Serien
+  const groupedItems = useMemo(() => {
+    const seriesMap = new Map<string, Appointment[]>();
+    const singleAppointments: Appointment[] = [];
+
+    appointments.forEach((apt) => {
+      if (apt.seriesMasterId && apt.type === "occurrence") {
+        const existing = seriesMap.get(apt.seriesMasterId) || [];
+        existing.push(apt);
+        seriesMap.set(apt.seriesMasterId, existing);
+      } else {
+        singleAppointments.push(apt);
+      }
+    });
+
+    const items: GroupedItem[] = [];
+
+    // Serien mit >= 2 Terminen als Gruppe
+    seriesMap.forEach((seriesAppointments, seriesId) => {
+      if (seriesAppointments.length >= 2) {
+        // Sortiere nach Startzeit
+        seriesAppointments.sort(
+          (a, b) =>
+            new Date(a.start.dateTime).getTime() -
+            new Date(b.start.dateTime).getTime()
+        );
+        items.push({
+          type: "series",
+          seriesId,
+          appointments: seriesAppointments,
+          firstStart: new Date(seriesAppointments[0].start.dateTime),
+        });
+      } else {
+        // Nur ein Termin -> als Einzeltermin behandeln
+        singleAppointments.push(...seriesAppointments);
+      }
+    });
+
+    // Einzeltermine hinzufügen
+    singleAppointments.forEach((apt) => {
+      items.push({
+        type: "single",
+        appointments: [apt],
+        firstStart: new Date(apt.start.dateTime),
+      });
+    });
+
+    // Nach Startzeit sortieren
+    items.sort((a, b) => a.firstStart.getTime() - b.firstStart.getTime());
+
+    return items;
+  }, [appointments]);
+
   const selectedAppointments = appointments.filter((a) => a.selected);
 
   const totalMinutes = selectedAppointments.reduce((acc, apt) => {
@@ -85,27 +158,57 @@ export default function AppointmentList({
     (a) => a.projectId && a.taskId && a.activityId
   );
 
+  // Zähle Serien
+  const seriesCount = groupedItems.filter((g) => g.type === "series").length;
+
   return (
     <div className="bg-white rounded-lg shadow">
+      {seriesCount > 0 && (
+        <div className="px-4 py-2 bg-blue-50 border-b border-blue-100 text-sm text-blue-700">
+          {seriesCount} wiederkehrende Terminserie{seriesCount > 1 ? "n" : ""} erkannt
+        </div>
+      )}
+
       <div className="divide-y divide-gray-100">
-        {appointments.length === 0 ? (
+        {groupedItems.length === 0 ? (
           <div className="p-8 text-center text-gray-500">
             Keine Termine gefunden. Wähle einen Zeitraum und klicke auf "Termine laden".
           </div>
         ) : (
-          appointments.map((appointment) => (
-            <AppointmentRow
-              key={appointment.id}
-              appointment={appointment}
-              projects={projects}
-              tasks={appointment.projectId ? tasks[appointment.projectId] || [] : []}
-              activities={activities}
-              onToggle={onToggle}
-              onProjectChange={onProjectChange}
-              onTaskChange={onTaskChange}
-              onActivityChange={onActivityChange}
-            />
-          ))
+          groupedItems.map((item) =>
+            item.type === "series" ? (
+              <SeriesGroup
+                key={item.seriesId}
+                seriesId={item.seriesId!}
+                appointments={item.appointments}
+                projects={projects}
+                tasks={tasks}
+                activities={activities}
+                onToggle={onToggle}
+                onToggleSeries={onToggleSeries}
+                onProjectChange={onProjectChange}
+                onTaskChange={onTaskChange}
+                onActivityChange={onActivityChange}
+                onApplyToSeries={onApplyToSeries}
+              />
+            ) : (
+              <AppointmentRow
+                key={item.appointments[0].id}
+                appointment={item.appointments[0]}
+                projects={projects}
+                tasks={
+                  item.appointments[0].projectId
+                    ? tasks[item.appointments[0].projectId] || []
+                    : []
+                }
+                activities={activities}
+                onToggle={onToggle}
+                onProjectChange={onProjectChange}
+                onTaskChange={onTaskChange}
+                onActivityChange={onActivityChange}
+              />
+            )
+          )
         )}
       </div>
 

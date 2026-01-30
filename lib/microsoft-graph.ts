@@ -30,6 +30,9 @@ export interface OutlookEvent {
     };
   };
   isOrganizer?: boolean;
+  // Für wiederkehrende Termine
+  type?: "singleInstance" | "occurrence" | "exception" | "seriesMaster";
+  seriesMasterId?: string;
 }
 
 export interface CalendarResponse {
@@ -46,7 +49,7 @@ export async function getCalendarEvents(
   url.searchParams.set("endDateTime", `${endDate}T23:59:59`);
   url.searchParams.set("$orderby", "start/dateTime");
   url.searchParams.set("$top", "100");
-  url.searchParams.set("$select", "id,subject,start,end,bodyPreview,attendees,organizer,isOrganizer");
+  url.searchParams.set("$select", "id,subject,start,end,bodyPreview,attendees,organizer,isOrganizer,type,seriesMasterId");
 
   const response = await fetch(url.toString(), {
     headers: {

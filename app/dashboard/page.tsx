@@ -2,7 +2,7 @@
 
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { format, startOfWeek, endOfWeek } from "date-fns";
 import { LogOut } from "lucide-react";
 import DateRangePicker from "@/components/DateRangePicker";
@@ -48,6 +48,8 @@ interface Appointment {
   activityId: string;
   attendees?: Attendee[];
   isOrganizer?: boolean;
+  seriesMasterId?: string;
+  type?: string;
 }
 
 export default function Dashboard() {
@@ -167,6 +169,15 @@ export default function Dashboard() {
     );
   };
 
+  // Toggle alle Termine einer Serie
+  const toggleSeries = (seriesId: string, selected: boolean) => {
+    setAppointments((prev) =>
+      prev.map((apt) =>
+        apt.seriesMasterId === seriesId ? { ...apt, selected } : apt
+      )
+    );
+  };
+
   const changeProject = async (id: string, projectId: number | null) => {
     setAppointments((prev) =>
       prev.map((apt) =>
@@ -188,6 +199,26 @@ export default function Dashboard() {
   const changeActivity = (id: string, activityId: string) => {
     setAppointments((prev) =>
       prev.map((apt) => (apt.id === id ? { ...apt, activityId } : apt))
+    );
+  };
+
+  // Änderungen auf alle Termine einer Serie anwenden
+  const applyToSeries = async (
+    seriesId: string,
+    projectId: number | null,
+    taskId: number | null,
+    activityId: string
+  ) => {
+    if (projectId) {
+      await loadTasksForProject(projectId);
+    }
+
+    setAppointments((prev) =>
+      prev.map((apt) =>
+        apt.seriesMasterId === seriesId
+          ? { ...apt, projectId, taskId, activityId }
+          : apt
+      )
     );
   };
 
@@ -300,9 +331,11 @@ export default function Dashboard() {
           tasks={tasks}
           activities={activities}
           onToggle={toggleAppointment}
+          onToggleSeries={toggleSeries}
           onProjectChange={changeProject}
           onTaskChange={changeTask}
           onActivityChange={changeActivity}
+          onApplyToSeries={applyToSeries}
           onSubmit={submitToZep}
           submitting={submitting}
         />
