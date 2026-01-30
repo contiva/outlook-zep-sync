@@ -1,8 +1,10 @@
 "use client";
 
+import { useMemo } from "react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { Users } from "lucide-react";
+import SearchableSelect, { SelectOption } from "./SearchableSelect";
 
 interface Project {
   id: number;
@@ -111,6 +113,39 @@ export default function AppointmentRow({
   const attendees = appointment.attendees || [];
   const attendeeCount = attendees.length;
 
+  // Konvertiere Projekte zu SelectOptions
+  const projectOptions: SelectOption[] = useMemo(
+    () =>
+      projects.map((p) => ({
+        value: p.id,
+        label: p.name,
+        description: p.description || null,
+      })),
+    [projects]
+  );
+
+  // Konvertiere Tasks zu SelectOptions
+  const taskOptions: SelectOption[] = useMemo(
+    () =>
+      tasks.map((t) => ({
+        value: t.id,
+        label: t.name,
+        description: t.description,
+      })),
+    [tasks]
+  );
+
+  // Konvertiere Activities zu SelectOptions
+  const activityOptions: SelectOption[] = useMemo(
+    () =>
+      activities.map((a) => ({
+        value: a.name,
+        label: a.name,
+        description: a.description,
+      })),
+    [activities]
+  );
+
   return (
     <div
       className={`p-4 border-b border-gray-100 ${
@@ -169,70 +204,55 @@ export default function AppointmentRow({
               {/* Projekt-Dropdown */}
               <div className="flex flex-col">
                 <label className="text-xs text-gray-500 mb-1">Projekt</label>
-                <select
-                  value={appointment.projectId ?? ""}
-                  onChange={(e) =>
+                <SearchableSelect
+                  options={projectOptions}
+                  value={appointment.projectId}
+                  onChange={(val) =>
                     onProjectChange(
                       appointment.id,
-                      e.target.value ? parseInt(e.target.value) : null
+                      val !== null ? Number(val) : null
                     )
                   }
-                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 min-w-[280px]"
-                >
-                  <option value="">-- Projekt wählen --</option>
-                  {projects.map((project) => (
-                    <option key={project.id} value={project.id}>
-                      {project.name}{project.description ? ` - ${project.description}` : ""}
-                    </option>
-                  ))}
-                </select>
+                  placeholder="-- Projekt wählen --"
+                  className="w-72"
+                />
               </div>
 
-              {/* Task-Dropdown (nur wenn Projekt gewählt) */}
+              {/* Task-Dropdown */}
               <div className="flex flex-col">
                 <label className="text-xs text-gray-500 mb-1">Task</label>
-                <select
-                  value={appointment.taskId ?? ""}
-                  onChange={(e) =>
+                <SearchableSelect
+                  options={taskOptions}
+                  value={appointment.taskId}
+                  onChange={(val) =>
                     onTaskChange(
                       appointment.id,
-                      e.target.value ? parseInt(e.target.value) : null
+                      val !== null ? Number(val) : null
                     )
                   }
+                  placeholder="-- Task wählen --"
                   disabled={!appointment.projectId || tasks.length === 0}
-                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 min-w-[280px] disabled:bg-gray-100 disabled:cursor-not-allowed"
-                >
-                  <option value="">
-                    {!appointment.projectId
-                      ? "-- Erst Projekt wählen --"
-                      : tasks.length === 0
-                      ? "-- Keine Tasks --"
-                      : "-- Task wählen --"}
-                  </option>
-                  {tasks.map((task) => (
-                    <option key={task.id} value={task.id}>
-                      {task.name}{task.description ? ` - ${task.description}` : ""}
-                    </option>
-                  ))}
-                </select>
+                  disabledMessage={
+                    !appointment.projectId
+                      ? "Erst Projekt wählen"
+                      : "Keine Tasks vorhanden"
+                  }
+                  className="w-72"
+                />
               </div>
 
               {/* Activity-Dropdown */}
               <div className="flex flex-col">
                 <label className="text-xs text-gray-500 mb-1">Tätigkeit</label>
-                <select
+                <SearchableSelect
+                  options={activityOptions}
                   value={appointment.activityId}
-                  onChange={(e) =>
-                    onActivityChange(appointment.id, e.target.value)
+                  onChange={(val) =>
+                    onActivityChange(appointment.id, String(val ?? "be"))
                   }
-                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 min-w-[150px]"
-                >
-                  {activities.map((activity) => (
-                    <option key={activity.name} value={activity.name}>
-                      {activity.name} - {activity.description}
-                    </option>
-                  ))}
-                </select>
+                  placeholder="-- Tätigkeit wählen --"
+                  className="w-56"
+                />
               </div>
             </div>
           )}
