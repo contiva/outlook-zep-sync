@@ -46,6 +46,7 @@ interface Appointment {
   projectId: number | null;
   taskId: number | null;
   activityId: string;
+  remark: string;
   attendees?: Attendee[];
   isOrganizer?: boolean;
   seriesMasterId?: string;
@@ -120,11 +121,11 @@ export default function Dashboard() {
     loadProjects();
   }, [loadProjects]);
 
-  const loadTasksForProject = useCallback(async (projectId: number) => {
-    if (tasks[projectId]) return;
+  const loadTasksForProject = useCallback(async (projectId: number, forceReload = false) => {
+    if (tasks[projectId] && !forceReload) return;
 
     try {
-      const res = await fetch(`/api/zep/tasks?projectId=${projectId}`);
+      const res = await fetch(`/api/zep/tasks?projectId=${projectId}&employeeId=${employeeId}`);
       const data = await res.json();
       if (Array.isArray(data)) {
         setTasks((prev) => ({ ...prev, [projectId]: data }));
@@ -132,7 +133,7 @@ export default function Dashboard() {
     } catch (error) {
       console.error("Failed to load tasks:", error);
     }
-  }, [tasks]);
+  }, [tasks, employeeId]);
 
   const loadAppointments = async () => {
     setLoading(true);
@@ -151,6 +152,7 @@ export default function Dashboard() {
             projectId: null,
             taskId: null,
             activityId: "be", // Default: Beratung
+            remark: event.subject || "", // Bemerkung mit Meeting-Titel vorbelegen
           }))
         );
       }
@@ -169,6 +171,13 @@ export default function Dashboard() {
     );
   };
 
+  // Toggle alle Termine auf einmal
+  const toggleAllAppointments = (selected: boolean) => {
+    setAppointments((prev) =>
+      prev.map((apt) => ({ ...apt, selected }))
+    );
+  };
+
   // Toggle alle Termine einer Serie
   const toggleSeries = (seriesId: string, selected: boolean) => {
     setAppointments((prev) =>
@@ -179,9 +188,21 @@ export default function Dashboard() {
   };
 
   const changeProject = async (id: string, projectId: number | null) => {
+    // Bestimme die Tätigkeit basierend auf dem Projektnamen
+    let activityId = "be"; // Standard: Beratung
+    if (projectId) {
+      const project = projects.find((p) => p.id === projectId);
+      if (project) {
+        const nameAndDesc = `${project.name} ${project.description || ""}`.toLowerCase();
+        if (nameAndDesc.includes("intern")) {
+          activityId = "vw"; // Verwaltung für interne Projekte
+        }
+      }
+    }
+
     setAppointments((prev) =>
       prev.map((apt) =>
-        apt.id === id ? { ...apt, projectId, taskId: null } : apt
+        apt.id === id ? { ...apt, projectId, taskId: null, activityId } : apt
       )
     );
 
@@ -199,6 +220,12 @@ export default function Dashboard() {
   const changeActivity = (id: string, activityId: string) => {
     setAppointments((prev) =>
       prev.map((apt) => (apt.id === id ? { ...apt, activityId } : apt))
+    );
+  };
+
+  const changeRemark = (id: string, remark: string) => {
+    setAppointments((prev) =>
+      prev.map((apt) => (apt.id === id ? { ...apt, remark } : apt))
     );
   };
 
@@ -228,12 +255,24 @@ export default function Dashboard() {
       const startDt = new Date(apt.start.dateTime);
       const endDt = new Date(apt.end.dateTime);
 
+      // Format date as YYYY-MM-DD using local time (not UTC)
+      const year = startDt.getFullYear();
+      const month = String(startDt.getMonth() + 1).padStart(2, "0");
+      const day = String(startDt.getDate()).padStart(2, "0");
+      const dateStr = `${year}-${month}-${day}`;
+
+      // Format times as HH:mm:ss using local time
+      const fromHours = String(startDt.getHours()).padStart(2, "0");
+      const fromMinutes = String(startDt.getMinutes()).padStart(2, "0");
+      const toHours = String(endDt.getHours()).padStart(2, "0");
+      const toMinutes = String(endDt.getMinutes()).padStart(2, "0");
+
       return {
-        date: startDt.toISOString().replace(/\.\d{3}Z$/, ".000000Z"),
-        from: startDt.toTimeString().slice(0, 8),
-        to: endDt.toTimeString().slice(0, 8),
+        date: dateStr,
+        from: `${fromHours}:${fromMinutes}:00`,
+        to: `${toHours}:${toMinutes}:00`,
         employee_id: employeeId,
-        note: apt.subject,
+        note: apt.remark || apt.subject, // Bemerkung, Fallback auf Subject
         billable: true,
         activity_id: apt.activityId,
         project_id: apt.projectId!,
@@ -284,8 +323,12 @@ export default function Dashboard() {
                 type="text"
                 value={employeeId}
                 onChange={(e) => {
-                  setEmployeeId(e.target.value);
-                  localStorage.setItem("zepEmployeeId", e.target.value);
+                  const newEmployeeId = e.target.value;
+                  setEmployeeId(newEmployeeId);
+                  localStorage.setItem("zepEmployeeId", newEmployeeId);
+                  // Tasks zurücksetzen, damit sie mit dem neuen Mitarbeiter neu geladen werden
+                  setTasks({});
+                  // Projekte werden automatisch neu geladen durch den useEffect mit loadProjects
                 }}
                 className="px-2 py-1 border rounded text-sm w-24"
                 placeholder="z.B. rfels"
@@ -331,10 +374,12 @@ export default function Dashboard() {
           tasks={tasks}
           activities={activities}
           onToggle={toggleAppointment}
+          onToggleAll={toggleAllAppointments}
           onToggleSeries={toggleSeries}
           onProjectChange={changeProject}
           onTaskChange={changeTask}
           onActivityChange={changeActivity}
+          onRemarkChange={changeRemark}
           onApplyToSeries={applyToSeries}
           onSubmit={submitToZep}
           submitting={submitting}

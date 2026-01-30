@@ -44,6 +44,7 @@ interface Appointment {
   projectId: number | null;
   taskId: number | null;
   activityId: string;
+  remark: string;
   attendees?: Attendee[];
   isOrganizer?: boolean;
 }
@@ -57,6 +58,7 @@ interface AppointmentRowProps {
   onProjectChange: (id: string, projectId: number | null) => void;
   onTaskChange: (id: string, taskId: number | null) => void;
   onActivityChange: (id: string, activityId: string) => void;
+  onRemarkChange: (id: string, remark: string) => void;
 }
 
 function getStatusColor(response: string): string {
@@ -98,6 +100,7 @@ export default function AppointmentRow({
   onProjectChange,
   onTaskChange,
   onActivityChange,
+  onRemarkChange,
 }: AppointmentRowProps) {
   const startDate = new Date(appointment.start.dateTime);
   const endDate = new Date(appointment.end.dateTime);
@@ -200,61 +203,86 @@ export default function AppointmentRow({
           )}
 
           {appointment.selected && (
-            <div className="mt-3 flex flex-wrap gap-3">
-              {/* Projekt-Dropdown */}
-              <div className="flex flex-col">
-                <label className="text-xs text-gray-500 mb-1">Projekt</label>
-                <SearchableSelect
-                  options={projectOptions}
-                  value={appointment.projectId}
-                  onChange={(val) =>
-                    onProjectChange(
-                      appointment.id,
-                      val !== null ? Number(val) : null
-                    )
-                  }
-                  placeholder="-- Projekt wählen --"
-                  className="w-96"
-                />
+            <>
+              <div className="mt-3 flex flex-wrap gap-3">
+                {/* Projekt-Dropdown */}
+                <div className="flex flex-col">
+                  <label className="text-xs text-gray-500 mb-1">Projekt</label>
+                  <SearchableSelect
+                    options={projectOptions}
+                    value={appointment.projectId}
+                    onChange={(val) =>
+                      onProjectChange(
+                        appointment.id,
+                        val !== null ? Number(val) : null
+                      )
+                    }
+                    placeholder="-- Projekt wählen --"
+                    className="w-96"
+                  />
+                </div>
+
+                {/* Task-Dropdown */}
+                <div className="flex flex-col">
+                  <label className="text-xs text-gray-500 mb-1">Task</label>
+                  <SearchableSelect
+                    options={taskOptions}
+                    value={appointment.taskId}
+                    onChange={(val) =>
+                      onTaskChange(
+                        appointment.id,
+                        val !== null ? Number(val) : null
+                      )
+                    }
+                    placeholder="-- Task wählen --"
+                    disabled={!appointment.projectId || tasks.length === 0}
+                    disabledMessage={
+                      !appointment.projectId
+                        ? "Erst Projekt wählen"
+                        : "Keine Tasks vorhanden"
+                    }
+                    className="w-96"
+                  />
+                </div>
+
+                {/* Activity-Dropdown */}
+                <div className="flex flex-col">
+                  <label className="text-xs text-gray-500 mb-1">Tätigkeit</label>
+                  <SearchableSelect
+                    options={activityOptions}
+                    value={appointment.activityId}
+                    onChange={(val) =>
+                      onActivityChange(appointment.id, String(val ?? "be"))
+                    }
+                    placeholder="-- Tätigkeit wählen --"
+                    className="w-56"
+                  />
+                </div>
               </div>
 
-              {/* Task-Dropdown */}
-              <div className="flex flex-col">
-                <label className="text-xs text-gray-500 mb-1">Task</label>
-                <SearchableSelect
-                  options={taskOptions}
-                  value={appointment.taskId}
-                  onChange={(val) =>
-                    onTaskChange(
-                      appointment.id,
-                      val !== null ? Number(val) : null
-                    )
-                  }
-                  placeholder="-- Task wählen --"
-                  disabled={!appointment.projectId || tasks.length === 0}
-                  disabledMessage={
-                    !appointment.projectId
-                      ? "Erst Projekt wählen"
-                      : "Keine Tasks vorhanden"
-                  }
-                  className="w-96"
+              {/* Bemerkung (Pflichtfeld) */}
+              <div className="mt-3">
+                <label className="text-xs text-gray-500 mb-1 block">
+                  Bemerkung <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={appointment.remark || ""}
+                  onChange={(e) => onRemarkChange(appointment.id, e.target.value)}
+                  className={`w-full px-3 py-1.5 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                    (appointment.remark || "").trim().length === 0
+                      ? "border-red-300 bg-red-50"
+                      : "border-gray-300"
+                  }`}
+                  placeholder="Bemerkung für ZEP eingeben..."
                 />
+                {(appointment.remark || "").trim().length === 0 && (
+                  <p className="text-xs text-red-500 mt-1">
+                    Bemerkung ist erforderlich für die Übertragung an ZEP
+                  </p>
+                )}
               </div>
-
-              {/* Activity-Dropdown */}
-              <div className="flex flex-col">
-                <label className="text-xs text-gray-500 mb-1">Tätigkeit</label>
-                <SearchableSelect
-                  options={activityOptions}
-                  value={appointment.activityId}
-                  onChange={(val) =>
-                    onActivityChange(appointment.id, String(val ?? "be"))
-                  }
-                  placeholder="-- Tätigkeit wählen --"
-                  className="w-56"
-                />
-              </div>
-            </div>
+            </>
           )}
         </div>
       </div>

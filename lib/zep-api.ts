@@ -134,19 +134,81 @@ export async function getZepProjects(token: string): Promise<ZepProject[]> {
   return projects.filter((p) => p.status?.bookable === true);
 }
 
-// Get tasks for a specific project
+// Interface for employee-task assignments
+export interface ZepEmployeeTask {
+  id: number;
+  employee_id: string;
+  project_task_id: number;
+  from: string | null;
+  to: string | null;
+}
+
+// Get tasks for a specific project (filtered by employee assignment and validity)
 export async function getZepProjectTasks(
   token: string,
-  projectId: number
+  projectId: number,
+  employeeId?: string
 ): Promise<ZepTask[]> {
   const tasks = await fetchAllPages<ZepTask>(
     `/api/v1/projects/${projectId}/tasks`,
     token
   );
-  // Filter to only show active tasks (status "in Arbeit" or null)
-  return tasks.filter(
-    (t) => t.status === "in Arbeit" || t.status === null
-  );
+  
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  // Get employee task assignments if employeeId is provided
+  let employeeTaskIds: Set<number> | null = null;
+  if (employeeId) {
+    try {
+      const employeeTasks = await fetchAllPages<ZepEmployeeTask>(
+        `/api/v1/employees/${employeeId}/projecttasks`,
+        token
+      );
+      
+      // Filter assignments that are currently valid
+      const validAssignments = employeeTasks.filter((et) => {
+        // Check from date
+        if (et.from) {
+          const fromDate = new Date(et.from);
+          fromDate.setHours(0, 0, 0, 0);
+          if (fromDate > today) return false;
+        }
+        // Check to date
+        if (et.to) {
+          const toDate = new Date(et.to);
+          toDate.setHours(0, 0, 0, 0);
+          if (toDate < today) return false;
+        }
+        return true;
+      });
+      
+      employeeTaskIds = new Set(validAssignments.map((et) => et.project_task_id));
+      console.log(`Employee ${employeeId} has ${employeeTaskIds.size} valid task assignments for project ${projectId}`);
+    } catch (error) {
+      console.log(`Could not fetch employee task assignments, showing all tasks: ${error}`);
+    }
+  }
+  
+  // Filter tasks
+  return tasks.filter((t) => {
+    // Check status - only "in Arbeit" (remove null status)
+    if (t.status !== "in Arbeit") return false;
+    
+    // Check end date
+    if (t.end_date) {
+      const taskEndDate = new Date(t.end_date);
+      taskEndDate.setHours(0, 0, 0, 0);
+      if (taskEndDate < today) return false;
+    }
+    
+    // Check employee assignment if available
+    if (employeeTaskIds !== null && !employeeTaskIds.has(t.id)) {
+      return false;
+    }
+    
+    return true;
+  });
 }
 
 // Get all activities
@@ -184,33 +246,63 @@ export async function getZepProjectsForEmployee(
   // First get all employee project assignments
   const assignments = await getZepEmployeeProjects(token, employeeId);
   
-  // Filter assignments by date range if provided
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  // Use provided date range or default to today
+  const rangeStart = startDate ? new Date(startDate) : today;
+  const rangeEnd = endDate ? new Date(endDate) : today;
+  rangeStart.setHours(0, 0, 0, 0);
+  rangeEnd.setHours(23, 59, 59, 999);
+  
+  // Filter assignments: only include those where the employee is currently assigned
+  // An assignment is valid if:
+  // - assignment.from is null OR assignment.from <= rangeEnd
+  // - assignment.to is null OR assignment.to >= rangeStart
   const validAssignments = assignments.filter((a) => {
-    // If no date filter, include all
-    if (!startDate && !endDate) return true;
-    
     const assignmentFrom = a.from ? new Date(a.from) : null;
     const assignmentTo = a.to ? new Date(a.to) : null;
-    const rangeStart = startDate ? new Date(startDate) : null;
-    const rangeEnd = endDate ? new Date(endDate) : null;
     
-    // If assignment has no date restrictions, it's always valid
-    if (!assignmentFrom && !assignmentTo) return true;
+    if (assignmentFrom) {
+      assignmentFrom.setHours(0, 0, 0, 0);
+    }
+    if (assignmentTo) {
+      assignmentTo.setHours(23, 59, 59, 999);
+    }
     
-    // Check if date ranges overlap
-    // Assignment is valid if: assignmentFrom <= rangeEnd AND assignmentTo >= rangeStart
-    const fromOk = !assignmentFrom || !rangeEnd || assignmentFrom <= rangeEnd;
-    const toOk = !assignmentTo || !rangeStart || assignmentTo >= rangeStart;
+    // Check if assignment period overlaps with the requested date range
+    const fromOk = !assignmentFrom || assignmentFrom <= rangeEnd;
+    const toOk = !assignmentTo || assignmentTo >= rangeStart;
     
     return fromOk && toOk;
   });
   
-  // Get unique project IDs
+  // Get unique project IDs from valid assignments
   const projectIds = [...new Set(validAssignments.map((a) => a.project_id))];
+  
+  if (projectIds.length === 0) {
+    return [];
+  }
   
   // Get all projects and filter to assigned ones
   const allProjects = await getZepProjects(token);
-  return allProjects.filter((p) => projectIds.includes(p.id));
+  
+  // Filter to only include:
+  // 1. Projects assigned to the employee (with valid assignment period)
+  // 2. Projects that are still valid (end_date is null OR end_date >= today)
+  return allProjects.filter((p) => {
+    // Must be assigned to employee
+    if (!projectIds.includes(p.id)) return false;
+    
+    // Check if project is still valid (not expired)
+    if (p.end_date) {
+      const projectEndDate = new Date(p.end_date);
+      projectEndDate.setHours(0, 0, 0, 0);
+      if (projectEndDate < today) return false;
+    }
+    
+    return true;
+  });
 }
 
 // Create a new attendance (time entry)

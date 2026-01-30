@@ -42,6 +42,7 @@ interface Appointment {
   projectId: number | null;
   taskId: number | null;
   activityId: string;
+  remark: string;
   attendees?: Attendee[];
   isOrganizer?: boolean;
   seriesMasterId?: string;
@@ -54,10 +55,12 @@ interface AppointmentListProps {
   tasks: Record<number, Task[]>;
   activities: Activity[];
   onToggle: (id: string) => void;
+  onToggleAll: (selected: boolean) => void;
   onToggleSeries: (seriesId: string, selected: boolean) => void;
   onProjectChange: (id: string, projectId: number | null) => void;
   onTaskChange: (id: string, taskId: number | null) => void;
   onActivityChange: (id: string, activityId: string) => void;
+  onRemarkChange: (id: string, remark: string) => void;
   onApplyToSeries: (
     seriesId: string,
     projectId: number | null,
@@ -81,10 +84,12 @@ export default function AppointmentList({
   tasks,
   activities,
   onToggle,
+  onToggleAll,
   onToggleSeries,
   onProjectChange,
   onTaskChange,
   onActivityChange,
+  onRemarkChange,
   onApplyToSeries,
   onSubmit,
   submitting,
@@ -153,16 +158,59 @@ export default function AppointmentList({
   const hours = Math.floor(totalMinutes / 60);
   const minutes = Math.round(totalMinutes % 60);
 
-  // Alle ausgewählten Termine müssen Projekt, Task und Activity haben
+  // Alle ausgewählten Termine müssen Projekt, Task, Activity und Bemerkung haben
   const allComplete = selectedAppointments.every(
-    (a) => a.projectId && a.taskId && a.activityId
+    (a) => a.projectId && a.taskId && a.activityId && (a.remark || "").trim().length > 0
   );
 
   // Zähle Serien
   const seriesCount = groupedItems.filter((g) => g.type === "series").length;
 
+  // Prüfe ob alle/einige/keine ausgewählt sind
+  const allSelected = appointments.length > 0 && appointments.every((a) => a.selected);
+  const someSelected = appointments.some((a) => a.selected) && !allSelected;
+
   return (
     <div className="bg-white rounded-lg shadow">
+      {/* Sticky Header mit Alle auswählen und Buchen-Button */}
+      {appointments.length > 0 && (
+        <div className="sticky top-0 z-10 px-4 py-3 border-b border-gray-200 bg-gray-50 flex items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              checked={allSelected}
+              ref={(el) => {
+                if (el) el.indeterminate = someSelected;
+              }}
+              onChange={() => onToggleAll(!allSelected)}
+              className="h-5 w-5 text-blue-600 rounded"
+            />
+            <span className="text-sm font-medium text-gray-700">
+              {allSelected ? "Alle abwählen" : "Alle auswählen"}
+            </span>
+            <span className="text-sm text-gray-500">
+              ({selectedAppointments.length} von {appointments.length} ausgewählt, {hours}h {minutes}min)
+            </span>
+            {selectedAppointments.length > 0 && !allComplete && (
+              <span className="text-sm text-amber-600">
+                ⚠ Nicht alle Termine vollständig
+              </span>
+            )}
+          </div>
+          <button
+            onClick={onSubmit}
+            disabled={
+              submitting ||
+              selectedAppointments.length === 0 ||
+              !allComplete
+            }
+            className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition"
+          >
+            {submitting ? "Wird übertragen..." : "An ZEP übertragen"}
+          </button>
+        </div>
+      )}
+
       {seriesCount > 0 && (
         <div className="px-4 py-2 bg-blue-50 border-b border-blue-100 text-sm text-blue-700">
           {seriesCount} wiederkehrende Terminserie{seriesCount > 1 ? "n" : ""} erkannt
@@ -189,6 +237,7 @@ export default function AppointmentList({
                 onProjectChange={onProjectChange}
                 onTaskChange={onTaskChange}
                 onActivityChange={onActivityChange}
+                onRemarkChange={onRemarkChange}
                 onApplyToSeries={onApplyToSeries}
               />
             ) : (
@@ -206,38 +255,13 @@ export default function AppointmentList({
                 onProjectChange={onProjectChange}
                 onTaskChange={onTaskChange}
                 onActivityChange={onActivityChange}
+                onRemarkChange={onRemarkChange}
               />
             )
           )
         )}
       </div>
 
-      {appointments.length > 0 && (
-        <div className="p-4 border-t border-gray-200 bg-gray-50 rounded-b-lg">
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-600">
-              Ausgewählt: {selectedAppointments.length} Termine ({hours}h{" "}
-              {minutes}min)
-            </div>
-            <button
-              onClick={onSubmit}
-              disabled={
-                submitting ||
-                selectedAppointments.length === 0 ||
-                !allComplete
-              }
-              className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition"
-            >
-              {submitting ? "Wird übertragen..." : "An ZEP übertragen"}
-            </button>
-          </div>
-          {selectedAppointments.length > 0 && !allComplete && (
-            <p className="text-sm text-amber-600 mt-2">
-              Bitte allen ausgewählten Terminen Projekt, Task und Tätigkeit zuweisen.
-            </p>
-          )}
-        </div>
-      )}
     </div>
   );
 }

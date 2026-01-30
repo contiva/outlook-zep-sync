@@ -43,6 +43,7 @@ interface Appointment {
   projectId: number | null;
   taskId: number | null;
   activityId: string;
+  remark: string;
   attendees?: Attendee[];
   isOrganizer?: boolean;
   seriesMasterId?: string;
@@ -60,6 +61,7 @@ interface SeriesGroupProps {
   onProjectChange: (id: string, projectId: number | null) => void;
   onTaskChange: (id: string, taskId: number | null) => void;
   onActivityChange: (id: string, activityId: string) => void;
+  onRemarkChange: (id: string, remark: string) => void;
   onApplyToSeries: (
     seriesId: string,
     projectId: number | null,
@@ -79,6 +81,7 @@ export default function SeriesGroup({
   onProjectChange,
   onTaskChange,
   onActivityChange,
+  onRemarkChange,
   onApplyToSeries,
 }: SeriesGroupProps) {
   const [expanded, setExpanded] = useState(false);
@@ -147,7 +150,18 @@ export default function SeriesGroup({
 
   const handleSeriesProjectChange = (projectId: number | null) => {
     if (linkedEdit) {
-      onApplyToSeries(seriesId, projectId, null, seriesActivityId);
+      // Bestimme die Tätigkeit basierend auf dem Projektnamen
+      let activityId = "be"; // Standard: Beratung
+      if (projectId) {
+        const project = projects.find((p) => p.id === projectId);
+        if (project) {
+          const nameAndDesc = `${project.name} ${project.description || ""}`.toLowerCase();
+          if (nameAndDesc.includes("intern")) {
+            activityId = "vw"; // Verwaltung für interne Projekte
+          }
+        }
+      }
+      onApplyToSeries(seriesId, projectId, null, activityId);
     }
   };
 
@@ -299,6 +313,7 @@ export default function SeriesGroup({
               onProjectChange={onProjectChange}
               onTaskChange={onTaskChange}
               onActivityChange={onActivityChange}
+              onRemarkChange={onRemarkChange}
             />
           ))}
         </div>
