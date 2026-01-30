@@ -70,7 +70,20 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
-  const [employeeId, setEmployeeId] = useState<string>("rfels");
+  // Derive employee ID from Azure email: robert.fels@contiva.com -> rfels
+  const employeeId = useMemo(() => {
+    const email = session?.user?.email;
+    if (!email) return "";
+    
+    const localPart = email.split("@")[0]; // robert.fels
+    const parts = localPart.split("."); // ["robert", "fels"]
+    
+    if (parts.length >= 2) {
+      // First letter of first name + last name
+      return parts[0].charAt(0) + parts[parts.length - 1]; // rfels
+    }
+    return localPart; // fallback: use full local part
+  }, [session?.user?.email]);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -79,12 +92,6 @@ export default function Dashboard() {
   }, [status, router]);
 
   useEffect(() => {
-    // Load stored employee ID
-    const storedEmployeeId = localStorage.getItem("zepEmployeeId");
-    if (storedEmployeeId) {
-      setEmployeeId(storedEmployeeId);
-    }
-
     // Load activities (global, not per employee)
     fetch("/api/zep/activities")
       .then((res) => res.json())
@@ -278,20 +285,9 @@ export default function Dashboard() {
             Outlook → ZEP Sync
           </h1>
           <div className="flex items-center gap-4">
-            <div className="text-sm">
-              <label className="text-gray-500 mr-2">Mitarbeiter:</label>
-              <input
-                type="text"
-                value={employeeId}
-                onChange={(e) => {
-                  setEmployeeId(e.target.value);
-                  localStorage.setItem("zepEmployeeId", e.target.value);
-                }}
-                className="px-2 py-1 border rounded text-sm w-24"
-                placeholder="z.B. rfels"
-              />
-            </div>
-            <span className="text-sm text-gray-600">{session?.user?.email}</span>
+            <span className="text-sm text-gray-600">
+              {session?.user?.email} ({employeeId})
+            </span>
             <button
               onClick={() => signOut({ callbackUrl: "/" })}
               className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700"
