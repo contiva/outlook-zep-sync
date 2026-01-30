@@ -11,6 +11,7 @@ interface Project {
 interface Task {
   id: number;
   name: string;
+  description: string | null;
   project_id: number;
 }
 

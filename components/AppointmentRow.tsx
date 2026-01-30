@@ -13,6 +13,7 @@ interface Project {
 interface Task {
   id: number;
   name: string;
+  description: string | null;
   project_id: number;
 }
 
@@ -176,12 +177,12 @@ export default function AppointmentRow({
                       e.target.value ? parseInt(e.target.value) : null
                     )
                   }
-                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 min-w-[200px]"
+                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 min-w-[280px]"
                 >
                   <option value="">-- Projekt wählen --</option>
                   {projects.map((project) => (
                     <option key={project.id} value={project.id}>
-                      {project.name}
+                      {project.name}{project.description ? ` - ${project.description}` : ""}
                     </option>
                   ))}
                 </select>
@@ -199,7 +200,7 @@ export default function AppointmentRow({
                     )
                   }
                   disabled={!appointment.projectId || tasks.length === 0}
-                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 min-w-[200px] disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 min-w-[280px] disabled:bg-gray-100 disabled:cursor-not-allowed"
                 >
                   <option value="">
                     {!appointment.projectId
@@ -210,7 +211,7 @@ export default function AppointmentRow({
                   </option>
                   {tasks.map((task) => (
                     <option key={task.id} value={task.id}>
-                      {task.name}
+                      {task.name}{task.description ? ` - ${task.description}` : ""}
                     </option>
                   ))}
                 </select>
