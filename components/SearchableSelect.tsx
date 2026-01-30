@@ -129,7 +129,7 @@ export default function SearchableSelect({
                     <>
                       <div className="flex flex-col">
                         <span
-                          className={`block truncate ${
+                          className={`block ${
                             selected ? "font-semibold" : "font-normal"
                           }`}
                         >
@@ -137,7 +137,7 @@ export default function SearchableSelect({
                         </span>
                         {option.description && (
                           <span
-                            className={`block truncate text-xs ${
+                            className={`block text-xs ${
                               active ? "text-blue-200" : "text-gray-500"
                             }`}
                           >

@@ -214,7 +214,7 @@ export default function AppointmentRow({
                     )
                   }
                   placeholder="-- Projekt wählen --"
-                  className="w-72"
+                  className="w-96"
                 />
               </div>
 
@@ -237,7 +237,7 @@ export default function AppointmentRow({
                       ? "Erst Projekt wählen"
                       : "Keine Tasks vorhanden"
                   }
-                  className="w-72"
+                  className="w-96"
                 />
               </div>
 
