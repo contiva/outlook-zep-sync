@@ -9,17 +9,15 @@ export default function LoginForm() {
   const { data: session } = useSession();
   const router = useRouter();
   const [zepToken, setZepToken] = useState("");
-  const [zepUrl, setZepUrl] = useState("");
 
   const handleMicrosoftLogin = () => {
     signIn("azure-ad");
   };
 
   const handleConnect = () => {
-    if (session && zepToken && zepUrl) {
-      // ZEP-Daten im localStorage speichern
+    if (session && zepToken) {
+      // ZEP Token im localStorage speichern
       localStorage.setItem("zepToken", zepToken);
-      localStorage.setItem("zepUrl", zepUrl);
       router.push("/dashboard");
     }
   };
@@ -63,24 +61,12 @@ export default function LoginForm() {
           {/* ZEP Token */}
           <div>
             <h2 className="text-sm font-medium text-gray-700 mb-2">
-              2. ZEP Verbindung
+              2. ZEP API Token
             </h2>
             <div className="space-y-3">
               <div>
                 <label className="block text-xs text-gray-500 mb-1">
-                  ZEP URL (z.B. https://firma.zep.de)
-                </label>
-                <input
-                  type="url"
-                  value={zepUrl}
-                  onChange={(e) => setZepUrl(e.target.value)}
-                  placeholder="https://deine-firma.zep.de"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">
-                  API Token
+                  API Token (aus ZEP → Einstellungen → API)
                 </label>
                 <div className="relative">
                   <Key
@@ -96,13 +82,16 @@ export default function LoginForm() {
                   />
                 </div>
               </div>
+              <p className="text-xs text-gray-400">
+                ZEP URL ist vorkonfiguriert für Contiva.
+              </p>
             </div>
           </div>
 
           {/* Connect Button */}
           <button
             onClick={handleConnect}
-            disabled={!session || !zepToken || !zepUrl}
+            disabled={!session || !zepToken}
             className="w-full py-3 px-4 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:bg-gray-300 disabled:cursor-not-allowed"
           >
             Verbinden

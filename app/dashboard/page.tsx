@@ -2,15 +2,38 @@
 
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { format, startOfWeek, endOfWeek } from "date-fns";
 import { LogOut } from "lucide-react";
 import DateRangePicker from "@/components/DateRangePicker";
 import AppointmentList from "@/components/AppointmentList";
 
 interface Project {
-  id: string;
+  id: number;
   name: string;
+  description: string;
+}
+
+interface Task {
+  id: number;
+  name: string;
+  project_id: number;
+}
+
+interface Activity {
+  name: string;
+  description: string;
+}
+
+interface Attendee {
+  emailAddress: {
+    name: string;
+    address: string;
+  };
+  type: "required" | "optional" | "resource";
+  status: {
+    response: string;
+  };
 }
 
 interface Appointment {
@@ -19,7 +42,11 @@ interface Appointment {
   start: { dateTime: string };
   end: { dateTime: string };
   selected: boolean;
-  projectId: string;
+  projectId: number | null;
+  taskId: number | null;
+  activityId: string;
+  attendees?: Attendee[];
+  isOrganizer?: boolean;
 }
 
 export default function Dashboard() {
@@ -35,9 +62,13 @@ export default function Dashboard() {
   );
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [tasks, setTasks] = useState<Record<number, Task[]>>({});
+  const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
+  const [zepToken, setZepToken] = useState<string | null>(null);
+  const [employeeId, setEmployeeId] = useState<string>("rfels");
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -46,16 +77,21 @@ export default function Dashboard() {
   }, [status, router]);
 
   useEffect(() => {
-    // ZEP Projekte laden
-    const zepUrl = localStorage.getItem("zepUrl");
-    const zepToken = localStorage.getItem("zepToken");
+    const token = localStorage.getItem("zepToken");
+    const storedEmployeeId = localStorage.getItem("zepEmployeeId");
 
-    if (!zepUrl || !zepToken) {
+    if (!token) {
       router.push("/");
       return;
     }
 
-    fetch(`/api/zep/projects?zepUrl=${encodeURIComponent(zepUrl)}&token=${encodeURIComponent(zepToken)}`)
+    setZepToken(token);
+    if (storedEmployeeId) {
+      setEmployeeId(storedEmployeeId);
+    }
+
+    // Load projects
+    fetch(`/api/zep/projects?token=${encodeURIComponent(token)}`)
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {
@@ -63,7 +99,33 @@ export default function Dashboard() {
         }
       })
       .catch(console.error);
+
+    // Load activities
+    fetch(`/api/zep/activities?token=${encodeURIComponent(token)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setActivities(data);
+        }
+      })
+      .catch(console.error);
   }, [router]);
+
+  const loadTasksForProject = useCallback(async (projectId: number) => {
+    if (tasks[projectId] || !zepToken) return;
+
+    try {
+      const res = await fetch(
+        `/api/zep/tasks?token=${encodeURIComponent(zepToken)}&projectId=${projectId}`
+      );
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setTasks((prev) => ({ ...prev, [projectId]: data }));
+      }
+    } catch (error) {
+      console.error("Failed to load tasks:", error);
+    }
+  }, [zepToken, tasks]);
 
   const loadAppointments = async () => {
     setLoading(true);
@@ -79,7 +141,9 @@ export default function Dashboard() {
           data.map((event: any) => ({
             ...event,
             selected: true,
-            projectId: "",
+            projectId: null,
+            taskId: null,
+            activityId: "be", // Default: Beratung
           }))
         );
       }
@@ -98,48 +162,71 @@ export default function Dashboard() {
     );
   };
 
-  const changeProject = (id: string, projectId: string) => {
+  const changeProject = async (id: string, projectId: number | null) => {
     setAppointments((prev) =>
-      prev.map((apt) => (apt.id === id ? { ...apt, projectId } : apt))
+      prev.map((apt) =>
+        apt.id === id ? { ...apt, projectId, taskId: null } : apt
+      )
+    );
+
+    if (projectId) {
+      await loadTasksForProject(projectId);
+    }
+  };
+
+  const changeTask = (id: string, taskId: number | null) => {
+    setAppointments((prev) =>
+      prev.map((apt) => (apt.id === id ? { ...apt, taskId } : apt))
+    );
+  };
+
+  const changeActivity = (id: string, activityId: string) => {
+    setAppointments((prev) =>
+      prev.map((apt) => (apt.id === id ? { ...apt, activityId } : apt))
     );
   };
 
   const submitToZep = async () => {
-    const zepUrl = localStorage.getItem("zepUrl");
-    const zepToken = localStorage.getItem("zepToken");
-
-    if (!zepUrl || !zepToken) {
-      setMessage("ZEP-Verbindungsdaten fehlen");
+    if (!zepToken) {
+      setMessage("ZEP-Token fehlt");
       return;
     }
 
     const selectedAppointments = appointments.filter((a) => a.selected);
-    const entries = selectedAppointments.map((apt) => ({
-      projectId: apt.projectId,
-      date: format(new Date(apt.start.dateTime), "yyyy-MM-dd"),
-      startTime: format(new Date(apt.start.dateTime), "HH:mm"),
-      endTime: format(new Date(apt.end.dateTime), "HH:mm"),
-      description: apt.subject,
-    }));
+    const entries = selectedAppointments.map((apt) => {
+      const startDt = new Date(apt.start.dateTime);
+      const endDt = new Date(apt.end.dateTime);
+
+      return {
+        date: startDt.toISOString().replace(/\.\d{3}Z$/, ".000000Z"),
+        from: startDt.toTimeString().slice(0, 8),
+        to: endDt.toTimeString().slice(0, 8),
+        employee_id: employeeId,
+        note: apt.subject,
+        billable: true,
+        activity_id: apt.activityId,
+        project_id: apt.projectId!,
+        project_task_id: apt.taskId!,
+      };
+    });
 
     setSubmitting(true);
     try {
       const res = await fetch("/api/zep/timeentries", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ zepUrl, token: zepToken, entries }),
+        body: JSON.stringify({ token: zepToken, entries }),
       });
 
       const result = await res.json();
-      setMessage(result.message || "Erfolgreich übertragen!");
+      setMessage(result.message || "Erfolgreich uebertragen!");
 
-      // Erfolgreiche Einträge entfernen
       if (result.succeeded > 0) {
         setAppointments((prev) => prev.filter((a) => !a.selected));
       }
     } catch (error) {
       console.error("Submit error:", error);
-      setMessage("Fehler bei der Übertragung");
+      setMessage("Fehler bei der Uebertragung");
     }
     setSubmitting(false);
   };
@@ -155,11 +242,24 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-sm">
-        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
           <h1 className="text-xl font-bold text-gray-900">
             Outlook → ZEP Sync
           </h1>
           <div className="flex items-center gap-4">
+            <div className="text-sm">
+              <label className="text-gray-500 mr-2">Mitarbeiter:</label>
+              <input
+                type="text"
+                value={employeeId}
+                onChange={(e) => {
+                  setEmployeeId(e.target.value);
+                  localStorage.setItem("zepEmployeeId", e.target.value);
+                }}
+                className="px-2 py-1 border rounded text-sm w-24"
+                placeholder="z.B. rfels"
+              />
+            </div>
             <span className="text-sm text-gray-600">{session?.user?.email}</span>
             <button
               onClick={() => signOut({ callbackUrl: "/" })}
@@ -172,7 +272,7 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-4 py-8 space-y-6">
+      <main className="max-w-6xl mx-auto px-4 py-8 space-y-6">
         <DateRangePicker
           startDate={startDate}
           endDate={endDate}
@@ -197,8 +297,12 @@ export default function Dashboard() {
         <AppointmentList
           appointments={appointments}
           projects={projects}
+          tasks={tasks}
+          activities={activities}
           onToggle={toggleAppointment}
           onProjectChange={changeProject}
+          onTaskChange={changeTask}
+          onActivityChange={changeActivity}
           onSubmit={submitToZep}
           submitting={submitting}
         />

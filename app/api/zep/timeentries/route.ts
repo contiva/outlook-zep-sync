@@ -1,40 +1,59 @@
 import { NextResponse } from "next/server";
-import { createZepTimeEntry, ZepTimeEntry } from "@/lib/zep-api";
+import { createZepAttendance, ZepAttendance } from "@/lib/zep-api";
+
+interface AttendanceInput {
+  date: string;
+  from: string;
+  to: string;
+  employee_id: string;
+  note: string | null;
+  billable: boolean;
+  activity_id: string;
+  project_id: number;
+  project_task_id: number;
+}
 
 interface RequestBody {
-  zepUrl: string;
   token: string;
-  entries: ZepTimeEntry[];
+  entries: AttendanceInput[];
 }
 
 export async function POST(request: Request) {
   const body: RequestBody = await request.json();
-  const { zepUrl, token, entries } = body;
+  const { token, entries } = body;
 
-  if (!zepUrl || !token || !entries?.length) {
+  if (!token || !entries?.length) {
     return NextResponse.json(
-      { error: "zepUrl, token and entries required" },
+      { error: "token and entries required" },
       { status: 400 }
     );
   }
 
   try {
     const results = await Promise.allSettled(
-      entries.map((entry) => createZepTimeEntry(zepUrl, token, entry))
+      entries.map((entry) => createZepAttendance(token, entry))
     );
 
     const succeeded = results.filter((r) => r.status === "fulfilled").length;
-    const failed = results.filter((r) => r.status === "rejected").length;
+    const failed = results.filter((r) => r.status === "rejected");
+    
+    const errors = failed.map((r) => {
+      if (r.status === "rejected") {
+        return r.reason?.message || "Unknown error";
+      }
+      return null;
+    }).filter(Boolean);
 
     return NextResponse.json({
-      message: `${succeeded} Einträge erstellt, ${failed} fehlgeschlagen`,
+      message: `${succeeded} Eintraege erstellt, ${failed.length} fehlgeschlagen`,
       succeeded,
-      failed,
+      failed: failed.length,
+      errors,
     });
   } catch (error) {
-    console.error("ZEP timeentry creation error:", error);
+    console.error("ZEP attendance creation error:", error);
     return NextResponse.json(
-      { error: "Failed to create time entries" },
+      { error: "Failed to create attendances" },
       { status: 500 }
     );
   }

@@ -3,8 +3,31 @@
 import AppointmentRow from "./AppointmentRow";
 
 interface Project {
-  id: string;
+  id: number;
   name: string;
+  description: string;
+}
+
+interface Task {
+  id: number;
+  name: string;
+  project_id: number;
+}
+
+interface Activity {
+  name: string;
+  description: string;
+}
+
+interface Attendee {
+  emailAddress: {
+    name: string;
+    address: string;
+  };
+  type: "required" | "optional" | "resource";
+  status: {
+    response: string;
+  };
 }
 
 interface Appointment {
@@ -13,14 +36,22 @@ interface Appointment {
   start: { dateTime: string };
   end: { dateTime: string };
   selected: boolean;
-  projectId: string;
+  projectId: number | null;
+  taskId: number | null;
+  activityId: string;
+  attendees?: Attendee[];
+  isOrganizer?: boolean;
 }
 
 interface AppointmentListProps {
   appointments: Appointment[];
   projects: Project[];
+  tasks: Record<number, Task[]>;
+  activities: Activity[];
   onToggle: (id: string) => void;
-  onProjectChange: (id: string, projectId: string) => void;
+  onProjectChange: (id: string, projectId: number | null) => void;
+  onTaskChange: (id: string, taskId: number | null) => void;
+  onActivityChange: (id: string, activityId: string) => void;
   onSubmit: () => void;
   submitting: boolean;
 }
@@ -28,8 +59,12 @@ interface AppointmentListProps {
 export default function AppointmentList({
   appointments,
   projects,
+  tasks,
+  activities,
   onToggle,
   onProjectChange,
+  onTaskChange,
+  onActivityChange,
   onSubmit,
   submitting,
 }: AppointmentListProps) {
@@ -44,7 +79,10 @@ export default function AppointmentList({
   const hours = Math.floor(totalMinutes / 60);
   const minutes = Math.round(totalMinutes % 60);
 
-  const allHaveProject = selectedAppointments.every((a) => a.projectId);
+  // Alle ausgewählten Termine müssen Projekt, Task und Activity haben
+  const allComplete = selectedAppointments.every(
+    (a) => a.projectId && a.taskId && a.activityId
+  );
 
   return (
     <div className="bg-white rounded-lg shadow">
@@ -59,8 +97,12 @@ export default function AppointmentList({
               key={appointment.id}
               appointment={appointment}
               projects={projects}
+              tasks={appointment.projectId ? tasks[appointment.projectId] || [] : []}
+              activities={activities}
               onToggle={onToggle}
               onProjectChange={onProjectChange}
+              onTaskChange={onTaskChange}
+              onActivityChange={onActivityChange}
             />
           ))
         )}
@@ -78,16 +120,16 @@ export default function AppointmentList({
               disabled={
                 submitting ||
                 selectedAppointments.length === 0 ||
-                !allHaveProject
+                !allComplete
               }
               className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition"
             >
               {submitting ? "Wird übertragen..." : "An ZEP übertragen"}
             </button>
           </div>
-          {selectedAppointments.length > 0 && !allHaveProject && (
+          {selectedAppointments.length > 0 && !allComplete && (
             <p className="text-sm text-amber-600 mt-2">
-              Bitte allen ausgewählten Terminen ein Projekt zuweisen.
+              Bitte allen ausgewählten Terminen Projekt, Task und Tätigkeit zuweisen.
             </p>
           )}
         </div>

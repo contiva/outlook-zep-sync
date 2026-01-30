@@ -1,3 +1,15 @@
+export interface Attendee {
+  emailAddress: {
+    name: string;
+    address: string;
+  };
+  type: "required" | "optional" | "resource";
+  status: {
+    response: "none" | "organizer" | "tentativelyAccepted" | "accepted" | "declined" | "notResponded";
+    time: string;
+  };
+}
+
 export interface OutlookEvent {
   id: string;
   subject: string;
@@ -10,6 +22,14 @@ export interface OutlookEvent {
     timeZone: string;
   };
   bodyPreview?: string;
+  attendees?: Attendee[];
+  organizer?: {
+    emailAddress: {
+      name: string;
+      address: string;
+    };
+  };
+  isOrganizer?: boolean;
 }
 
 export interface CalendarResponse {
@@ -26,6 +46,7 @@ export async function getCalendarEvents(
   url.searchParams.set("endDateTime", `${endDate}T23:59:59`);
   url.searchParams.set("$orderby", "start/dateTime");
   url.searchParams.set("$top", "100");
+  url.searchParams.set("$select", "id,subject,start,end,bodyPreview,attendees,organizer,isOrganizer");
 
   const response = await fetch(url.toString(), {
     headers: {

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getZepProjects } from "@/lib/zep-api";
+import { getZepActivities } from "@/lib/zep-api";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -13,12 +13,12 @@ export async function GET(request: Request) {
   }
 
   try {
-    const projects = await getZepProjects(token);
-    return NextResponse.json(projects);
+    const activities = await getZepActivities(token);
+    return NextResponse.json(activities);
   } catch (error) {
-    console.error("ZEP projects fetch error:", error);
+    console.error("ZEP activities fetch error:", error);
     return NextResponse.json(
-      { error: "Failed to fetch ZEP projects" },
+      { error: "Failed to fetch ZEP activities" },
       { status: 500 }
     );
   }
