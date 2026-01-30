@@ -48,11 +48,21 @@ interface Appointment {
   type?: string;
 }
 
+interface ZepEntry {
+  id: number;
+  date: string;
+  from: string;
+  to: string;
+  note: string | null;
+  employee_id: string;
+}
+
 interface AppointmentListProps {
   appointments: Appointment[];
   projects: Project[];
   tasks: Record<number, Task[]>;
   activities: Activity[];
+  syncedEntries: ZepEntry[];
   onToggle: (id: string) => void;
   onToggleSeries: (seriesId: string, selected: boolean) => void;
   onProjectChange: (id: string, projectId: number | null) => void;
@@ -75,11 +85,35 @@ interface GroupedItem {
   firstStart: Date;
 }
 
+// Helper: Check if an appointment is synced to ZEP
+function isAppointmentSynced(apt: Appointment, syncedEntries: ZepEntry[]): boolean {
+  if (!syncedEntries || syncedEntries.length === 0) {
+    return false;
+  }
+
+  const aptDate = new Date(apt.start.dateTime);
+  const aptDateStr = aptDate.toISOString().split("T")[0];
+  const aptFromTime = aptDate.toTimeString().slice(0, 8);
+  const aptEndDate = new Date(apt.end.dateTime);
+  const aptToTime = aptEndDate.toTimeString().slice(0, 8);
+
+  return syncedEntries.some((entry) => {
+    const entryDate = entry.date.split("T")[0];
+    return (
+      entry.note === apt.subject &&
+      entryDate === aptDateStr &&
+      entry.from === aptFromTime &&
+      entry.to === aptToTime
+    );
+  });
+}
+
 export default function AppointmentList({
   appointments,
   projects,
   tasks,
   activities,
+  syncedEntries,
   onToggle,
   onToggleSeries,
   onProjectChange,
@@ -184,6 +218,7 @@ export default function AppointmentList({
                 projects={projects}
                 tasks={tasks}
                 activities={activities}
+                syncedEntries={syncedEntries}
                 onToggle={onToggle}
                 onToggleSeries={onToggleSeries}
                 onProjectChange={onProjectChange}
@@ -202,6 +237,7 @@ export default function AppointmentList({
                     : []
                 }
                 activities={activities}
+                isSynced={isAppointmentSynced(item.appointments[0], syncedEntries)}
                 onToggle={onToggle}
                 onProjectChange={onProjectChange}
                 onTaskChange={onTaskChange}

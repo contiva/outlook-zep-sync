@@ -104,26 +104,33 @@ async function fetchZepApi<T>(
   return response.json();
 }
 
-// Fetch all pages of a paginated endpoint
+// Fetch all pages of a paginated endpoint (optimized with per_page=100)
 async function fetchAllPages<T>(
   endpoint: string,
   token: string
 ): Promise<T[]> {
-  const allItems: T[] = [];
-  let page = 1;
-  let hasMore = true;
-
-  while (hasMore) {
-    const separator = endpoint.includes("?") ? "&" : "?";
-    const response = await fetchZepApi<ZepPaginatedResponse<T>>(
-      `${endpoint}${separator}page=${page}`,
-      token
-    );
-    allItems.push(...response.data);
-    hasMore = response.meta.current_page < response.meta.last_page;
-    page++;
+  const separator = endpoint.includes("?") ? "&" : "?";
+  const firstPageUrl = `${endpoint}${separator}per_page=100`;
+  
+  const response = await fetchZepApi<ZepPaginatedResponse<T>>(firstPageUrl, token);
+  
+  // If all data fits in one page, return immediately
+  if (response.meta.current_page >= response.meta.last_page) {
+    return response.data;
   }
-
+  
+  // Otherwise fetch remaining pages in parallel
+  const allItems = [...response.data];
+  const remainingPages = [];
+  for (let page = 2; page <= response.meta.last_page; page++) {
+    remainingPages.push(
+      fetchZepApi<ZepPaginatedResponse<T>>(`${firstPageUrl}&page=${page}`, token)
+    );
+  }
+  
+  const results = await Promise.all(remainingPages);
+  results.forEach((r) => allItems.push(...r.data));
+  
   return allItems;
 }
 
@@ -213,6 +220,45 @@ export async function getZepProjectsForEmployee(
   return allProjects.filter((p) => projectIds.includes(p.id));
 }
 
+// Get attendances (time entries) for an employee in a date range
+export async function getZepAttendances(
+  token: string,
+  employeeId: string,
+  startDate: string,
+  endDate: string
+): Promise<ZepAttendance[]> {
+  // ZEP API uses start_date, end_date, employee_id as query params (not filter[])
+  const params = new URLSearchParams({
+    employee_id: employeeId,
+    start_date: startDate,
+    end_date: endDate,
+    limit: "100",
+  });
+  
+  // For a month, one page should be enough (max ~100 entries)
+  const response = await fetchZepApi<ZepPaginatedResponse<ZepAttendance>>(
+    `/api/v1/attendances?${params.toString()}`,
+    token
+  );
+  
+  // If all data fits in one page, return immediately
+  if (response.meta.current_page >= response.meta.last_page) {
+    return response.data;
+  }
+  
+  // Otherwise fetch remaining pages
+  const allItems = [...response.data];
+  for (let page = 2; page <= response.meta.last_page; page++) {
+    const nextResponse = await fetchZepApi<ZepPaginatedResponse<ZepAttendance>>(
+      `/api/v1/attendances?${params.toString()}&page=${page}`,
+      token
+    );
+    allItems.push(...nextResponse.data);
+  }
+  
+  return allItems;
+}
+
 // Create a new attendance (time entry)
 export async function createZepAttendance(
   token: string,
@@ -224,9 +270,9 @@ export async function createZepAttendance(
   });
 }
 
-// Helper: Format date for ZEP API
+// Helper: Format date for ZEP API (YYYY-MM-DD format required)
 export function formatZepDate(date: Date): string {
-  return date.toISOString().replace(/\.\d{3}Z$/, ".000000Z");
+  return date.toISOString().split("T")[0];
 }
 
 // Helper: Format time for ZEP API (HH:mm:ss)

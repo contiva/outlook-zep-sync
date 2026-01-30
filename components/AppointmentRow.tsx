@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
-import { Users } from "lucide-react";
+import { Users, CheckCircle } from "lucide-react";
 import SearchableSelect, { SelectOption } from "./SearchableSelect";
 
 interface Project {
@@ -53,6 +53,7 @@ interface AppointmentRowProps {
   projects: Project[];
   tasks: Task[];
   activities: Activity[];
+  isSynced?: boolean;
   onToggle: (id: string) => void;
   onProjectChange: (id: string, projectId: number | null) => void;
   onTaskChange: (id: string, taskId: number | null) => void;
@@ -94,6 +95,7 @@ export default function AppointmentRow({
   projects,
   tasks,
   activities,
+  isSynced = false,
   onToggle,
   onProjectChange,
   onTaskChange,
@@ -153,12 +155,18 @@ export default function AppointmentRow({
       }`}
     >
       <div className="flex items-start gap-4">
-        <input
-          type="checkbox"
-          checked={appointment.selected}
-          onChange={() => onToggle(appointment.id)}
-          className="mt-1 h-5 w-5 text-blue-600 rounded"
-        />
+        {isSynced ? (
+          <div className="mt-1 h-5 w-5 flex items-center justify-center" title="Bereits in ZEP synchronisiert">
+            <CheckCircle className="h-5 w-5 text-green-600" />
+          </div>
+        ) : (
+          <input
+            type="checkbox"
+            checked={appointment.selected}
+            onChange={() => onToggle(appointment.id)}
+            className="mt-1 h-5 w-5 text-blue-600 rounded"
+          />
+        )}
         <div className="flex-1">
           <div className="flex items-center gap-2 text-sm text-gray-500">
             <span className="font-medium">{dayLabel}</span>
@@ -168,6 +176,11 @@ export default function AppointmentRow({
             <span className="text-gray-400">
               ({durationHours}h {durationMins}min)
             </span>
+            {isSynced && (
+              <span className="text-green-600 text-xs font-medium">
+                In ZEP
+              </span>
+            )}
           </div>
           <div className="font-medium text-gray-900 mt-1">
             {appointment.subject}
@@ -199,7 +212,7 @@ export default function AppointmentRow({
             </div>
           )}
 
-          {appointment.selected && (
+          {appointment.selected && !isSynced && (
             <div className="mt-3 flex flex-wrap gap-3">
               {/* Projekt-Dropdown */}
               <div className="flex flex-col">

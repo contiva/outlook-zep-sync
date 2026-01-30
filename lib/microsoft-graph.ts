@@ -39,29 +39,47 @@ export interface CalendarResponse {
   value: OutlookEvent[];
 }
 
+interface PaginatedCalendarResponse {
+  value: OutlookEvent[];
+  "@odata.nextLink"?: string;
+}
+
 export async function getCalendarEvents(
   accessToken: string,
   startDate: string,
   endDate: string
 ): Promise<OutlookEvent[]> {
-  const url = new URL("https://graph.microsoft.com/v1.0/me/calendarview");
-  url.searchParams.set("startDateTime", `${startDate}T00:00:00`);
-  url.searchParams.set("endDateTime", `${endDate}T23:59:59`);
-  url.searchParams.set("$orderby", "start/dateTime");
-  url.searchParams.set("$top", "100");
-  url.searchParams.set("$select", "id,subject,start,end,bodyPreview,attendees,organizer,isOrganizer,type,seriesMasterId");
+  const allEvents: OutlookEvent[] = [];
+  
+  let url: string | null = (() => {
+    const u = new URL("https://graph.microsoft.com/v1.0/me/calendarview");
+    u.searchParams.set("startDateTime", `${startDate}T00:00:00`);
+    u.searchParams.set("endDateTime", `${endDate}T23:59:59`);
+    u.searchParams.set("$orderby", "start/dateTime");
+    u.searchParams.set("$top", "250"); // Max allowed by Graph API
+    u.searchParams.set("$select", "id,subject,start,end,bodyPreview,attendees,organizer,isOrganizer,type,seriesMasterId");
+    return u.toString();
+  })();
 
-  const response = await fetch(url.toString(), {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-  });
+  // Fetch all pages
+  while (url) {
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    });
 
-  if (!response.ok) {
-    throw new Error(`Graph API error: ${response.status}`);
+    if (!response.ok) {
+      throw new Error(`Graph API error: ${response.status}`);
+    }
+
+    const data: PaginatedCalendarResponse = await response.json();
+    allEvents.push(...data.value);
+    
+    // Get next page URL if exists
+    url = data["@odata.nextLink"] || null;
   }
 
-  const data: CalendarResponse = await response.json();
-  return data.value;
+  return allEvents;
 }

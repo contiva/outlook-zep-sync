@@ -3,10 +3,11 @@
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { format, startOfWeek, endOfWeek } from "date-fns";
-import { LogOut } from "lucide-react";
+import { format, startOfMonth, endOfMonth } from "date-fns";
+import { LogOut, Users, User } from "lucide-react";
 import DateRangePicker from "@/components/DateRangePicker";
 import AppointmentList from "@/components/AppointmentList";
+import CalendarHeatmap from "@/components/CalendarHeatmap";
 
 interface Project {
   id: number;
@@ -50,26 +51,91 @@ interface Appointment {
   isOrganizer?: boolean;
   seriesMasterId?: string;
   type?: string;
+  synced?: boolean; // true if already exists in ZEP
 }
+
+interface ZepEntry {
+  id: number;
+  date: string;
+  from: string;
+  to: string;
+  note: string | null;
+  employee_id: string;
+}
+
+// localStorage key for persisting work state
+const STORAGE_KEY = "outlook-zep-sync-state";
+
+interface PersistedState {
+  startDate: string;
+  endDate: string;
+  appointments: Appointment[];
+  filterDate: string | null;
+  hideSoloMeetings: boolean;
+  savedAt: number; // timestamp for cache invalidation
+}
+
+// Helper to safely access localStorage (SSR-safe)
+const getStoredState = (): PersistedState | null => {
+  if (typeof window === "undefined") return null;
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (!stored) return null;
+    const state = JSON.parse(stored) as PersistedState;
+    // Invalidate cache after 24 hours
+    if (Date.now() - state.savedAt > 24 * 60 * 60 * 1000) {
+      localStorage.removeItem(STORAGE_KEY);
+      return null;
+    }
+    return state;
+  } catch {
+    return null;
+  }
+};
+
+const saveState = (state: Omit<PersistedState, "savedAt">) => {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ ...state, savedAt: Date.now() })
+    );
+  } catch {
+    // Ignore storage errors (quota exceeded, etc.)
+  }
+};
 
 export default function Dashboard() {
   const { data: session, status } = useSession();
   const router = useRouter();
 
+  // Load initial state from localStorage or use defaults
   const today = new Date();
-  const [startDate, setStartDate] = useState(
-    format(startOfWeek(today, { weekStartsOn: 1 }), "yyyy-MM-dd")
-  );
-  const [endDate, setEndDate] = useState(
-    format(endOfWeek(today, { weekStartsOn: 1 }), "yyyy-MM-dd")
-  );
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const initialState = useMemo(() => {
+    const stored = getStoredState();
+    return {
+      startDate: stored?.startDate ?? format(startOfMonth(today), "yyyy-MM-dd"),
+      endDate: stored?.endDate ?? format(endOfMonth(today), "yyyy-MM-dd"),
+      appointments: stored?.appointments ?? [],
+      filterDate: stored?.filterDate ?? null,
+      hideSoloMeetings: stored?.hideSoloMeetings ?? true,
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount
+
+  const [startDate, setStartDate] = useState(initialState.startDate);
+  const [endDate, setEndDate] = useState(initialState.endDate);
+  const [appointments, setAppointments] = useState<Appointment[]>(initialState.appointments);
   const [projects, setProjects] = useState<Project[]>([]);
   const [tasks, setTasks] = useState<Record<number, Task[]>>({});
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
+  const [syncedEntries, setSyncedEntries] = useState<ZepEntry[]>([]);
+  const [submittedIds, setSubmittedIds] = useState<Set<string>>(new Set());
+  const [filterDate, setFilterDate] = useState<string | null>(initialState.filterDate);
+  const [hideSoloMeetings, setHideSoloMeetings] = useState(initialState.hideSoloMeetings);
   // Derive employee ID from Azure email: robert.fels@contiva.com -> rfels
   const employeeId = useMemo(() => {
     const email = session?.user?.email;
@@ -85,11 +151,88 @@ export default function Dashboard() {
     return localPart; // fallback: use full local part
   }, [session?.user?.email]);
 
+  // Helper: Check if appointment has other attendees (not just the user)
+  const hasOtherAttendees = useCallback(
+    (apt: Appointment): boolean => {
+      if (!apt.attendees || apt.attendees.length === 0) return false;
+      // Filter out the current user - only count other attendees
+      const userEmail = session?.user?.email?.toLowerCase();
+      const otherAttendees = apt.attendees.filter(
+        (a) => a.emailAddress.address.toLowerCase() !== userEmail
+      );
+      return otherAttendees.length > 0;
+    },
+    [session?.user?.email]
+  );
+
+  // Helper: Check if appointment is synced to ZEP (match by note/subject, date, and time)
+  const isAppointmentSynced = useCallback(
+    (apt: Appointment): boolean => {
+      const aptDate = new Date(apt.start.dateTime);
+      const aptDateStr = aptDate.toISOString().split("T")[0]; // YYYY-MM-DD
+      const aptFromTime = aptDate.toTimeString().slice(0, 8); // HH:mm:ss
+      const aptEndDate = new Date(apt.end.dateTime);
+      const aptToTime = aptEndDate.toTimeString().slice(0, 8);
+
+      return syncedEntries.some((entry) => {
+        const entryDate = entry.date.split("T")[0]; // Handle ISO format from ZEP
+        return (
+          entry.note === apt.subject &&
+          entryDate === aptDateStr &&
+          entry.from === aptFromTime &&
+          entry.to === aptToTime
+        );
+      });
+    },
+    [syncedEntries]
+  );
+
+  // Filter appointments by selected date and solo-meeting toggle
+  const filteredAppointments = useMemo(() => {
+    let filtered = appointments;
+    
+    // Filter by date if selected
+    if (filterDate) {
+      filtered = filtered.filter((apt) => apt.start.dateTime.startsWith(filterDate));
+    }
+    
+    // Filter out solo meetings if toggle is on, BUT keep selected ones visible
+    if (hideSoloMeetings) {
+      const userEmail = session?.user?.email?.toLowerCase();
+      filtered = filtered.filter((apt) => {
+        // Always show if manually selected
+        if (apt.selected) return true;
+        
+        // Otherwise, only show if has other attendees
+        const otherAttendees = (apt.attendees || []).filter(
+          (a) => a.emailAddress.address.toLowerCase() !== userEmail
+        );
+        return otherAttendees.length > 0;
+      });
+    }
+    
+    return filtered;
+  }, [appointments, filterDate, hideSoloMeetings, session?.user?.email]);
+
   useEffect(() => {
     if (status === "unauthenticated") {
       router.push("/");
     }
   }, [status, router]);
+
+  // Persist state to localStorage whenever it changes
+  useEffect(() => {
+    // Only save if we have appointments (don't overwrite with empty state on initial load)
+    if (appointments.length > 0) {
+      saveState({
+        startDate,
+        endDate,
+        appointments,
+        filterDate,
+        hideSoloMeetings,
+      });
+    }
+  }, [startDate, endDate, appointments, filterDate, hideSoloMeetings]);
 
   useEffect(() => {
     // Load activities (global, not per employee)
@@ -127,6 +270,8 @@ export default function Dashboard() {
     loadProjects();
   }, [loadProjects]);
 
+  // Note: Synced entries are loaded together with appointments in loadAppointments()
+
   const loadTasksForProject = useCallback(async (projectId: number) => {
     if (tasks[projectId]) return;
 
@@ -145,21 +290,64 @@ export default function Dashboard() {
     setLoading(true);
     setMessage("");
     try {
-      const res = await fetch(
-        `/api/calendar?startDate=${startDate}&endDate=${endDate}`
-      );
-      const data = await res.json();
+      // Load appointments and ZEP entries in parallel
+      const [appointmentsRes, zepRes] = await Promise.all([
+        fetch(`/api/calendar?startDate=${startDate}&endDate=${endDate}`),
+        employeeId 
+          ? fetch(`/api/zep/timeentries?employeeId=${employeeId}&startDate=${startDate}&endDate=${endDate}`)
+          : Promise.resolve(null),
+      ]);
 
-      if (Array.isArray(data)) {
-        setAppointments(
-          data.map((event: any) => ({
-            ...event,
-            selected: true,
-            projectId: null,
-            taskId: null,
-            activityId: "be", // Default: Beratung
-          }))
+      const appointmentsData = await appointmentsRes.json();
+
+      if (Array.isArray(appointmentsData)) {
+        const userEmail = session?.user?.email?.toLowerCase();
+        
+        // Get previously saved state to preserve user edits
+        const savedState = getStoredState();
+        const savedAppointmentsMap = new Map(
+          (savedState?.appointments || []).map((apt) => [apt.id, apt])
         );
+        
+        setAppointments(
+          appointmentsData.map((event: any) => {
+            // Check if we have saved state for this appointment
+            const saved = savedAppointmentsMap.get(event.id);
+            
+            if (saved) {
+              // Preserve user's selections and assignments
+              return {
+                ...event,
+                selected: saved.selected,
+                projectId: saved.projectId,
+                taskId: saved.taskId,
+                activityId: saved.activityId,
+              };
+            }
+            
+            // New appointment - apply defaults
+            const otherAttendees = (event.attendees || []).filter(
+              (a: Attendee) => a.emailAddress.address.toLowerCase() !== userEmail
+            );
+            const hasMeetingAttendees = otherAttendees.length > 0;
+            
+            return {
+              ...event,
+              selected: hasMeetingAttendees, // Only pre-select meetings with other attendees
+              projectId: null,
+              taskId: null,
+              activityId: "be", // Default: Beratung
+            };
+          })
+        );
+      }
+
+      // Load ZEP entries for sync status
+      if (zepRes) {
+        const zepData = await zepRes.json();
+        if (Array.isArray(zepData)) {
+          setSyncedEntries(zepData);
+        }
       }
     } catch (error) {
       console.error("Failed to load appointments:", error);
@@ -230,13 +418,28 @@ export default function Dashboard() {
   };
 
   const submitToZep = async () => {
-    const selectedAppointments = appointments.filter((a) => a.selected);
+    // Only submit filtered (visible) appointments that are selected
+    const selectedAppointments = filteredAppointments.filter((a) => a.selected);
+    
+    // Check if all required fields are set
+    const incompleteAppointments = selectedAppointments.filter(
+      (a) => !a.projectId || !a.taskId
+    );
+    
+    if (incompleteAppointments.length > 0) {
+      setMessage(`Fehler: ${incompleteAppointments.length} Termin(e) ohne Projekt oder Task`);
+      return;
+    }
+    
     const entries = selectedAppointments.map((apt) => {
       const startDt = new Date(apt.start.dateTime);
       const endDt = new Date(apt.end.dateTime);
 
+      // ZEP API requires date in YYYY-MM-DD format (not ISO timestamp)
+      const dateStr = startDt.toISOString().split("T")[0];
+
       return {
-        date: startDt.toISOString().replace(/\.\d{3}Z$/, ".000000Z"),
+        date: dateStr,
         from: startDt.toTimeString().slice(0, 8),
         to: endDt.toTimeString().slice(0, 8),
         employee_id: employeeId,
@@ -257,10 +460,34 @@ export default function Dashboard() {
       });
 
       const result = await res.json();
-      setMessage(result.message || "Erfolgreich uebertragen!");
+      
+      // Show detailed error message if available
+      let msg = result.message || "Erfolgreich uebertragen!";
+      if (result.errors?.length > 0) {
+        msg += "\n" + result.errors.join("\n");
+      }
+      setMessage(msg);
 
       if (result.succeeded > 0) {
-        setAppointments((prev) => prev.filter((a) => !a.selected));
+        // Track submitted IDs for heatmap
+        const submittedAppointmentIds = new Set(selectedAppointments.map((a) => a.id));
+        setSubmittedIds((prev) => new Set([...prev, ...submittedAppointmentIds]));
+        
+        // Reload synced entries to update heatmap
+        if (employeeId) {
+          try {
+            const res = await fetch(`/api/zep/timeentries?employeeId=${employeeId}&startDate=${startDate}&endDate=${endDate}`);
+            const data = await res.json();
+            if (Array.isArray(data)) {
+              setSyncedEntries(data);
+            }
+          } catch (e) {
+            console.error("Failed to reload synced entries:", e);
+          }
+        }
+        
+        // Remove only the submitted appointments from list
+        setAppointments((prev) => prev.filter((a) => !submittedAppointmentIds.has(a.id)));
       }
     } catch (error) {
       console.error("Submit error:", error);
@@ -309,6 +536,16 @@ export default function Dashboard() {
           loading={loading}
         />
 
+        <CalendarHeatmap
+          startDate={startDate}
+          endDate={endDate}
+          appointments={appointments}
+          syncedEntries={syncedEntries}
+          submittedIds={submittedIds}
+          selectedDate={filterDate}
+          onDayClick={setFilterDate}
+        />
+
         {message && (
           <div
             className={`p-4 rounded-lg ${
@@ -321,11 +558,48 @@ export default function Dashboard() {
           </div>
         )}
 
+        {/* Filter toggle for solo meetings */}
+        {appointments.length > 0 && (
+          <div className="flex items-center justify-between bg-white rounded-lg px-4 py-3 shadow-sm">
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              <span>
+                {filteredAppointments.length} von {appointments.length} Terminen
+              </span>
+              {hideSoloMeetings && (
+                <span className="text-gray-400">
+                  ({appointments.length - filteredAppointments.length} Solo-Termine ausgeblendet)
+                </span>
+              )}
+            </div>
+            <button
+              onClick={() => setHideSoloMeetings(!hideSoloMeetings)}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                hideSoloMeetings
+                  ? "bg-blue-100 text-blue-700 hover:bg-blue-200"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              }`}
+            >
+              {hideSoloMeetings ? (
+                <>
+                  <Users size={16} />
+                  Nur Meetings mit Teilnehmern
+                </>
+              ) : (
+                <>
+                  <User size={16} />
+                  Alle Termine anzeigen
+                </>
+              )}
+            </button>
+          </div>
+        )}
+
         <AppointmentList
-          appointments={appointments}
+          appointments={filteredAppointments}
           projects={projects}
           tasks={tasks}
           activities={activities}
+          syncedEntries={syncedEntries}
           onToggle={toggleAppointment}
           onToggleSeries={toggleSeries}
           onProjectChange={changeProject}

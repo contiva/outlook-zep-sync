@@ -1,5 +1,40 @@
 import { NextResponse } from "next/server";
-import { createZepAttendance } from "@/lib/zep-api";
+import { createZepAttendance, getZepAttendances } from "@/lib/zep-api";
+
+// GET: Fetch existing time entries for employee in date range
+export async function GET(request: Request) {
+  const token = process.env.ZEP_API_TOKEN;
+
+  if (!token) {
+    return NextResponse.json(
+      { error: "ZEP_API_TOKEN not configured" },
+      { status: 500 }
+    );
+  }
+
+  const { searchParams } = new URL(request.url);
+  const employeeId = searchParams.get("employeeId");
+  const startDate = searchParams.get("startDate");
+  const endDate = searchParams.get("endDate");
+
+  if (!employeeId || !startDate || !endDate) {
+    return NextResponse.json(
+      { error: "employeeId, startDate, and endDate required" },
+      { status: 400 }
+    );
+  }
+
+  try {
+    const attendances = await getZepAttendances(token, employeeId, startDate, endDate);
+    return NextResponse.json(attendances);
+  } catch (error) {
+    console.error("Failed to fetch attendances:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch attendances" },
+      { status: 500 }
+    );
+  }
+}
 
 interface AttendanceInput {
   date: string;
