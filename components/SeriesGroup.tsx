@@ -169,7 +169,7 @@ export default function SeriesGroup({
   };
 
   return (
-    <div className="border border-blue-200 rounded-lg bg-blue-50/30 overflow-hidden">
+    <div className="border border-blue-200 rounded-lg bg-blue-50/30">
       {/* Series Header */}
       <div className="p-4 bg-gradient-to-r from-blue-50 to-white border-b border-blue-100">
         <div className="flex items-start gap-3">
