@@ -319,3 +319,216 @@ export function formatZepDate(date: Date): string {
 export function formatZepTime(date: Date): string {
   return date.toTimeString().slice(0, 8);
 }
+
+// Find employee by email address (case-insensitive)
+export async function findEmployeeByEmail(
+  token: string,
+  email: string
+): Promise<ZepEmployee | null> {
+  const employees = await getZepEmployees(token);
+  
+  const normalizedEmail = email.toLowerCase();
+  
+  // Try exact email match first
+  const exactMatch = employees.find(
+    (emp) => emp.email?.toLowerCase() === normalizedEmail
+  );
+  
+  if (exactMatch) {
+    return exactMatch;
+  }
+  
+  // Fallback: Try matching by constructed username pattern
+  // e.g., robert.fels@domain.com -> look for username starting with 'rfels' or 'robert.fels'
+  const localPart = email.split("@")[0].toLowerCase();
+  const parts = localPart.split(".");
+  
+  if (parts.length >= 2) {
+    const shortUsername = parts[0].charAt(0) + parts[parts.length - 1]; // rfels
+    const matchByUsername = employees.find(
+      (emp) => emp.username.toLowerCase() === shortUsername
+    );
+    if (matchByUsername) {
+      return matchByUsername;
+    }
+  }
+  
+  return null;
+}
+
+// Duplicate Detection Types
+export interface DuplicateCheckResult {
+  hasDuplicate: boolean;
+  type: 'exact' | 'timeOverlap' | 'similarSubject' | null;
+  existingEntry?: ZepAttendance;
+  message?: string;
+}
+
+// Levenshtein distance for fuzzy string matching
+function levenshteinDistance(str1: string, str2: string): number {
+  const m = str1.length;
+  const n = str2.length;
+  
+  // Create distance matrix
+  const dp: number[][] = Array(m + 1)
+    .fill(null)
+    .map(() => Array(n + 1).fill(0));
+  
+  // Initialize first row and column
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  
+  // Fill the matrix
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      if (str1[i - 1] === str2[j - 1]) {
+        dp[i][j] = dp[i - 1][j - 1];
+      } else {
+        dp[i][j] = 1 + Math.min(
+          dp[i - 1][j],     // deletion
+          dp[i][j - 1],     // insertion
+          dp[i - 1][j - 1]  // substitution
+        );
+      }
+    }
+  }
+  
+  return dp[m][n];
+}
+
+// Check if two time ranges overlap
+function timeRangesOverlap(
+  start1: string,
+  end1: string,
+  start2: string,
+  end2: string
+): boolean {
+  // Times are in HH:mm:ss format
+  const toMinutes = (time: string): number => {
+    const [h, m] = time.split(":").map(Number);
+    return h * 60 + m;
+  };
+  
+  const s1 = toMinutes(start1);
+  const e1 = toMinutes(end1);
+  const s2 = toMinutes(start2);
+  const e2 = toMinutes(end2);
+  
+  // Overlap exists if one range starts before the other ends
+  return s1 < e2 && s2 < e1;
+}
+
+// Check for potential duplicates in ZEP
+export function checkForDuplicate(
+  appointment: {
+    subject: string;
+    startDateTime: string; // ISO datetime
+    endDateTime: string;   // ISO datetime
+  },
+  syncedEntries: ZepAttendance[]
+): DuplicateCheckResult {
+  if (!syncedEntries || syncedEntries.length === 0) {
+    return { hasDuplicate: false, type: null };
+  }
+  
+  // Parse appointment date and times
+  const aptDate = new Date(appointment.startDateTime);
+  const aptDateStr = aptDate.toISOString().split("T")[0];
+  const aptFromTime = aptDate.toTimeString().slice(0, 8);
+  const aptEndDate = new Date(appointment.endDateTime);
+  const aptToTime = aptEndDate.toTimeString().slice(0, 8);
+  const aptSubject = appointment.subject.toLowerCase().trim();
+  
+  // Filter entries for the same day
+  const sameDayEntries = syncedEntries.filter((entry) => {
+    const entryDate = entry.date.split("T")[0];
+    return entryDate === aptDateStr;
+  });
+  
+  if (sameDayEntries.length === 0) {
+    return { hasDuplicate: false, type: null };
+  }
+  
+  // Check for exact match
+  for (const entry of sameDayEntries) {
+    const entrySubject = (entry.note || "").toLowerCase().trim();
+    
+    if (
+      entrySubject === aptSubject &&
+      entry.from === aptFromTime &&
+      entry.to === aptToTime
+    ) {
+      return {
+        hasDuplicate: true,
+        type: 'exact',
+        existingEntry: entry,
+        message: `Exakter Eintrag existiert bereits in ZEP (${entry.from.slice(0, 5)}-${entry.to.slice(0, 5)})`,
+      };
+    }
+  }
+  
+  // Check for time overlap
+  for (const entry of sameDayEntries) {
+    if (timeRangesOverlap(aptFromTime, aptToTime, entry.from, entry.to)) {
+      return {
+        hasDuplicate: true,
+        type: 'timeOverlap',
+        existingEntry: entry,
+        message: `Zeitüberschneidung mit "${entry.note || 'Eintrag'}" (${entry.from.slice(0, 5)}-${entry.to.slice(0, 5)})`,
+      };
+    }
+  }
+  
+  // Check for similar subject (Levenshtein distance <= 3)
+  for (const entry of sameDayEntries) {
+    const entrySubject = (entry.note || "").toLowerCase().trim();
+    
+    if (entrySubject && aptSubject) {
+      const distance = levenshteinDistance(aptSubject, entrySubject);
+      
+      // For short strings, use proportional threshold
+      const threshold = Math.min(3, Math.floor(Math.min(aptSubject.length, entrySubject.length) * 0.3));
+      
+      if (distance <= threshold && distance > 0) {
+        return {
+          hasDuplicate: true,
+          type: 'similarSubject',
+          existingEntry: entry,
+          message: `Ähnlicher Eintrag: "${entry.note}" (${entry.from.slice(0, 5)}-${entry.to.slice(0, 5)})`,
+        };
+      }
+    }
+  }
+  
+  return { hasDuplicate: false, type: null };
+}
+
+// Check multiple appointments for duplicates
+export function checkAppointmentsForDuplicates(
+  appointments: Array<{
+    id: string;
+    subject: string;
+    startDateTime: string;
+    endDateTime: string;
+  }>,
+  syncedEntries: ZepAttendance[]
+): Map<string, DuplicateCheckResult> {
+  const results = new Map<string, DuplicateCheckResult>();
+  
+  for (const apt of appointments) {
+    const result = checkForDuplicate(
+      {
+        subject: apt.subject,
+        startDateTime: apt.startDateTime,
+        endDateTime: apt.endDateTime,
+      },
+      syncedEntries
+    );
+    
+    if (result.hasDuplicate) {
+      results.set(apt.id, result);
+    }
+  }
+  
+  return results;
+}

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import AppointmentRow from "./AppointmentRow";
 import SeriesGroup from "./SeriesGroup";
 import SyncConfirmDialog from "./SyncConfirmDialog";
+import { DuplicateCheckResult } from "@/lib/zep-api";
 
 interface Project {
   id: number;
@@ -56,6 +57,10 @@ interface ZepEntry {
   to: string;
   note: string | null;
   employee_id: string;
+  project_id: number;
+  project_task_id: number;
+  activity_id: string;
+  billable: boolean;
 }
 
 interface AppointmentListProps {
@@ -64,6 +69,7 @@ interface AppointmentListProps {
   tasks: Record<number, Task[]>;
   activities: Activity[];
   syncedEntries: ZepEntry[];
+  duplicateWarnings?: Map<string, DuplicateCheckResult>;
   onToggle: (id: string) => void;
   onToggleSeries: (seriesId: string, selected: boolean) => void;
   onProjectChange: (id: string, projectId: number | null) => void;
@@ -88,8 +94,13 @@ interface GroupedItem {
 
 // Helper: Check if an appointment is synced to ZEP
 function isAppointmentSynced(apt: Appointment, syncedEntries: ZepEntry[]): boolean {
+  return findSyncedEntry(apt, syncedEntries) !== null;
+}
+
+// Helper: Find the matching synced entry for an appointment
+function findSyncedEntry(apt: Appointment, syncedEntries: ZepEntry[]): ZepEntry | null {
   if (!syncedEntries || syncedEntries.length === 0) {
-    return false;
+    return null;
   }
 
   const aptDate = new Date(apt.start.dateTime);
@@ -98,7 +109,7 @@ function isAppointmentSynced(apt: Appointment, syncedEntries: ZepEntry[]): boole
   const aptEndDate = new Date(apt.end.dateTime);
   const aptToTime = aptEndDate.toTimeString().slice(0, 8);
 
-  return syncedEntries.some((entry) => {
+  return syncedEntries.find((entry) => {
     const entryDate = entry.date.split("T")[0];
     return (
       entry.note === apt.subject &&
@@ -106,7 +117,7 @@ function isAppointmentSynced(apt: Appointment, syncedEntries: ZepEntry[]): boole
       entry.from === aptFromTime &&
       entry.to === aptToTime
     );
-  });
+  }) || null;
 }
 
 // Helper: Check if an appointment is ready to sync (selected, complete, not yet synced)
@@ -123,6 +134,7 @@ export default function AppointmentList({
   tasks,
   activities,
   syncedEntries,
+  duplicateWarnings,
   onToggle,
   onToggleSeries,
   onProjectChange,
@@ -256,9 +268,12 @@ export default function AppointmentList({
                     ? tasks[item.appointments[0].projectId] || []
                     : []
                 }
+                allTasks={tasks}
                 activities={activities}
                 isSynced={isAppointmentSynced(item.appointments[0], syncedEntries)}
                 isSyncReady={isAppointmentSyncReady(item.appointments[0], syncedEntries)}
+                syncedEntry={findSyncedEntry(item.appointments[0], syncedEntries)}
+                duplicateWarning={duplicateWarnings?.get(item.appointments[0].id)}
                 onToggle={onToggle}
                 onProjectChange={onProjectChange}
                 onTaskChange={onTaskChange}
@@ -308,6 +323,7 @@ export default function AppointmentList({
         appointments={syncReadyAppointments}
         projects={projects}
         submitting={submitting}
+        duplicateWarnings={duplicateWarnings}
       />
     </div>
   );

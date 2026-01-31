@@ -30,6 +30,10 @@ interface ZepEntry {
   to: string;
   note: string | null;
   employee_id: string;
+  project_id: number;
+  project_task_id: number;
+  activity_id: string;
+  billable: boolean;
 }
 
 interface Attendee {
@@ -88,8 +92,13 @@ interface SeriesGroupProps {
 
 // Helper: Check if an appointment is synced to ZEP
 function isAppointmentSynced(apt: Appointment, syncedEntries: ZepEntry[]): boolean {
+  return findSyncedEntry(apt, syncedEntries) !== null;
+}
+
+// Helper: Find the matching synced entry for an appointment
+function findSyncedEntry(apt: Appointment, syncedEntries: ZepEntry[]): ZepEntry | null {
   if (!syncedEntries || syncedEntries.length === 0) {
-    return false;
+    return null;
   }
 
   const aptDate = new Date(apt.start.dateTime);
@@ -98,7 +107,7 @@ function isAppointmentSynced(apt: Appointment, syncedEntries: ZepEntry[]): boole
   const aptEndDate = new Date(apt.end.dateTime);
   const aptToTime = aptEndDate.toTimeString().slice(0, 8);
 
-  return syncedEntries.some((entry) => {
+  return syncedEntries.find((entry) => {
     const entryDate = entry.date.split("T")[0];
     return (
       entry.note === apt.subject &&
@@ -106,7 +115,7 @@ function isAppointmentSynced(apt: Appointment, syncedEntries: ZepEntry[]): boole
       entry.from === aptFromTime &&
       entry.to === aptToTime
     );
-  });
+  }) || null;
 }
 
 // Helper: Check if an appointment is ready to sync (selected, complete, not yet synced)
@@ -433,9 +442,11 @@ export default function SeriesGroup({
               appointment={appointment}
               projects={projects}
               tasks={appointment.projectId ? tasks[appointment.projectId] || [] : []}
+              allTasks={tasks}
               activities={activities}
               isSynced={isAppointmentSynced(appointment, syncedEntries)}
               isSyncReady={isAppointmentSyncReady(appointment, syncedEntries)}
+              syncedEntry={findSyncedEntry(appointment, syncedEntries)}
               onToggle={onToggle}
               onProjectChange={onProjectChange}
               onTaskChange={onTaskChange}

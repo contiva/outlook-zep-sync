@@ -87,11 +87,25 @@ export async function POST(request: Request) {
       return null;
     }).filter(Boolean);
 
+    // Extract created ZEP IDs from fulfilled results
+    const createdEntries: { index: number; zepId: number }[] = [];
+
+    results.forEach((result, index) => {
+      if (result.status === "fulfilled") {
+        // The ZEP API returns the attendance directly with id field
+        const attendance = result.value;
+        if (attendance?.id) {
+          createdEntries.push({ index, zepId: attendance.id });
+        }
+      }
+    });
+
     return NextResponse.json({
       message: `${succeeded} Eintraege erstellt, ${failed.length} fehlgeschlagen`,
       succeeded,
       failed: failed.length,
       errors,
+      createdEntries,
     });
   } catch (error) {
     console.error("ZEP attendance creation error:", error);

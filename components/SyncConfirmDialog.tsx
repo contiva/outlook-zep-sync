@@ -1,7 +1,8 @@
 "use client";
 
 import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
-import { X, CloudUpload } from "lucide-react";
+import { X, CloudUpload, AlertTriangle } from "lucide-react";
+import { DuplicateCheckResult } from "@/lib/zep-api";
 import { useMemo } from "react";
 
 interface Project {
@@ -24,6 +25,8 @@ interface SyncConfirmDialogProps {
   appointments: Appointment[];
   projects: Project[];
   submitting: boolean;
+  duplicateWarnings?: Map<string, DuplicateCheckResult>;
+  onExcludeAppointment?: (id: string) => void;
 }
 
 export default function SyncConfirmDialog({
@@ -33,6 +36,8 @@ export default function SyncConfirmDialog({
   appointments,
   projects,
   submitting,
+  duplicateWarnings,
+  onExcludeAppointment,
 }: SyncConfirmDialogProps) {
   // Calculate total duration
   const totalMinutes = useMemo(() => {
@@ -84,6 +89,12 @@ export default function SyncConfirmDialog({
     return Array.from(grouped.entries()).sort(([a], [b]) => a.localeCompare(b));
   }, [appointments]);
 
+  // Count appointments with duplicate warnings
+  const appointmentsWithWarnings = useMemo(() => {
+    if (!duplicateWarnings) return [];
+    return appointments.filter((apt) => duplicateWarnings.has(apt.id));
+  }, [appointments, duplicateWarnings]);
+
   return (
     <Dialog open={isOpen} onClose={onClose} className="relative z-50">
       {/* Backdrop */}
@@ -112,6 +123,18 @@ export default function SyncConfirmDialog({
               Folgende {appointments.length} Termine werden synchronisiert:
             </p>
 
+            {appointmentsWithWarnings.length > 0 && (
+              <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <div className="flex items-center gap-2 text-amber-800 text-sm font-medium mb-2">
+                  <AlertTriangle size={16} />
+                  {appointmentsWithWarnings.length} Termin(e) mit möglichen Duplikaten
+                </div>
+                <p className="text-xs text-amber-700">
+                  Diese Termine könnten bereits in ZEP existieren. Bitte prüfe vor dem Sync.
+                </p>
+              </div>
+            )}
+
             {/* Scrollable appointment list */}
             <div className="max-h-64 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100">
               {appointmentsByDate.map(([dateStr, dayAppointments]) => (
@@ -124,7 +147,9 @@ export default function SyncConfirmDialog({
                   {dayAppointments.map((apt) => (
                     <div
                       key={apt.id}
-                      className="px-3 py-2 flex items-center justify-between text-sm"
+                      className={`px-3 py-2 flex items-center justify-between text-sm ${
+                        duplicateWarnings?.has(apt.id) ? "bg-amber-50" : ""
+                      }`}
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="text-gray-500 font-mono text-xs whitespace-nowrap">
@@ -133,6 +158,9 @@ export default function SyncConfirmDialog({
                         <span className="text-gray-900 truncate">
                           {apt.subject}
                         </span>
+                        {duplicateWarnings?.has(apt.id) && (
+                          <AlertTriangle size={14} className="text-amber-500 flex-shrink-0" />
+                        )}
                       </div>
                       <span className="text-xs text-gray-500 ml-2 whitespace-nowrap">
                         {apt.projectId ? projectMap.get(apt.projectId) || "?" : "-"}

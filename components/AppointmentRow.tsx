@@ -3,8 +3,10 @@
 import { useMemo } from "react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
-import { Users, CheckCircle, CloudUpload } from "lucide-react";
+import { Users, CheckCircle, CloudUpload, ExternalLink, AlertTriangle } from "lucide-react";
+import { getZepIdForOutlookEvent, getZepAttendanceUrl } from "@/lib/sync-history";
 import SearchableSelect, { SelectOption } from "./SearchableSelect";
+import { DuplicateCheckResult } from "@/lib/zep-api";
 
 interface Project {
   id: number;
@@ -22,6 +24,14 @@ interface Task {
 interface Activity {
   name: string;
   description: string;
+}
+
+interface SyncedEntry {
+  id?: number;
+  project_id: number;
+  project_task_id: number;
+  activity_id: string;
+  billable: boolean;
 }
 
 interface Attendee {
@@ -60,9 +70,12 @@ interface AppointmentRowProps {
   appointment: Appointment;
   projects: Project[];
   tasks: Task[];
+  allTasks?: Record<number, Task[]>;
   activities: Activity[];
   isSynced?: boolean;
   isSyncReady?: boolean;
+  syncedEntry?: SyncedEntry | null;
+  duplicateWarning?: DuplicateCheckResult;
   onToggle: (id: string) => void;
   onProjectChange: (id: string, projectId: number | null) => void;
   onTaskChange: (id: string, taskId: number | null) => void;
@@ -103,9 +116,12 @@ export default function AppointmentRow({
   appointment,
   projects,
   tasks,
+  allTasks,
   activities,
   isSynced = false,
   isSyncReady = false,
+  syncedEntry,
+  duplicateWarning,
   onToggle,
   onProjectChange,
   onTaskChange,
@@ -158,6 +174,40 @@ export default function AppointmentRow({
     [activities]
   );
 
+  // Get ZEP link if this appointment was synced
+  const zepLink = useMemo(() => {
+    const zepId = getZepIdForOutlookEvent(appointment.id);
+    if (zepId) {
+      return getZepAttendanceUrl(zepId);
+    }
+    return null;
+  }, [appointment.id]);
+
+  // Get synced project/task info for display
+  const syncedInfo = useMemo(() => {
+    if (!syncedEntry) return null;
+    
+    const project = projects.find((p) => p.id === syncedEntry.project_id);
+    const activity = activities.find((a) => a.name === syncedEntry.activity_id);
+    
+    // Find task in allTasks if available
+    let taskName: string | null = null;
+    if (allTasks && syncedEntry.project_id && syncedEntry.project_task_id) {
+      const projectTasks = allTasks[syncedEntry.project_id];
+      if (projectTasks) {
+        const task = projectTasks.find((t) => t.id === syncedEntry.project_task_id);
+        taskName = task?.name || null;
+      }
+    }
+    
+    return {
+      projectName: project?.name || `Projekt #${syncedEntry.project_id}`,
+      taskName: taskName,
+      activityName: activity?.description || syncedEntry.activity_id,
+      billable: syncedEntry.billable,
+    };
+  }, [syncedEntry, projects, activities, allTasks]);
+
   return (
     <div
       className={`p-4 border-b border-gray-100 ${
@@ -184,6 +234,14 @@ export default function AppointmentRow({
                   <CloudUpload className="h-4 w-4 text-amber-500" />
                 </div>
               )}
+              {duplicateWarning?.hasDuplicate && !isSynced && (
+                <div 
+                  className="mt-1 h-5 w-5 flex items-center justify-center" 
+                  title={duplicateWarning.message || "Mögliches Duplikat erkannt"}
+                >
+                  <AlertTriangle className="h-4 w-4 text-amber-500" />
+                </div>
+              )}
             </>
           )}
         </div>
@@ -202,8 +260,30 @@ export default function AppointmentRow({
               </span>
             )}
             {isSynced && (
-              <span className="text-green-600 text-xs font-medium">
-                In ZEP
+              <>
+                {zepLink ? (
+                  <a
+                    href={zepLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-green-600 text-xs font-medium hover:text-green-800 hover:underline"
+                    title="In ZEP öffnen"
+                  >
+                    In ZEP
+                    <ExternalLink size={12} />
+                  </a>
+                ) : (
+                  <span className="text-green-600 text-xs font-medium">
+                    In ZEP
+                  </span>
+                )}
+              </>
+            )}
+            {duplicateWarning?.hasDuplicate && !isSynced && (
+              <span className="text-amber-600 text-xs font-medium" title={duplicateWarning.message}>
+                {duplicateWarning.type === 'exact' ? 'Duplikat' : 
+                 duplicateWarning.type === 'timeOverlap' ? 'Zeitkonflikt' : 
+                 'Ähnlich'}
               </span>
             )}
           </div>
@@ -306,6 +386,26 @@ export default function AppointmentRow({
                   </span>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Synced entry info: show project, task, activity */}
+          {isSynced && syncedInfo && (
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-green-50 text-green-700 border border-green-200">
+                <span className="font-medium">{syncedInfo.projectName}</span>
+                {syncedInfo.taskName && (
+                  <span className="text-green-600">/ {syncedInfo.taskName}</span>
+                )}
+              </span>
+              <span className="text-gray-400">•</span>
+              <span className="text-gray-600">{syncedInfo.activityName}</span>
+              {!syncedInfo.billable && (
+                <>
+                  <span className="text-gray-400">•</span>
+                  <span className="text-gray-500 text-xs">(nicht abrechenbar)</span>
+                </>
+              )}
             </div>
           )}
 

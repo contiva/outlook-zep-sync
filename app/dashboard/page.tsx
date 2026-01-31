@@ -8,6 +8,8 @@ import { LogOut, Search, X } from "lucide-react";
 import DateRangePicker from "@/components/DateRangePicker";
 import AppointmentList from "@/components/AppointmentList";
 import CalendarHeatmap from "@/components/CalendarHeatmap";
+import { saveSyncRecords, SyncRecord } from "@/lib/sync-history";
+import { checkAppointmentsForDuplicates, DuplicateCheckResult, ZepAttendance } from "@/lib/zep-api";
 
 interface Project {
   id: number;
@@ -88,6 +90,10 @@ interface ZepEntry {
   to: string;
   note: string | null;
   employee_id: string;
+  project_id: number;
+  project_task_id: number;
+  activity_id: string;
+  billable: boolean;
 }
 
 // localStorage key for persisting work state
@@ -190,20 +196,12 @@ export default function Dashboard() {
   const [hideSoloMeetings, setHideSoloMeetings] = useState(initialState.hideSoloMeetings);
   const [seriesFilterActive, setSeriesFilterActive] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  // Derive employee ID from Azure email: robert.fels@contiva.com -> rfels
-  const employeeId = useMemo(() => {
-    const email = session?.user?.email;
-    if (!email) return "";
-    
-    const localPart = email.split("@")[0]; // robert.fels
-    const parts = localPart.split("."); // ["robert", "fels"]
-    
-    if (parts.length >= 2) {
-      // First letter of first name + last name
-      return parts[0].charAt(0) + parts[parts.length - 1]; // rfels
-    }
-    return localPart; // fallback: use full local part
-  }, [session?.user?.email]);
+  const [zepEmployee, setZepEmployee] = useState<{ username: string; firstname: string; lastname: string; email: string } | null>(null);
+  const [employeeLoading, setEmployeeLoading] = useState(false);
+  const [employeeError, setEmployeeError] = useState<string | null>(null);
+  const [duplicateWarnings, setDuplicateWarnings] = useState<Map<string, DuplicateCheckResult>>(new Map());
+
+  const employeeId = zepEmployee?.username ?? "";
 
 
 
@@ -297,6 +295,26 @@ export default function Dashboard() {
     }
   }, [startDate, endDate, appointments, filterDate, hideSoloMeetings, syncedEntries]);
 
+  // Check for potential duplicates when appointments or synced entries change
+  useEffect(() => {
+    if (appointments.length === 0 || syncedEntries.length === 0) {
+      setDuplicateWarnings(new Map());
+      return;
+    }
+    
+    const appointmentsToCheck = appointments
+      .filter((apt) => apt.selected && !isAppointmentSynced(apt, syncedEntries))
+      .map((apt) => ({
+        id: apt.id,
+        subject: apt.subject,
+        startDateTime: apt.start.dateTime,
+        endDateTime: apt.end.dateTime,
+      }));
+    
+    const warnings = checkAppointmentsForDuplicates(appointmentsToCheck, syncedEntries as unknown as ZepAttendance[]);
+    setDuplicateWarnings(warnings);
+  }, [appointments, syncedEntries]);
+
   useEffect(() => {
     // Load activities (global, not per employee)
     fetch("/api/zep/activities")
@@ -308,6 +326,38 @@ export default function Dashboard() {
       })
       .catch(console.error);
   }, []);
+
+  // Load ZEP employee info when session is available
+  useEffect(() => {
+    const loadEmployee = async () => {
+      const email = session?.user?.email;
+      if (!email) return;
+      
+      setEmployeeLoading(true);
+      setEmployeeError(null);
+      
+      try {
+        const res = await fetch(`/api/zep/employees?email=${encodeURIComponent(email)}`);
+        
+        if (res.ok) {
+          const data = await res.json();
+          setZepEmployee(data);
+        } else if (res.status === 404) {
+          setEmployeeError(`Kein ZEP-Benutzer für ${email} gefunden. Bitte kontaktiere den Administrator.`);
+        } else {
+          const error = await res.json();
+          setEmployeeError(error.error || "Fehler beim Laden des ZEP-Benutzers");
+        }
+      } catch (error) {
+        console.error("Failed to load ZEP employee:", error);
+        setEmployeeError("Verbindung zu ZEP fehlgeschlagen");
+      } finally {
+        setEmployeeLoading(false);
+      }
+    };
+    
+    loadEmployee();
+  }, [session?.user?.email]);
 
   // Load projects when employeeId or date range changes
   const loadProjects = useCallback(async () => {
@@ -535,6 +585,23 @@ export default function Dashboard() {
       setMessage(msg);
 
       if (result.succeeded > 0) {
+        // Save sync history with ZEP IDs
+        if (result.createdEntries && result.createdEntries.length > 0) {
+          const syncRecords: SyncRecord[] = result.createdEntries.map(
+            (entry: { index: number; zepId: number }) => {
+              const apt = syncReadyAppointments[entry.index];
+              return {
+                outlookEventId: apt.id,
+                zepAttendanceId: entry.zepId,
+                subject: apt.subject,
+                date: apt.start.dateTime.split("T")[0],
+                syncedAt: new Date().toISOString(),
+              };
+            }
+          );
+          saveSyncRecords(syncRecords);
+        }
+        
         // Track submitted IDs for heatmap
         const submittedAppointmentIds = new Set(syncReadyAppointments.map((a) => a.id));
         setSubmittedIds((prev) => new Set([...prev, ...submittedAppointmentIds]));
@@ -579,7 +646,15 @@ export default function Dashboard() {
           </h1>
           <div className="flex items-center gap-4">
             <span className="text-sm text-gray-600">
-              {session?.user?.email} ({employeeId})
+              {session?.user?.email}
+              {zepEmployee && (
+                <span className="ml-1 text-gray-500">
+                  (ZEP: {zepEmployee.username})
+                </span>
+              )}
+              {employeeLoading && (
+                <span className="ml-1 text-gray-400">(Lade ZEP...)</span>
+              )}
             </span>
             <button
               onClick={() => signOut({ callbackUrl: "/" })}
@@ -591,6 +666,14 @@ export default function Dashboard() {
           </div>
         </div>
       </header>
+
+      {employeeError && (
+        <div className="max-w-6xl mx-auto px-4 pt-4">
+          <div className="p-4 rounded-lg bg-red-50 border border-red-200 text-red-800">
+            <strong>ZEP-Fehler:</strong> {employeeError}
+          </div>
+        </div>
+      )}
 
       <main className="max-w-6xl mx-auto px-4 py-8 space-y-6">
         <DateRangePicker
@@ -676,6 +759,7 @@ export default function Dashboard() {
           tasks={tasks}
           activities={activities}
           syncedEntries={syncedEntries}
+          duplicateWarnings={duplicateWarnings}
           onToggle={toggleAppointment}
           onToggleSeries={toggleSeries}
           onProjectChange={changeProject}
