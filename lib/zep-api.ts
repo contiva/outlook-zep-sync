@@ -51,6 +51,14 @@ export interface ZepEmployeeProject {
   availability: number | null;
 }
 
+// Closed task statuses (case-insensitive)
+const CLOSED_STATUSES = ["abgeschlossen", "geschlossen", "erledigt", "fertig"];
+
+function isTaskClosed(status: string | null): boolean {
+  if (!status) return false;
+  return CLOSED_STATUSES.includes(status.toLowerCase());
+}
+
 export interface ZepAttendance {
   id?: number;
   date: string; // ISO date format: "2026-01-30T00:00:00.000000Z"
@@ -142,18 +150,34 @@ export async function getZepProjects(token: string): Promise<ZepProject[]> {
 }
 
 // Get tasks for a specific project
+// Filters out closed tasks (abgeschlossen, geschlossen, erledigt, fertig) and expired tasks
 export async function getZepProjectTasks(
   token: string,
   projectId: number
 ): Promise<ZepTask[]> {
+  // Fetch all tasks for the project
   const tasks = await fetchAllPages<ZepTask>(
     `/api/v1/projects/${projectId}/tasks`,
     token
   );
-  // Filter to only show active tasks (status "in Arbeit" or null)
-  return tasks.filter(
-    (t) => t.status === "in Arbeit" || t.status === null
-  );
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  // Filter tasks
+  return tasks.filter((t) => {
+    // Exclude closed tasks
+    if (isTaskClosed(t.status)) return false;
+
+    // Check task end_date (hide expired)
+    if (t.end_date) {
+      const taskEndDate = new Date(t.end_date);
+      taskEndDate.setHours(0, 0, 0, 0);
+      if (taskEndDate < today) return false;
+    }
+
+    return true;
+  });
 }
 
 // Get all activities
@@ -217,7 +241,23 @@ export async function getZepProjectsForEmployee(
   
   // Get all projects and filter to assigned ones
   const allProjects = await getZepProjects(token);
-  return allProjects.filter((p) => projectIds.includes(p.id));
+  
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  return allProjects.filter((p) => {
+    // Must be in assigned projects
+    if (!projectIds.includes(p.id)) return false;
+
+    // Hide expired projects
+    if (p.end_date) {
+      const projectEndDate = new Date(p.end_date);
+      projectEndDate.setHours(0, 0, 0, 0);
+      if (projectEndDate < today) return false;
+    }
+
+    return true;
+  });
 }
 
 // Get attendances (time entries) for an employee in a date range
