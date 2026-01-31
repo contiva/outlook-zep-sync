@@ -44,9 +44,17 @@ interface CalendarEvent {
   start: { dateTime: string };
   end: { dateTime: string };
   attendees?: Attendee[];
+  organizer?: {
+    emailAddress: {
+      name: string;
+      address: string;
+    };
+  };
   isOrganizer?: boolean;
   seriesMasterId?: string;
   type?: string;
+  isOnlineMeeting?: boolean;
+  onlineMeetingProvider?: string;
 }
 
 interface Appointment {
@@ -59,10 +67,18 @@ interface Appointment {
   taskId: number | null;
   activityId: string;
   attendees?: Attendee[];
+  organizer?: {
+    emailAddress: {
+      name: string;
+      address: string;
+    };
+  };
   isOrganizer?: boolean;
   seriesMasterId?: string;
   type?: string;
   synced?: boolean; // true if already exists in ZEP
+  isOnlineMeeting?: boolean;
+  onlineMeetingProvider?: string;
 }
 
 interface ZepEntry {

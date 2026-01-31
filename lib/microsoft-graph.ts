@@ -33,6 +33,9 @@ export interface OutlookEvent {
   // Für wiederkehrende Termine
   type?: "singleInstance" | "occurrence" | "exception" | "seriesMaster";
   seriesMasterId?: string;
+  // Online Meeting Info
+  isOnlineMeeting?: boolean;
+  onlineMeetingProvider?: "teamsForBusiness" | "skypeForBusiness" | "skypeForConsumer" | "unknown";
 }
 
 export interface CalendarResponse {
@@ -57,7 +60,7 @@ export async function getCalendarEvents(
     u.searchParams.set("endDateTime", `${endDate}T23:59:59`);
     u.searchParams.set("$orderby", "start/dateTime");
     u.searchParams.set("$top", "250"); // Max allowed by Graph API
-    u.searchParams.set("$select", "id,subject,start,end,bodyPreview,attendees,organizer,isOrganizer,type,seriesMasterId");
+    u.searchParams.set("$select", "id,subject,start,end,bodyPreview,attendees,organizer,isOrganizer,type,seriesMasterId,isOnlineMeeting,onlineMeetingProvider");
     return u.toString();
   })();
 
