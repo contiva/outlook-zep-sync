@@ -103,6 +103,29 @@ interface PersistedState {
   savedAt: number; // timestamp for cache invalidation
 }
 
+// Helper: Check if an appointment is already synced to ZEP
+function isAppointmentSynced(apt: Appointment, syncedEntries: ZepEntry[]): boolean {
+  if (!syncedEntries || syncedEntries.length === 0) {
+    return false;
+  }
+
+  const aptDate = new Date(apt.start.dateTime);
+  const aptDateStr = aptDate.toISOString().split("T")[0];
+  const aptFromTime = aptDate.toTimeString().slice(0, 8);
+  const aptEndDate = new Date(apt.end.dateTime);
+  const aptToTime = aptEndDate.toTimeString().slice(0, 8);
+
+  return syncedEntries.some((entry) => {
+    const entryDate = entry.date.split("T")[0];
+    return (
+      entry.note === apt.subject &&
+      entryDate === aptDateStr &&
+      entry.from === aptFromTime &&
+      entry.to === aptToTime
+    );
+  });
+}
+
 // Helper to safely access localStorage (SSR-safe)
 const getStoredState = (): PersistedState | null => {
   if (typeof window === "undefined") return null;
@@ -458,20 +481,23 @@ export default function Dashboard() {
   };
 
   const submitToZep = async () => {
-    // Only submit filtered (visible) appointments that are selected
-    const selectedAppointments = filteredAppointments.filter((a) => a.selected);
+    // Only submit filtered (visible) appointments that are:
+    // 1. Selected
+    // 2. Have project and task assigned
+    // 3. NOT already synced to ZEP
+    const syncReadyAppointments = filteredAppointments.filter((a) => {
+      if (!a.selected) return false;
+      if (!a.projectId || !a.taskId) return false;
+      if (isAppointmentSynced(a, syncedEntries)) return false;
+      return true;
+    });
     
-    // Check if all required fields are set
-    const incompleteAppointments = selectedAppointments.filter(
-      (a) => !a.projectId || !a.taskId
-    );
-    
-    if (incompleteAppointments.length > 0) {
-      setMessage(`Fehler: ${incompleteAppointments.length} Termin(e) ohne Projekt oder Task`);
+    if (syncReadyAppointments.length === 0) {
+      setMessage("Keine Termine zum Synchronisieren vorhanden.");
       return;
     }
     
-    const entries = selectedAppointments.map((apt) => {
+    const entries = syncReadyAppointments.map((apt) => {
       const startDt = new Date(apt.start.dateTime);
       const endDt = new Date(apt.end.dateTime);
 
@@ -510,7 +536,7 @@ export default function Dashboard() {
 
       if (result.succeeded > 0) {
         // Track submitted IDs for heatmap
-        const submittedAppointmentIds = new Set(selectedAppointments.map((a) => a.id));
+        const submittedAppointmentIds = new Set(syncReadyAppointments.map((a) => a.id));
         setSubmittedIds((prev) => new Set([...prev, ...submittedAppointmentIds]));
         
         // Reload synced entries to update heatmap

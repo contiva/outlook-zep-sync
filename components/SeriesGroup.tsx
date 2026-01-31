@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { ChevronDown, ChevronRight, Repeat, Link2, Unlink2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Repeat, Link2, Unlink2, CloudUpload } from "lucide-react";
 import AppointmentRow from "./AppointmentRow";
 import SearchableSelect, { SelectOption } from "./SearchableSelect";
 
@@ -109,6 +109,14 @@ function isAppointmentSynced(apt: Appointment, syncedEntries: ZepEntry[]): boole
   });
 }
 
+// Helper: Check if an appointment is ready to sync (selected, complete, not yet synced)
+function isAppointmentSyncReady(apt: Appointment, syncedEntries: ZepEntry[]): boolean {
+  if (!apt.selected) return false;
+  if (!apt.projectId || !apt.taskId) return false;
+  if (isAppointmentSynced(apt, syncedEntries)) return false;
+  return true;
+}
+
 export default function SeriesGroup({
   seriesId,
   appointments,
@@ -132,6 +140,9 @@ export default function SeriesGroup({
   const allSelected = appointments.every((a) => a.selected);
   const someSelected = appointments.some((a) => a.selected);
   const selectedCount = appointments.filter((a) => a.selected).length;
+  
+  // Count how many appointments are ready to sync
+  const syncReadyCount = appointments.filter((a) => isAppointmentSyncReady(a, syncedEntries)).length;
 
   // Berechne Gesamtdauer
   const totalMinutes = appointments.reduce((acc, apt) => {
@@ -325,6 +336,15 @@ export default function SeriesGroup({
                   von {firstAppointment.isOrganizer ? "Dir" : (firstAppointment.organizer.emailAddress.name || firstAppointment.organizer.emailAddress.address.split("@")[0])}
                 </span>
               )}
+              {syncReadyCount > 0 && (
+                <span 
+                  className="flex items-center gap-1 text-sm text-amber-600"
+                  title={`${syncReadyCount} Termin${syncReadyCount > 1 ? 'e' : ''} werden beim nächsten Sync übertragen`}
+                >
+                  <CloudUpload className="h-4 w-4 text-amber-500" />
+                  {syncReadyCount}
+                </span>
+              )}
             </div>
 
             {/* Gebündelte Bearbeitung */}
@@ -415,6 +435,7 @@ export default function SeriesGroup({
               tasks={appointment.projectId ? tasks[appointment.projectId] || [] : []}
               activities={activities}
               isSynced={isAppointmentSynced(appointment, syncedEntries)}
+              isSyncReady={isAppointmentSyncReady(appointment, syncedEntries)}
               onToggle={onToggle}
               onProjectChange={onProjectChange}
               onTaskChange={onTaskChange}

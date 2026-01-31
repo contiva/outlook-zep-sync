@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import AppointmentRow from "./AppointmentRow";
 import SeriesGroup from "./SeriesGroup";
+import SyncConfirmDialog from "./SyncConfirmDialog";
 
 interface Project {
   id: number;
@@ -108,6 +109,14 @@ function isAppointmentSynced(apt: Appointment, syncedEntries: ZepEntry[]): boole
   });
 }
 
+// Helper: Check if an appointment is ready to sync (selected, complete, not yet synced)
+function isAppointmentSyncReady(apt: Appointment, syncedEntries: ZepEntry[]): boolean {
+  if (!apt.selected) return false;
+  if (!apt.projectId || !apt.taskId) return false;
+  if (isAppointmentSynced(apt, syncedEntries)) return false;
+  return true;
+}
+
 export default function AppointmentList({
   appointments,
   projects,
@@ -123,6 +132,8 @@ export default function AppointmentList({
   onSubmit,
   submitting,
 }: AppointmentListProps) {
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+
   // Gruppiere Termine nach Serien
   const groupedItems = useMemo(() => {
     const seriesMap = new Map<string, Appointment[]>();
@@ -178,6 +189,9 @@ export default function AppointmentList({
 
   const selectedAppointments = appointments.filter((a) => a.selected);
 
+  // Appointments that are ready to sync (selected, complete, NOT already synced)
+  const syncReadyAppointments = appointments.filter((a) => isAppointmentSyncReady(a, syncedEntries));
+
   const totalMinutes = selectedAppointments.reduce((acc, apt) => {
     const start = new Date(apt.start.dateTime);
     const end = new Date(apt.end.dateTime);
@@ -191,6 +205,12 @@ export default function AppointmentList({
   const allComplete = selectedAppointments.every(
     (a) => a.projectId && a.taskId && a.activityId
   );
+
+  // Handle confirm from dialog
+  const handleConfirmSync = () => {
+    setShowConfirmDialog(false);
+    onSubmit();
+  };
 
   // Zähle Serien
   const seriesCount = groupedItems.filter((g) => g.type === "series").length;
@@ -238,6 +258,7 @@ export default function AppointmentList({
                 }
                 activities={activities}
                 isSynced={isAppointmentSynced(item.appointments[0], syncedEntries)}
+                isSyncReady={isAppointmentSyncReady(item.appointments[0], syncedEntries)}
                 onToggle={onToggle}
                 onProjectChange={onProjectChange}
                 onTaskChange={onTaskChange}
@@ -254,26 +275,40 @@ export default function AppointmentList({
             <div className="text-sm text-gray-600">
               Ausgewählt: {selectedAppointments.length} Termine ({hours}h{" "}
               {minutes}min)
+              {syncReadyAppointments.length > 0 && (
+                <span className="ml-2 text-amber-600">
+                  ({syncReadyAppointments.length} bereit zum Sync)
+                </span>
+              )}
             </div>
             <button
-              onClick={onSubmit}
+              onClick={() => setShowConfirmDialog(true)}
               disabled={
                 submitting ||
-                selectedAppointments.length === 0 ||
-                !allComplete
+                syncReadyAppointments.length === 0
               }
               className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition"
             >
-              {submitting ? "Wird übertragen..." : "An ZEP übertragen"}
+              {submitting ? "Wird übertragen..." : `An ZEP übertragen (${syncReadyAppointments.length})`}
             </button>
           </div>
-          {selectedAppointments.length > 0 && !allComplete && (
-            <p className="text-sm text-amber-600 mt-2">
-              Bitte allen ausgewählten Terminen Projekt, Task und Tätigkeit zuweisen.
+          {selectedAppointments.length > 0 && !allComplete && syncReadyAppointments.length < selectedAppointments.length && (
+            <p className="text-sm text-gray-500 mt-2">
+              {selectedAppointments.length - syncReadyAppointments.length} weitere Termine benötigen noch Projekt/Task-Zuweisung.
             </p>
           )}
         </div>
       )}
+
+      {/* Sync Confirmation Dialog */}
+      <SyncConfirmDialog
+        isOpen={showConfirmDialog}
+        onClose={() => setShowConfirmDialog(false)}
+        onConfirm={handleConfirmSync}
+        appointments={syncReadyAppointments}
+        projects={projects}
+        submitting={submitting}
+      />
     </div>
   );
 }

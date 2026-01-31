@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
-import { Users, CheckCircle } from "lucide-react";
+import { Users, CheckCircle, CloudUpload } from "lucide-react";
 import SearchableSelect, { SelectOption } from "./SearchableSelect";
 
 interface Project {
@@ -62,6 +62,7 @@ interface AppointmentRowProps {
   tasks: Task[];
   activities: Activity[];
   isSynced?: boolean;
+  isSyncReady?: boolean;
   onToggle: (id: string) => void;
   onProjectChange: (id: string, projectId: number | null) => void;
   onTaskChange: (id: string, taskId: number | null) => void;
@@ -104,6 +105,7 @@ export default function AppointmentRow({
   tasks,
   activities,
   isSynced = false,
+  isSyncReady = false,
   onToggle,
   onProjectChange,
   onTaskChange,
@@ -163,18 +165,28 @@ export default function AppointmentRow({
       }`}
     >
       <div className="flex items-start gap-4">
-        {isSynced ? (
-          <div className="mt-1 h-5 w-5 flex items-center justify-center" title="Bereits in ZEP synchronisiert">
-            <CheckCircle className="h-5 w-5 text-green-600" />
-          </div>
-        ) : (
-          <input
-            type="checkbox"
-            checked={appointment.selected}
-            onChange={() => onToggle(appointment.id)}
-            className="mt-1 h-5 w-5 text-blue-600 rounded"
-          />
-        )}
+        {/* Status icons: Synced (green) or Checkbox + SyncReady indicator (amber) */}
+        <div className="flex items-center gap-1">
+          {isSynced ? (
+            <div className="mt-1 h-5 w-5 flex items-center justify-center" title="Bereits in ZEP synchronisiert">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+            </div>
+          ) : (
+            <>
+              <input
+                type="checkbox"
+                checked={appointment.selected}
+                onChange={() => onToggle(appointment.id)}
+                className="mt-1 h-5 w-5 text-blue-600 rounded"
+              />
+              {isSyncReady && (
+                <div className="mt-1 h-5 w-5 flex items-center justify-center" title="Wird beim nächsten Sync übertragen">
+                  <CloudUpload className="h-4 w-4 text-amber-500" />
+                </div>
+              )}
+            </>
+          )}
+        </div>
         <div className="flex-1">
           <div className="flex items-center gap-2 text-sm text-gray-500">
             <span className="font-medium">{dayLabel}</span>
