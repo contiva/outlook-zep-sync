@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import AppointmentRow from "./AppointmentRow";
 import SeriesGroup from "./SeriesGroup";
 import SyncConfirmDialog from "./SyncConfirmDialog";
-import { DuplicateCheckResult } from "@/lib/zep-api";
+import { DuplicateCheckResult, formatZepStartTime, formatZepEndTime } from "@/lib/zep-api";
 
 interface Project {
   id: number;
@@ -98,6 +98,7 @@ function isAppointmentSynced(apt: Appointment, syncedEntries: ZepEntry[]): boole
 }
 
 // Helper: Find the matching synced entry for an appointment
+// Compares using rounded times (ZEP stores times in 15-min intervals)
 function findSyncedEntry(apt: Appointment, syncedEntries: ZepEntry[]): ZepEntry | null {
   if (!syncedEntries || syncedEntries.length === 0) {
     return null;
@@ -105,17 +106,19 @@ function findSyncedEntry(apt: Appointment, syncedEntries: ZepEntry[]): ZepEntry 
 
   const aptDate = new Date(apt.start.dateTime);
   const aptDateStr = aptDate.toISOString().split("T")[0];
-  const aptFromTime = aptDate.toTimeString().slice(0, 8);
   const aptEndDate = new Date(apt.end.dateTime);
-  const aptToTime = aptEndDate.toTimeString().slice(0, 8);
+  
+  // Use rounded times for comparison (same logic as when syncing to ZEP)
+  const aptFromTimeRounded = formatZepStartTime(aptDate);
+  const aptToTimeRounded = formatZepEndTime(aptEndDate);
 
   return syncedEntries.find((entry) => {
     const entryDate = entry.date.split("T")[0];
     return (
       entry.note === apt.subject &&
       entryDate === aptDateStr &&
-      entry.from === aptFromTime &&
-      entry.to === aptToTime
+      entry.from === aptFromTimeRounded &&
+      entry.to === aptToTimeRounded
     );
   }) || null;
 }

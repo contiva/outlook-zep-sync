@@ -3,6 +3,13 @@
 import { useMemo } from "react";
 import { format, eachDayOfInterval, parseISO, isWeekend } from "date-fns";
 import { de } from "date-fns/locale";
+import { formatZepStartTime, formatZepEndTime } from "@/lib/zep-api";
+
+interface Attendee {
+  emailAddress: {
+    address: string;
+  };
+}
 
 interface Appointment {
   id: string;
@@ -13,6 +20,7 @@ interface Appointment {
   selected: boolean;
   seriesMasterId?: string;
   type?: string;
+  attendees?: Attendee[];
 }
 
 interface ZepAttendance {
@@ -32,6 +40,8 @@ interface CalendarHeatmapProps {
   onDayClick: (date: string | null) => void;
   onSeriesClick: (seriesFilter: boolean) => void;
   seriesFilterActive: boolean;
+  hideSoloMeetings?: boolean;
+  userEmail?: string;
 }
 
 type DayStatus = "empty" | "unprocessed" | "edited" | "synced" | "weekend";
@@ -47,7 +57,31 @@ export default function CalendarHeatmap({
   onDayClick,
   onSeriesClick,
   seriesFilterActive,
+  hideSoloMeetings = false,
+  userEmail,
 }: CalendarHeatmapProps) {
+  // Helper: Check if an appointment is a solo meeting (only user as attendee)
+  const isSoloMeeting = (apt: Appointment): boolean => {
+    if (!userEmail) return false;
+    const otherAttendees = (apt.attendees || []).filter(
+      (a) => a.emailAddress.address.toLowerCase() !== userEmail.toLowerCase()
+    );
+    return otherAttendees.length === 0;
+  };
+
+  // Filter appointments based on hideSoloMeetings setting
+  const filteredAppointments = useMemo(() => {
+    if (!hideSoloMeetings) return appointments;
+    
+    return appointments.filter((apt) => {
+      // Always show if manually selected
+      if (apt.selected) return true;
+      // Otherwise, only show if not a solo meeting
+      return !isSoloMeeting(apt);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appointments, hideSoloMeetings, userEmail]);
+
   // Generate all days in the range
   const days = useMemo(() => {
     try {
@@ -60,16 +94,16 @@ export default function CalendarHeatmap({
     }
   }, [startDate, endDate]);
 
-  // Group appointments by date
+  // Group appointments by date (using filtered appointments)
   const appointmentsByDate = useMemo(() => {
     const map = new Map<string, Appointment[]>();
-    appointments.forEach((apt) => {
+    filteredAppointments.forEach((apt) => {
       const date = apt.start.dateTime.split("T")[0];
       const existing = map.get(date) || [];
       map.set(date, [...existing, apt]);
     });
     return map;
-  }, [appointments]);
+  }, [filteredAppointments]);
 
   // Group synced entries by date
   const syncedByDate = useMemo(() => {
@@ -82,11 +116,11 @@ export default function CalendarHeatmap({
     return map;
   }, [syncedEntries]);
 
-  // Find all recurring series (appointments with seriesMasterId)
+  // Find all recurring series (appointments with seriesMasterId) - using filtered appointments
   const seriesData = useMemo(() => {
     const seriesMap = new Map<string, Appointment[]>();
     
-    appointments.forEach((apt) => {
+    filteredAppointments.forEach((apt) => {
       if (apt.seriesMasterId && apt.type === "occurrence") {
         const existing = seriesMap.get(apt.seriesMasterId) || [];
         existing.push(apt);
@@ -113,14 +147,17 @@ export default function CalendarHeatmap({
   }, [appointments]);
 
   // Helper: Check if a specific appointment is synced to ZEP (needs to be before getSeriesStatus)
+  // Uses rounded times for comparison (ZEP stores times in 15-min intervals)
   const isAppointmentSyncedCheck = (apt: Appointment): boolean => {
     const zepEntries = syncedByDate.get(apt.start.dateTime.split("T")[0]) || [];
     if (zepEntries.length === 0) return false;
     
     const aptDate = new Date(apt.start.dateTime);
-    const aptFromTime = aptDate.toTimeString().slice(0, 8);
     const aptEndDate = new Date(apt.end.dateTime);
-    const aptToTime = aptEndDate.toTimeString().slice(0, 8);
+    
+    // Use rounded times (same logic as when syncing to ZEP)
+    const aptFromTime = formatZepStartTime(aptDate);
+    const aptToTime = formatZepEndTime(aptEndDate);
 
     return zepEntries.some((entry) => {
       return (
@@ -164,13 +201,16 @@ export default function CalendarHeatmap({
   };
 
   // Helper: Check if a specific appointment is synced to ZEP
+  // Uses rounded times for comparison (ZEP stores times in 15-min intervals)
   const isAppointmentSynced = (apt: Appointment, zepEntries: ZepAttendance[]): boolean => {
     if (!zepEntries || zepEntries.length === 0) return false;
     
     const aptDate = new Date(apt.start.dateTime);
-    const aptFromTime = aptDate.toTimeString().slice(0, 8);
     const aptEndDate = new Date(apt.end.dateTime);
-    const aptToTime = aptEndDate.toTimeString().slice(0, 8);
+    
+    // Use rounded times (same logic as when syncing to ZEP)
+    const aptFromTime = formatZepStartTime(aptDate);
+    const aptToTime = formatZepEndTime(aptEndDate);
 
     return zepEntries.some((entry) => {
       return (

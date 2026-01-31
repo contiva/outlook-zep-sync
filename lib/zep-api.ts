@@ -320,6 +320,51 @@ export function formatZepTime(date: Date): string {
   return date.toTimeString().slice(0, 8);
 }
 
+// Helper: Round time down to nearest 15-minute interval (for start times)
+// 9:05 -> 9:00, 9:14 -> 9:00, 9:15 -> 9:15
+export function roundTimeDown(date: Date): Date {
+  const rounded = new Date(date);
+  const minutes = rounded.getMinutes();
+  const roundedMinutes = Math.floor(minutes / 15) * 15;
+  rounded.setMinutes(roundedMinutes, 0, 0);
+  return rounded;
+}
+
+// Helper: Round time up to nearest 15-minute interval (for end times)
+// 9:05 -> 9:15, 9:15 -> 9:15, 9:16 -> 9:30
+export function roundTimeUp(date: Date): Date {
+  const rounded = new Date(date);
+  const minutes = rounded.getMinutes();
+  const remainder = minutes % 15;
+  
+  if (remainder === 0) {
+    // Already on a 15-minute boundary
+    rounded.setSeconds(0, 0);
+    return rounded;
+  }
+  
+  const roundedMinutes = Math.ceil(minutes / 15) * 15;
+  
+  if (roundedMinutes === 60) {
+    // Roll over to next hour
+    rounded.setHours(rounded.getHours() + 1, 0, 0, 0);
+  } else {
+    rounded.setMinutes(roundedMinutes, 0, 0);
+  }
+  
+  return rounded;
+}
+
+// Helper: Format start time for ZEP (rounded down to 15-min interval)
+export function formatZepStartTime(date: Date): string {
+  return formatZepTime(roundTimeDown(date));
+}
+
+// Helper: Format end time for ZEP (rounded up to 15-min interval)
+export function formatZepEndTime(date: Date): string {
+  return formatZepTime(roundTimeUp(date));
+}
+
 // Find employee by email address (case-insensitive)
 export async function findEmployeeByEmail(
   token: string,
@@ -431,12 +476,14 @@ export function checkForDuplicate(
     return { hasDuplicate: false, type: null };
   }
   
-  // Parse appointment date and times
+  // Parse appointment date and times (use rounded times for comparison)
   const aptDate = new Date(appointment.startDateTime);
   const aptDateStr = aptDate.toISOString().split("T")[0];
-  const aptFromTime = aptDate.toTimeString().slice(0, 8);
   const aptEndDate = new Date(appointment.endDateTime);
-  const aptToTime = aptEndDate.toTimeString().slice(0, 8);
+  
+  // Use rounded times (same as when syncing to ZEP)
+  const aptFromTime = formatZepStartTime(aptDate);
+  const aptToTime = formatZepEndTime(aptEndDate);
   const aptSubject = appointment.subject.toLowerCase().trim();
   
   // Filter entries for the same day

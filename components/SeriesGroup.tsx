@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import { ChevronDown, ChevronRight, Repeat, Link2, Unlink2, CloudUpload } from "lucide-react";
 import AppointmentRow from "./AppointmentRow";
 import SearchableSelect, { SelectOption } from "./SearchableSelect";
+import { formatZepStartTime, formatZepEndTime } from "@/lib/zep-api";
 
 interface Project {
   id: number;
@@ -103,17 +104,19 @@ function findSyncedEntry(apt: Appointment, syncedEntries: ZepEntry[]): ZepEntry 
 
   const aptDate = new Date(apt.start.dateTime);
   const aptDateStr = aptDate.toISOString().split("T")[0];
-  const aptFromTime = aptDate.toTimeString().slice(0, 8);
   const aptEndDate = new Date(apt.end.dateTime);
-  const aptToTime = aptEndDate.toTimeString().slice(0, 8);
+  
+  // Use rounded times for comparison (same logic as when syncing to ZEP)
+  const aptFromTimeRounded = formatZepStartTime(aptDate);
+  const aptToTimeRounded = formatZepEndTime(aptEndDate);
 
   return syncedEntries.find((entry) => {
     const entryDate = entry.date.split("T")[0];
     return (
       entry.note === apt.subject &&
       entryDate === aptDateStr &&
-      entry.from === aptFromTime &&
-      entry.to === aptToTime
+      entry.from === aptFromTimeRounded &&
+      entry.to === aptToTimeRounded
     );
   }) || null;
 }

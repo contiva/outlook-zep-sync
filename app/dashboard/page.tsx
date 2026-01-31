@@ -9,7 +9,7 @@ import DateRangePicker from "@/components/DateRangePicker";
 import AppointmentList from "@/components/AppointmentList";
 import CalendarHeatmap from "@/components/CalendarHeatmap";
 import { saveSyncRecords, SyncRecord } from "@/lib/sync-history";
-import { checkAppointmentsForDuplicates, DuplicateCheckResult, ZepAttendance } from "@/lib/zep-api";
+import { checkAppointmentsForDuplicates, DuplicateCheckResult, ZepAttendance, formatZepStartTime, formatZepEndTime } from "@/lib/zep-api";
 
 interface Project {
   id: number;
@@ -554,10 +554,12 @@ export default function Dashboard() {
       // ZEP API requires date in YYYY-MM-DD format (not ISO timestamp)
       const dateStr = startDt.toISOString().split("T")[0];
 
+      // ZEP requires times in 15-minute intervals
+      // Round start time DOWN, end time UP (maximizes booked time)
       return {
         date: dateStr,
-        from: startDt.toTimeString().slice(0, 8),
-        to: endDt.toTimeString().slice(0, 8),
+        from: formatZepStartTime(startDt),
+        to: formatZepEndTime(endDt),
         employee_id: employeeId,
         note: apt.subject,
         billable: true,
@@ -606,7 +608,7 @@ export default function Dashboard() {
         const submittedAppointmentIds = new Set(syncReadyAppointments.map((a) => a.id));
         setSubmittedIds((prev) => new Set([...prev, ...submittedAppointmentIds]));
         
-        // Reload synced entries to update heatmap
+        // Reload synced entries to update status display
         if (employeeId) {
           try {
             const res = await fetch(`/api/zep/timeentries?employeeId=${employeeId}&startDate=${startDate}&endDate=${endDate}`);
@@ -619,8 +621,14 @@ export default function Dashboard() {
           }
         }
         
-        // Remove only the submitted appointments from list
-        setAppointments((prev) => prev.filter((a) => !submittedAppointmentIds.has(a.id)));
+        // Deselect the submitted appointments (they stay in list but show as synced)
+        setAppointments((prev) => 
+          prev.map((a) => 
+            submittedAppointmentIds.has(a.id) 
+              ? { ...a, selected: false }
+              : a
+          )
+        );
       }
     } catch (error) {
       console.error("Submit error:", error);
@@ -692,6 +700,8 @@ export default function Dashboard() {
           syncedEntries={syncedEntries}
           submittedIds={submittedIds}
           selectedDate={filterDate}
+          hideSoloMeetings={hideSoloMeetings}
+          userEmail={session?.user?.email || undefined}
           onDayClick={(date) => {
             setFilterDate(date);
             if (date) setSeriesFilterActive(false); // Clear series filter when selecting a date
