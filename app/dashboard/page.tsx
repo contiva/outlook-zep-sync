@@ -4,7 +4,7 @@ import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
-import { LogOut, Search, X } from "lucide-react";
+import { LogOut, Search, X, Keyboard } from "lucide-react";
 import DateRangePicker from "@/components/DateRangePicker";
 import AppointmentList from "@/components/AppointmentList";
 import CalendarHeatmap from "@/components/CalendarHeatmap";
@@ -189,7 +189,7 @@ export default function Dashboard() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState<{ text: string; type: "success" | "error"; details?: string[] } | null>(null);
   const [syncedEntries, setSyncedEntries] = useState<ZepEntry[]>(initialState.syncedEntries);
   const [submittedIds, setSubmittedIds] = useState<Set<string>>(new Set());
   const [filterDate, setFilterDate] = useState<string | null>(initialState.filterDate);
@@ -200,6 +200,10 @@ export default function Dashboard() {
   const [employeeLoading, setEmployeeLoading] = useState(false);
   const [employeeError, setEmployeeError] = useState<string | null>(null);
   const [duplicateWarnings, setDuplicateWarnings] = useState<Map<string, DuplicateCheckResult>>(new Map());
+  const [loadingTasks, setLoadingTasks] = useState<Set<number>>(new Set());
+  const [lastLoadedAt, setLastLoadedAt] = useState<Date | null>(
+    initialState.appointments.length > 0 ? new Date(getStoredState()?.savedAt || Date.now()) : null
+  );
 
   const employeeId = zepEmployee?.username ?? "";
 
@@ -327,6 +331,36 @@ export default function Dashboard() {
       .catch(console.error);
   }, []);
 
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if user is typing in an input field
+      const target = e.target as HTMLElement;
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) {
+        return;
+      }
+
+      // Escape - clear filters
+      if (e.key === "Escape") {
+        if (filterDate || seriesFilterActive || searchQuery) {
+          e.preventDefault();
+          setFilterDate(null);
+          setSeriesFilterActive(false);
+          setSearchQuery("");
+        }
+      }
+
+      // Ctrl/Cmd + R - Refresh/load appointments
+      if ((e.ctrlKey || e.metaKey) && e.key === "r") {
+        e.preventDefault();
+        loadAppointments();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [filterDate, seriesFilterActive, searchQuery]);
+
   // Load ZEP employee info when session is available
   useEffect(() => {
     const loadEmployee = async () => {
@@ -388,6 +422,7 @@ export default function Dashboard() {
   const loadTasksForProject = useCallback(async (projectId: number) => {
     if (tasks[projectId]) return;
 
+    setLoadingTasks((prev) => new Set(prev).add(projectId));
     try {
       const res = await fetch(`/api/zep/tasks?projectId=${projectId}`);
       const data = await res.json();
@@ -396,18 +431,27 @@ export default function Dashboard() {
       }
     } catch (error) {
       console.error("Failed to load tasks:", error);
+    } finally {
+      setLoadingTasks((prev) => {
+        const next = new Set(prev);
+        next.delete(projectId);
+        return next;
+      });
     }
   }, [tasks]);
 
-  const loadAppointments = async () => {
+  const loadAppointments = async (overrideStartDate?: string, overrideEndDate?: string) => {
+    const effectiveStartDate = overrideStartDate ?? startDate;
+    const effectiveEndDate = overrideEndDate ?? endDate;
+    
     setLoading(true);
-    setMessage("");
+    setMessage(null);
     try {
       // Load appointments and ZEP entries in parallel
       const [appointmentsRes, zepRes] = await Promise.all([
-        fetch(`/api/calendar?startDate=${startDate}&endDate=${endDate}`),
+        fetch(`/api/calendar?startDate=${effectiveStartDate}&endDate=${effectiveEndDate}`),
         employeeId 
-          ? fetch(`/api/zep/timeentries?employeeId=${employeeId}&startDate=${startDate}&endDate=${endDate}`)
+          ? fetch(`/api/zep/timeentries?employeeId=${employeeId}&startDate=${effectiveStartDate}&endDate=${effectiveEndDate}`)
           : Promise.resolve(null),
       ]);
 
@@ -462,11 +506,22 @@ export default function Dashboard() {
           setSyncedEntries(zepData);
         }
       }
+      
+      // Update last loaded timestamp
+      setLastLoadedAt(new Date());
     } catch (error) {
       console.error("Failed to load appointments:", error);
-      setMessage("Fehler beim Laden der Termine");
+      setMessage({ text: "Fehler beim Laden der Termine", type: "error" });
     }
     setLoading(false);
+  };
+
+  // Handler für Preset-Buttons: setzt Datum UND lädt sofort
+  const handleDateRangeChange = (newStartDate: string, newEndDate: string) => {
+    setStartDate(newStartDate);
+    setEndDate(newEndDate);
+    // Sofort laden mit den neuen Werten (nicht warten auf State-Update)
+    loadAppointments(newStartDate, newEndDate);
   };
 
   const toggleAppointment = (id: string) => {
@@ -483,6 +538,22 @@ export default function Dashboard() {
       prev.map((apt) =>
         apt.seriesMasterId === seriesId ? { ...apt, selected } : apt
       )
+    );
+  };
+
+  // Alle nicht-gesyncten Termine auswählen/abwählen
+  const selectAllAppointments = (selected: boolean) => {
+    // Erstelle Set der IDs von gefilterten, sichtbaren Terminen
+    const visibleIds = new Set(filteredAppointments.map(a => a.id));
+    
+    setAppointments((prev) =>
+      prev.map((apt) => {
+        // Nur Termine ändern die in der gefilterten Liste sichtbar sind
+        if (!visibleIds.has(apt.id)) return apt;
+        // Bereits gesynced? Nicht ändern
+        if (isAppointmentSynced(apt, syncedEntries)) return apt;
+        return { ...apt, selected };
+      })
     );
   };
 
@@ -530,20 +601,12 @@ export default function Dashboard() {
     );
   };
 
-  const submitToZep = async () => {
-    // Only submit filtered (visible) appointments that are:
-    // 1. Selected
-    // 2. Have project and task assigned
-    // 3. NOT already synced to ZEP
-    const syncReadyAppointments = filteredAppointments.filter((a) => {
-      if (!a.selected) return false;
-      if (!a.projectId || !a.taskId) return false;
-      if (isAppointmentSynced(a, syncedEntries)) return false;
-      return true;
-    });
+  const submitToZep = async (appointmentsToSync: Appointment[]) => {
+    // Use the appointments passed from the dialog (already filtered by user)
+    const syncReadyAppointments = appointmentsToSync;
     
     if (syncReadyAppointments.length === 0) {
-      setMessage("Keine Termine zum Synchronisieren vorhanden.");
+      setMessage({ text: "Keine Termine zum Synchronisieren vorhanden.", type: "error" });
       return;
     }
     
@@ -579,12 +642,28 @@ export default function Dashboard() {
 
       const result = await res.json();
       
-      // Show detailed error message if available
-      let msg = result.message || "Erfolgreich uebertragen!";
-      if (result.errors?.length > 0) {
-        msg += "\n" + result.errors.join("\n");
+      // Build a better success/error message
+      if (result.succeeded > 0) {
+        const totalMinutes = syncReadyAppointments.reduce((acc, apt) => {
+          const start = new Date(apt.start.dateTime);
+          const end = new Date(apt.end.dateTime);
+          return acc + (end.getTime() - start.getTime()) / 1000 / 60;
+        }, 0);
+        const hours = Math.floor(totalMinutes / 60);
+        const mins = Math.round(totalMinutes % 60);
+        
+        setMessage({
+          text: `${result.succeeded} Termin${result.succeeded > 1 ? "e" : ""} an ZEP übertragen (${hours}h ${mins}min)`,
+          type: "success",
+          details: result.errors?.length > 0 ? result.errors : undefined,
+        });
+      } else {
+        setMessage({
+          text: result.message || "Fehler bei der Übertragung",
+          type: "error",
+          details: result.errors,
+        });
       }
-      setMessage(msg);
 
       if (result.succeeded > 0) {
         // Save sync history with ZEP IDs
@@ -632,7 +711,7 @@ export default function Dashboard() {
       }
     } catch (error) {
       console.error("Submit error:", error);
-      setMessage("Fehler bei der Uebertragung");
+      setMessage({ text: "Fehler bei der Übertragung", type: "error" });
     }
     setSubmitting(false);
   };
@@ -664,6 +743,17 @@ export default function Dashboard() {
                 <span className="ml-1 text-gray-400">(Lade ZEP...)</span>
               )}
             </span>
+            <div 
+              className="relative group"
+              title="Tastaturkürzel: Esc = Filter löschen, Strg+R = Neu laden"
+            >
+              <Keyboard size={16} className="text-gray-400 cursor-help" />
+              <div className="hidden group-hover:block absolute right-0 top-full mt-1 p-2 bg-gray-900 text-white text-xs rounded shadow-lg whitespace-nowrap z-50">
+                <div className="font-medium mb-1">Tastaturkürzel</div>
+                <div><kbd className="px-1 bg-gray-700 rounded">Esc</kbd> Filter löschen</div>
+                <div><kbd className="px-1 bg-gray-700 rounded">Strg+R</kbd> Termine laden</div>
+              </div>
+            </div>
             <button
               onClick={() => signOut({ callbackUrl: "/" })}
               className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700"
@@ -689,8 +779,10 @@ export default function Dashboard() {
           endDate={endDate}
           onStartDateChange={setStartDate}
           onEndDateChange={setEndDate}
-          onLoad={loadAppointments}
+          onLoad={() => loadAppointments()}
+          onDateRangeChange={handleDateRangeChange}
           loading={loading}
+          lastLoadedAt={lastLoadedAt}
         />
 
         <CalendarHeatmap
@@ -712,53 +804,69 @@ export default function Dashboard() {
 
         {message && (
           <div
-            className={`p-4 rounded-lg ${
-              message.includes("Fehler")
-                ? "bg-red-50 text-red-800"
-                : "bg-green-50 text-green-800"
+            className={`p-4 rounded-lg relative ${
+              message.type === "error"
+                ? "bg-red-50 text-red-800 border border-red-200"
+                : "bg-green-50 text-green-800 border border-green-200"
             }`}
           >
-            {message}
+            <button
+              onClick={() => setMessage(null)}
+              className="absolute top-2 right-2 p-1 rounded hover:bg-black/5 transition"
+              aria-label="Meldung schließen"
+            >
+              <X size={16} />
+            </button>
+            <div className="pr-8">
+              <p className="font-medium">{message.text}</p>
+              {message.details && message.details.length > 0 && (
+                <ul className="mt-2 text-sm list-disc list-inside">
+                  {message.details.map((detail, idx) => (
+                    <li key={idx}>{detail}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
         )}
 
         {/* Search and filter controls */}
         {appointments.length > 0 && (
-          <div className="flex items-center justify-between bg-white rounded-lg px-4 py-3 shadow-sm gap-4">
-            {/* Search input - disabled when date/series filter active */}
-            <div className="relative flex-1 max-w-xs">
-              <Search size={16} className={`absolute left-3 top-1/2 -translate-y-1/2 ${filterDate || seriesFilterActive ? "text-gray-300" : "text-gray-400"}`} />
+          <div className="flex flex-wrap items-center gap-4 bg-white rounded-lg px-4 py-3 shadow-sm">
+            {/* Search input */}
+            <div className="relative flex-1 min-w-[200px] max-w-xs">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
-                placeholder={filterDate || seriesFilterActive ? "Filter aktiv..." : "Suche nach Titel oder Teilnehmer..."}
+                placeholder="Suche nach Titel oder Teilnehmer..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                disabled={!!filterDate || seriesFilterActive}
-                className={`w-full pl-9 pr-8 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                  filterDate || seriesFilterActive ? "bg-gray-50 text-gray-400 cursor-not-allowed" : ""
-                }`}
+                className="w-full pl-9 pr-8 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                aria-label="Termine durchsuchen"
               />
-              {searchQuery && !filterDate && !seriesFilterActive && (
+              {searchQuery && (
                 <button
                   onClick={() => setSearchQuery("")}
                   className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  aria-label="Suche löschen"
                 >
                   <X size={14} />
                 </button>
               )}
             </div>
             
-            <span className="text-sm text-gray-400 ml-auto">
+            <span className="text-sm text-gray-400 hidden sm:inline">
               {filteredAppointments.length}/{appointments.length}
             </span>
-            <label className="flex items-center gap-2 text-sm text-gray-500 cursor-pointer hover:text-gray-700">
+            <label className="flex items-center gap-2 text-sm text-gray-500 cursor-pointer hover:text-gray-700 whitespace-nowrap">
               <input
                 type="checkbox"
                 checked={!hideSoloMeetings}
                 onChange={() => setHideSoloMeetings(!hideSoloMeetings)}
                 className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
-              Solo-Termine anzeigen
+              <span className="hidden sm:inline">Solo-Termine anzeigen</span>
+              <span className="sm:hidden">Solo</span>
             </label>
           </div>
         )}
@@ -770,8 +878,10 @@ export default function Dashboard() {
           activities={activities}
           syncedEntries={syncedEntries}
           duplicateWarnings={duplicateWarnings}
+          loadingTasks={loadingTasks}
           onToggle={toggleAppointment}
           onToggleSeries={toggleSeries}
+          onSelectAll={selectAllAppointments}
           onProjectChange={changeProject}
           onTaskChange={changeTask}
           onActivityChange={changeActivity}

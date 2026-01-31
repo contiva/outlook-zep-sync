@@ -78,6 +78,7 @@ interface SeriesGroupProps {
   tasks: Record<number, Task[]>;
   activities: Activity[];
   syncedEntries: ZepEntry[];
+  loadingTasks?: Set<number>;
   onToggle: (id: string) => void;
   onToggleSeries: (seriesId: string, selected: boolean) => void;
   onProjectChange: (id: string, projectId: number | null) => void;
@@ -136,6 +137,7 @@ export default function SeriesGroup({
   tasks,
   activities,
   syncedEntries,
+  loadingTasks,
   onToggle,
   onToggleSeries,
   onProjectChange,
@@ -242,11 +244,13 @@ export default function SeriesGroup({
           <button
             onClick={() => setExpanded(!expanded)}
             className="mt-0.5 p-1 hover:bg-blue-100 rounded transition"
+            aria-expanded={expanded}
+            aria-label={expanded ? "Terminserie einklappen" : "Terminserie ausklappen"}
           >
             {expanded ? (
-              <ChevronDown size={18} className="text-blue-600" />
+              <ChevronDown size={18} className="text-blue-600" aria-hidden="true" />
             ) : (
-              <ChevronRight size={18} className="text-blue-600" />
+              <ChevronRight size={18} className="text-blue-600" aria-hidden="true" />
             )}
           </button>
 
@@ -259,6 +263,7 @@ export default function SeriesGroup({
             }}
             onChange={() => onToggleSeries(seriesId, !allSelected)}
             className="mt-1 h-5 w-5 text-blue-600 rounded"
+            aria-label={`Alle ${appointments.length} Termine der Serie "${seriesSubject}" auswählen`}
           />
 
           <div className="flex-1">
@@ -368,8 +373,11 @@ export default function SeriesGroup({
                     ? "bg-blue-600 text-white"
                     : "bg-gray-200 text-gray-700 hover:bg-gray-300"
                 }`}
+                aria-pressed={linkedEdit}
+                aria-label={linkedEdit ? "Gebündelte Bearbeitung aktiv - klicken für Einzelbearbeitung" : "Einzelbearbeitung aktiv - klicken für gebündelte Bearbeitung"}
+                title={linkedEdit ? "Änderungen werden auf alle Termine angewendet" : "Jeder Termin wird einzeln bearbeitet"}
               >
-                {linkedEdit ? <Link2 size={14} /> : <Unlink2 size={14} />}
+                {linkedEdit ? <Link2 size={14} aria-hidden="true" /> : <Unlink2 size={14} aria-hidden="true" />}
                 {linkedEdit ? "Gebündelt" : "Einzeln"}
               </button>
 
@@ -387,7 +395,7 @@ export default function SeriesGroup({
                         handleSeriesProjectChange(val !== null ? Number(val) : null)
                       }
                       placeholder={allSameProject ? "-- Projekt wählen --" : "-- Verschiedene --"}
-                      className="w-80"
+                      className="w-full sm:w-80"
                     />
                   </div>
 
@@ -405,12 +413,15 @@ export default function SeriesGroup({
                       placeholder={
                         !seriesProjectId
                           ? "Erst Projekt wählen"
+                          : seriesProjectId && loadingTasks?.has(seriesProjectId)
+                          ? "Laden..."
                           : allSameTask
                           ? "-- Task wählen --"
                           : "-- Verschiedene --"
                       }
-                      disabled={!seriesProjectId}
-                      className="w-80"
+                      disabled={!seriesProjectId && !loadingTasks?.has(seriesProjectId || 0)}
+                      loading={seriesProjectId ? loadingTasks?.has(seriesProjectId) : false}
+                      className="w-full sm:w-80"
                     />
                   </div>
 
@@ -426,7 +437,7 @@ export default function SeriesGroup({
                         handleSeriesActivityChange(String(val ?? "be"))
                       }
                       placeholder={allSameActivity ? "-- Tätigkeit --" : "-- Verschiedene --"}
-                      className="w-56"
+                      className="w-full sm:w-56"
                     />
                   </div>
                 </div>
@@ -450,6 +461,7 @@ export default function SeriesGroup({
               isSynced={isAppointmentSynced(appointment, syncedEntries)}
               isSyncReady={isAppointmentSyncReady(appointment, syncedEntries)}
               syncedEntry={findSyncedEntry(appointment, syncedEntries)}
+              loadingTasks={appointment.projectId ? loadingTasks?.has(appointment.projectId) : false}
               onToggle={onToggle}
               onProjectChange={onProjectChange}
               onTaskChange={onTaskChange}

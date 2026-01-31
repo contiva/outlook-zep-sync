@@ -70,8 +70,10 @@ interface AppointmentListProps {
   activities: Activity[];
   syncedEntries: ZepEntry[];
   duplicateWarnings?: Map<string, DuplicateCheckResult>;
+  loadingTasks?: Set<number>;
   onToggle: (id: string) => void;
   onToggleSeries: (seriesId: string, selected: boolean) => void;
+  onSelectAll: (selected: boolean) => void;
   onProjectChange: (id: string, projectId: number | null) => void;
   onTaskChange: (id: string, taskId: number | null) => void;
   onActivityChange: (id: string, activityId: string) => void;
@@ -81,7 +83,7 @@ interface AppointmentListProps {
     taskId: number | null,
     activityId: string
   ) => void;
-  onSubmit: () => void;
+  onSubmit: (appointmentsToSync: Appointment[]) => void;
   submitting: boolean;
 }
 
@@ -138,8 +140,10 @@ export default function AppointmentList({
   activities,
   syncedEntries,
   duplicateWarnings,
+  loadingTasks,
   onToggle,
   onToggleSeries,
+  onSelectAll,
   onProjectChange,
   onTaskChange,
   onActivityChange,
@@ -148,6 +152,11 @@ export default function AppointmentList({
   submitting,
 }: AppointmentListProps) {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+
+  // Termine die auswählbar sind (nicht bereits gesynced)
+  const selectableAppointments = useMemo(() => {
+    return appointments.filter(apt => !isAppointmentSynced(apt, syncedEntries));
+  }, [appointments, syncedEntries]);
 
   // Gruppiere Termine nach Serien
   const groupedItems = useMemo(() => {
@@ -221,22 +230,56 @@ export default function AppointmentList({
     (a) => a.projectId && a.taskId && a.activityId
   );
 
-  // Handle confirm from dialog
-  const handleConfirmSync = () => {
+  // Handle confirm from dialog with filtered appointments
+  const handleConfirmSync = (includedAppointments: Appointment[]) => {
     setShowConfirmDialog(false);
-    onSubmit();
+    onSubmit(includedAppointments);
   };
 
   // Zähle Serien
   const seriesCount = groupedItems.filter((g) => g.type === "series").length;
 
+  // Berechne ob alle/einige/keine auswählbaren Termine ausgewählt sind
+  const selectedSelectableCount = selectableAppointments.filter(a => a.selected).length;
+  const allSelectableSelected = selectableAppointments.length > 0 && selectedSelectableCount === selectableAppointments.length;
+  const someSelectableSelected = selectedSelectableCount > 0 && selectedSelectableCount < selectableAppointments.length;
+
   return (
     <div className="bg-white rounded-lg shadow">
-      {seriesCount > 0 && (
-        <div className="px-4 py-2 bg-blue-50 border-b border-blue-100 text-sm text-blue-700">
-          {seriesCount} wiederkehrende Terminserie{seriesCount > 1 ? "n" : ""} erkannt
+      {/* Header mit "Alle auswählen" Checkbox */}
+      <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          {selectableAppointments.length > 0 && (
+            <>
+              <input
+                type="checkbox"
+                checked={allSelectableSelected}
+                ref={(el) => {
+                  if (el) {
+                    el.indeterminate = someSelectableSelected;
+                  }
+                }}
+                onChange={(e) => onSelectAll(e.target.checked)}
+                className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                aria-label="Alle Termine auswählen"
+              />
+              <span className="text-sm text-gray-600">
+                Alle auswählen ({selectableAppointments.length} verfügbar)
+              </span>
+            </>
+          )}
+          {selectableAppointments.length === 0 && appointments.length > 0 && (
+            <span className="text-sm text-gray-500">
+              Alle Termine bereits synchronisiert
+            </span>
+          )}
         </div>
-      )}
+        {seriesCount > 0 && (
+          <div className="text-sm text-blue-600">
+            {seriesCount} Terminserie{seriesCount > 1 ? "n" : ""}
+          </div>
+        )}
+      </div>
 
       <div className="divide-y divide-gray-100">
         {groupedItems.length === 0 ? (
@@ -254,6 +297,7 @@ export default function AppointmentList({
                 tasks={tasks}
                 activities={activities}
                 syncedEntries={syncedEntries}
+                loadingTasks={loadingTasks}
                 onToggle={onToggle}
                 onToggleSeries={onToggleSeries}
                 onProjectChange={onProjectChange}
@@ -277,6 +321,7 @@ export default function AppointmentList({
                 isSyncReady={isAppointmentSyncReady(item.appointments[0], syncedEntries)}
                 syncedEntry={findSyncedEntry(item.appointments[0], syncedEntries)}
                 duplicateWarning={duplicateWarnings?.get(item.appointments[0].id)}
+                loadingTasks={item.appointments[0].projectId ? loadingTasks?.has(item.appointments[0].projectId) : false}
                 onToggle={onToggle}
                 onProjectChange={onProjectChange}
                 onTaskChange={onTaskChange}

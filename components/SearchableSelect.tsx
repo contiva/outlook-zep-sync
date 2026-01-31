@@ -8,7 +8,7 @@ import {
   ComboboxOptions,
   ComboboxOption,
 } from "@headlessui/react";
-import { ChevronDown, Check, Search } from "lucide-react";
+import { ChevronDown, Check, Search, Loader2 } from "lucide-react";
 
 export interface SelectOption {
   value: string | number;
@@ -23,6 +23,7 @@ interface SearchableSelectProps {
   placeholder?: string;
   disabled?: boolean;
   disabledMessage?: string;
+  loading?: boolean;
   className?: string;
 }
 
@@ -33,6 +34,7 @@ export default function SearchableSelect({
   placeholder = "-- Auswählen --",
   disabled = false,
   disabledMessage,
+  loading = false,
   className = "",
 }: SearchableSelectProps) {
   const [query, setQuery] = useState("");
@@ -75,10 +77,17 @@ export default function SearchableSelect({
             placeholder={disabled && disabledMessage ? disabledMessage : placeholder}
           />
           <ComboboxButton className="absolute inset-y-0 right-0 flex items-center pr-2">
-            <ChevronDown
-              className={`h-5 w-5 ${disabled ? "text-gray-300" : "text-gray-400"}`}
-              aria-hidden="true"
-            />
+            {loading ? (
+              <Loader2
+                className="h-5 w-5 text-blue-500 animate-spin"
+                aria-hidden="true"
+              />
+            ) : (
+              <ChevronDown
+                className={`h-5 w-5 ${disabled ? "text-gray-300" : "text-gray-400"}`}
+                aria-hidden="true"
+              />
+            )}
           </ComboboxButton>
         </div>
 

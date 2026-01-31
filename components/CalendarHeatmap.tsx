@@ -375,15 +375,13 @@ export default function CalendarHeatmap({
         style={{ gridTemplateColumns: `auto repeat(${days.length}, minmax(0, 1fr))` }}
       >
         {/* Series tile - always first */}
-        <div
-          className="flex flex-col items-center gap-0.5"
-          title={`${seriesData.count} Serien mit ${seriesData.totalAppointments} Terminen`}
-        >
+        <div className="flex flex-col items-center gap-0.5">
           {/* Label */}
-          <span className="text-[10px] text-gray-400">Serien</span>
+          <span className="text-[10px] text-gray-400" aria-hidden="true">Serien</span>
           
           {/* Series box */}
-          <div
+          <button
+            type="button"
             onClick={() => {
               if (seriesData.count > 0) {
                 onSeriesClick(!seriesFilterActive);
@@ -392,11 +390,14 @@ export default function CalendarHeatmap({
                 }
               }
             }}
-            className={`w-10 h-10 rounded overflow-hidden transition-all flex items-center justify-center ${
+            disabled={seriesData.count === 0}
+            className={`w-10 h-10 rounded overflow-hidden transition-all flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 ${
               seriesData.count === 0
                 ? "bg-gray-100 border border-gray-200 cursor-default"
                 : "cursor-pointer hover:scale-110"
             } ${seriesFilterActive ? "ring-2 ring-blue-600 ring-offset-1 scale-110" : ""}`}
+            aria-label={`Terminserien filtern: ${seriesData.count} Serien mit ${seriesData.totalAppointments} Terminen`}
+            aria-pressed={seriesFilterActive}
           >
             {seriesData.count > 0 ? (
               <div className="flex flex-col h-full w-full">
@@ -406,20 +407,20 @@ export default function CalendarHeatmap({
                     <div
                       key={seriesId}
                       className={`flex-1 ${getAppointmentStatusColor(seriesStatus)} border-b border-white/30 last:border-b-0`}
-                      title={`${seriesAppointments[0]?.subject || 'Serie'} (${seriesAppointments.length} Termine)`}
+                      aria-hidden="true"
                     />
                   );
                 })}
               </div>
             ) : (
-              <span className="text-[10px] text-gray-400">-</span>
+              <span className="text-[10px] text-gray-400" aria-hidden="true">-</span>
             )}
-          </div>
+          </button>
           
           {/* Infinity symbol below */}
           <span className={`text-[10px] font-medium ${
             seriesData.count > 0 ? "text-gray-600" : "text-gray-400"
-          }`}>
+          }`} aria-hidden="true">
             ∞
           </span>
         </div>
@@ -438,17 +439,19 @@ export default function CalendarHeatmap({
             <div
               key={day.toISOString()}
               className="flex flex-col items-center gap-0.5"
-              title={`${format(day, "EEEE, d. MMMM", { locale: de })}\n${selectedCount}/${totalCount} Termin(e) ausgewählt - ${getStatusLabel(status)}`}
             >
               {/* Weekday label */}
-              <span className="text-[10px] text-gray-400">{weekday}</span>
+              <span className="text-[10px] text-gray-400" aria-hidden="true">{weekday}</span>
               
               {/* Day box with stacked segments */}
-              <div
+              <button
+                type="button"
                 onClick={() => onDayClick(isSelected ? null : dateStr)}
-                className={`w-full max-w-8 h-10 rounded overflow-hidden cursor-pointer transition-all hover:scale-110 ${
+                className={`w-full max-w-8 h-10 rounded overflow-hidden cursor-pointer transition-all hover:scale-110 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 ${
                   status === "weekend" ? "bg-gray-100" : totalCount === 0 ? "bg-gray-100 border border-gray-200" : ""
                 } ${isSelected ? "ring-2 ring-blue-600 ring-offset-1 scale-110" : ""}`}
+                aria-label={`${format(day, "EEEE, d. MMMM", { locale: de })}: ${totalCount} Termine, ${selectedCount} ausgewählt, Status: ${getStatusLabel(status)}`}
+                aria-pressed={isSelected}
               >
                 {/* Stacked segments for appointments */}
                 {totalCount > 0 ? (
@@ -459,13 +462,13 @@ export default function CalendarHeatmap({
                         <div
                           key={apt.id}
                           className={`flex-1 ${getAppointmentStatusColor(aptStatus)} border-b border-white/30 last:border-b-0`}
-                          title={`${apt.subject} - ${aptStatus === "synced" ? "Synchronisiert" : aptStatus === "edited" ? "Bearbeitet" : aptStatus === "unprocessed" ? "Unbearbeitet" : "Deaktiviert"}`}
+                          aria-hidden="true"
                         />
                       );
                     })}
                   </div>
                 ) : null}
-              </div>
+              </button>
               
               {/* Day number below */}
               <span className={`text-[10px] font-medium ${

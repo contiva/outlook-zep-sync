@@ -76,6 +76,7 @@ interface AppointmentRowProps {
   isSyncReady?: boolean;
   syncedEntry?: SyncedEntry | null;
   duplicateWarning?: DuplicateCheckResult;
+  loadingTasks?: boolean;
   onToggle: (id: string) => void;
   onProjectChange: (id: string, projectId: number | null) => void;
   onTaskChange: (id: string, taskId: number | null) => void;
@@ -122,6 +123,7 @@ export default function AppointmentRow({
   isSyncReady = false,
   syncedEntry,
   duplicateWarning,
+  loadingTasks = false,
   onToggle,
   onProjectChange,
   onTaskChange,
@@ -218,8 +220,13 @@ export default function AppointmentRow({
         {/* Status icons: Synced (green) or Checkbox + SyncReady indicator (amber) */}
         <div className="flex items-center gap-1">
           {isSynced ? (
-            <div className="mt-1 h-5 w-5 flex items-center justify-center" title="Bereits in ZEP synchronisiert">
-              <CheckCircle className="h-5 w-5 text-green-600" />
+            <div 
+              className="mt-1 h-5 w-5 flex items-center justify-center" 
+              title="Bereits in ZEP synchronisiert"
+              role="img"
+              aria-label="Bereits in ZEP synchronisiert"
+            >
+              <CheckCircle className="h-5 w-5 text-green-600" aria-hidden="true" />
             </div>
           ) : (
             <>
@@ -228,18 +235,26 @@ export default function AppointmentRow({
                 checked={appointment.selected}
                 onChange={() => onToggle(appointment.id)}
                 className="mt-1 h-5 w-5 text-blue-600 rounded"
+                aria-label={`Termin auswählen: ${appointment.subject}`}
               />
               {isSyncReady && (
-                <div className="mt-1 h-5 w-5 flex items-center justify-center" title="Wird beim nächsten Sync übertragen">
-                  <CloudUpload className="h-4 w-4 text-amber-500" />
+                <div 
+                  className="mt-1 h-5 w-5 flex items-center justify-center" 
+                  title="Wird beim nächsten Sync übertragen"
+                  role="img"
+                  aria-label="Bereit zum Synchronisieren"
+                >
+                  <CloudUpload className="h-4 w-4 text-amber-500" aria-hidden="true" />
                 </div>
               )}
               {duplicateWarning?.hasDuplicate && !isSynced && (
                 <div 
                   className="mt-1 h-5 w-5 flex items-center justify-center" 
                   title={duplicateWarning.message || "Mögliches Duplikat erkannt"}
+                  role="img"
+                  aria-label={duplicateWarning.message || "Mögliches Duplikat erkannt"}
                 >
-                  <AlertTriangle className="h-4 w-4 text-amber-500" />
+                  <AlertTriangle className="h-4 w-4 text-amber-500" aria-hidden="true" />
                 </div>
               )}
             </>
@@ -424,7 +439,7 @@ export default function AppointmentRow({
                     )
                   }
                   placeholder="-- Projekt wählen --"
-                  className="w-96"
+                  className="w-full sm:w-96"
                 />
               </div>
 
@@ -441,13 +456,16 @@ export default function AppointmentRow({
                     )
                   }
                   placeholder="-- Task wählen --"
-                  disabled={!appointment.projectId || tasks.length === 0}
+                  disabled={!appointment.projectId || (tasks.length === 0 && !loadingTasks)}
                   disabledMessage={
                     !appointment.projectId
                       ? "Erst Projekt wählen"
-                      : "Keine Tasks vorhanden"
+                      : loadingTasks 
+                        ? "Laden..."
+                        : "Keine Tasks vorhanden"
                   }
-                  className="w-96"
+                  loading={loadingTasks}
+                  className="w-full sm:w-96"
                 />
               </div>
 
@@ -461,7 +479,7 @@ export default function AppointmentRow({
                     onActivityChange(appointment.id, String(val ?? "be"))
                   }
                   placeholder="-- Tätigkeit wählen --"
-                  className="w-56"
+                  className="w-full sm:w-56"
                 />
               </div>
             </div>

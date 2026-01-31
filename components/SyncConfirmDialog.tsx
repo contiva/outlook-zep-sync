@@ -3,7 +3,7 @@
 import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
 import { X, CloudUpload, AlertTriangle } from "lucide-react";
 import { DuplicateCheckResult } from "@/lib/zep-api";
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 
 interface Project {
   id: number;
@@ -15,18 +15,20 @@ interface Appointment {
   subject: string;
   start: { dateTime: string };
   end: { dateTime: string };
+  selected: boolean;
   projectId: number | null;
+  taskId: number | null;
+  activityId: string;
 }
 
 interface SyncConfirmDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: () => void;
+  onConfirm: (includedAppointments: Appointment[]) => void;
   appointments: Appointment[];
   projects: Project[];
   submitting: boolean;
   duplicateWarnings?: Map<string, DuplicateCheckResult>;
-  onExcludeAppointment?: (id: string) => void;
 }
 
 export default function SyncConfirmDialog({
@@ -37,16 +39,43 @@ export default function SyncConfirmDialog({
   projects,
   submitting,
   duplicateWarnings,
-  onExcludeAppointment,
 }: SyncConfirmDialogProps) {
-  // Calculate total duration
+  // Track which appointments are excluded from sync
+  const [excludedIds, setExcludedIds] = useState<Set<string>>(new Set());
+  
+  // Reset excluded when dialog opens
+  useEffect(() => {
+    if (isOpen) {
+      setExcludedIds(new Set());
+    }
+  }, [isOpen]);
+  
+  // Filter to only included appointments
+  const includedAppointments = useMemo(() => {
+    return appointments.filter(apt => !excludedIds.has(apt.id));
+  }, [appointments, excludedIds]);
+  
+  // Toggle exclude/include
+  const toggleExclude = (id: string) => {
+    setExcludedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  // Calculate total duration (only for included appointments)
   const totalMinutes = useMemo(() => {
-    return appointments.reduce((acc, apt) => {
+    return includedAppointments.reduce((acc, apt) => {
       const start = new Date(apt.start.dateTime);
       const end = new Date(apt.end.dateTime);
       return acc + (end.getTime() - start.getTime()) / 1000 / 60;
     }, 0);
-  }, [appointments]);
+  }, [includedAppointments]);
 
   const hours = Math.floor(totalMinutes / 60);
   const minutes = Math.round(totalMinutes % 60);
@@ -120,7 +149,11 @@ export default function SyncConfirmDialog({
           {/* Content */}
           <div className="p-4">
             <p className="text-sm text-gray-600 mb-3">
-              Folgende {appointments.length} Termine werden synchronisiert:
+              {includedAppointments.length === appointments.length ? (
+                <>Folgende {appointments.length} Termine werden synchronisiert:</>
+              ) : (
+                <>{includedAppointments.length} von {appointments.length} Terminen werden synchronisiert:</>
+              )}
             </p>
 
             {appointmentsWithWarnings.length > 0 && (
@@ -144,29 +177,43 @@ export default function SyncConfirmDialog({
                     {formatDate(dayAppointments[0].start.dateTime)}
                   </div>
                   {/* Appointments for this date */}
-                  {dayAppointments.map((apt) => (
-                    <div
-                      key={apt.id}
-                      className={`px-3 py-2 flex items-center justify-between text-sm ${
-                        duplicateWarnings?.has(apt.id) ? "bg-amber-50" : ""
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-gray-500 font-mono text-xs whitespace-nowrap">
-                          {formatTime(apt.start.dateTime)}-{formatTime(apt.end.dateTime)}
+                  {dayAppointments.map((apt) => {
+                    const isExcluded = excludedIds.has(apt.id);
+                    return (
+                      <div
+                        key={apt.id}
+                        className={`px-3 py-2 flex items-center gap-2 text-sm ${
+                          isExcluded 
+                            ? "bg-gray-100 opacity-60" 
+                            : duplicateWarnings?.has(apt.id) 
+                              ? "bg-amber-50" 
+                              : ""
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={!isExcluded}
+                          onChange={() => toggleExclude(apt.id)}
+                          className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 flex-shrink-0"
+                          aria-label={isExcluded ? `${apt.subject} einschließen` : `${apt.subject} ausschließen`}
+                        />
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <span className={`font-mono text-xs whitespace-nowrap ${isExcluded ? "text-gray-400" : "text-gray-500"}`}>
+                            {formatTime(apt.start.dateTime)}-{formatTime(apt.end.dateTime)}
+                          </span>
+                          <span className={`truncate ${isExcluded ? "text-gray-400 line-through" : "text-gray-900"}`}>
+                            {apt.subject}
+                          </span>
+                          {duplicateWarnings?.has(apt.id) && !isExcluded && (
+                            <AlertTriangle size={14} className="text-amber-500 flex-shrink-0" />
+                          )}
+                        </div>
+                        <span className={`text-xs ml-2 whitespace-nowrap ${isExcluded ? "text-gray-400" : "text-gray-500"}`}>
+                          {apt.projectId ? projectMap.get(apt.projectId) || "?" : "-"}
                         </span>
-                        <span className="text-gray-900 truncate">
-                          {apt.subject}
-                        </span>
-                        {duplicateWarnings?.has(apt.id) && (
-                          <AlertTriangle size={14} className="text-amber-500 flex-shrink-0" />
-                        )}
                       </div>
-                      <span className="text-xs text-gray-500 ml-2 whitespace-nowrap">
-                        {apt.projectId ? projectMap.get(apt.projectId) || "?" : "-"}
-                      </span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ))}
             </div>
@@ -190,8 +237,8 @@ export default function SyncConfirmDialog({
               Abbrechen
             </button>
             <button
-              onClick={onConfirm}
-              disabled={submitting || appointments.length === 0}
+              onClick={() => onConfirm(includedAppointments)}
+              disabled={submitting || includedAppointments.length === 0}
               className="px-4 py-2 text-sm font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition flex items-center gap-2"
             >
               {submitting ? (
