@@ -206,7 +206,7 @@ export default function AppointmentList({
       <div className="divide-y divide-gray-100">
         {groupedItems.length === 0 ? (
           <div className="p-8 text-center text-gray-500">
-            Keine Termine gefunden. Wähle einen Zeitraum und klicke auf "Termine laden".
+            Keine Termine gefunden. Wähle einen Zeitraum und klicke auf &quot;Termine laden&quot;.
           </div>
         ) : (
           groupedItems.map((item) =>

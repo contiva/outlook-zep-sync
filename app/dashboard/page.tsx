@@ -4,7 +4,7 @@ import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
-import { LogOut, Users, User } from "lucide-react";
+import { LogOut, Search, X } from "lucide-react";
 import DateRangePicker from "@/components/DateRangePicker";
 import AppointmentList from "@/components/AppointmentList";
 import CalendarHeatmap from "@/components/CalendarHeatmap";
@@ -36,6 +36,17 @@ interface Attendee {
   status: {
     response: string;
   };
+}
+
+interface CalendarEvent {
+  id: string;
+  subject: string;
+  start: { dateTime: string };
+  end: { dateTime: string };
+  attendees?: Attendee[];
+  isOrganizer?: boolean;
+  seriesMasterId?: string;
+  type?: string;
 }
 
 interface Appointment {
@@ -72,6 +83,7 @@ interface PersistedState {
   appointments: Appointment[];
   filterDate: string | null;
   hideSoloMeetings: boolean;
+  syncedEntries: ZepEntry[]; // Already synced entries from ZEP
   savedAt: number; // timestamp for cache invalidation
 }
 
@@ -119,6 +131,7 @@ export default function Dashboard() {
       appointments: stored?.appointments ?? [],
       filterDate: stored?.filterDate ?? null,
       hideSoloMeetings: stored?.hideSoloMeetings ?? true,
+      syncedEntries: stored?.syncedEntries ?? [],
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run once on mount
@@ -132,10 +145,12 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
-  const [syncedEntries, setSyncedEntries] = useState<ZepEntry[]>([]);
+  const [syncedEntries, setSyncedEntries] = useState<ZepEntry[]>(initialState.syncedEntries);
   const [submittedIds, setSubmittedIds] = useState<Set<string>>(new Set());
   const [filterDate, setFilterDate] = useState<string | null>(initialState.filterDate);
   const [hideSoloMeetings, setHideSoloMeetings] = useState(initialState.hideSoloMeetings);
+  const [seriesFilterActive, setSeriesFilterActive] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   // Derive employee ID from Azure email: robert.fels@contiva.com -> rfels
   const employeeId = useMemo(() => {
     const email = session?.user?.email;
@@ -151,49 +166,57 @@ export default function Dashboard() {
     return localPart; // fallback: use full local part
   }, [session?.user?.email]);
 
-  // Helper: Check if appointment has other attendees (not just the user)
-  const hasOtherAttendees = useCallback(
-    (apt: Appointment): boolean => {
-      if (!apt.attendees || apt.attendees.length === 0) return false;
-      // Filter out the current user - only count other attendees
-      const userEmail = session?.user?.email?.toLowerCase();
-      const otherAttendees = apt.attendees.filter(
-        (a) => a.emailAddress.address.toLowerCase() !== userEmail
-      );
-      return otherAttendees.length > 0;
-    },
-    [session?.user?.email]
-  );
 
-  // Helper: Check if appointment is synced to ZEP (match by note/subject, date, and time)
-  const isAppointmentSynced = useCallback(
-    (apt: Appointment): boolean => {
-      const aptDate = new Date(apt.start.dateTime);
-      const aptDateStr = aptDate.toISOString().split("T")[0]; // YYYY-MM-DD
-      const aptFromTime = aptDate.toTimeString().slice(0, 8); // HH:mm:ss
-      const aptEndDate = new Date(apt.end.dateTime);
-      const aptToTime = aptEndDate.toTimeString().slice(0, 8);
 
-      return syncedEntries.some((entry) => {
-        const entryDate = entry.date.split("T")[0]; // Handle ISO format from ZEP
-        return (
-          entry.note === apt.subject &&
-          entryDate === aptDateStr &&
-          entry.from === aptFromTime &&
-          entry.to === aptToTime
-        );
-      });
-    },
-    [syncedEntries]
-  );
+  // Helper: Get all series IDs that have 2+ occurrences
+  const validSeriesIds = useMemo(() => {
+    const seriesMap = new Map<string, number>();
+    appointments.forEach((apt) => {
+      if (apt.seriesMasterId && apt.type === "occurrence") {
+        seriesMap.set(apt.seriesMasterId, (seriesMap.get(apt.seriesMasterId) || 0) + 1);
+      }
+    });
+    return new Set(
+      Array.from(seriesMap.entries())
+        .filter(([, count]) => count >= 2)
+        .map(([id]) => id)
+    );
+  }, [appointments]);
 
-  // Filter appointments by selected date and solo-meeting toggle
+  // Filter appointments by selected date, series filter, search query, and solo-meeting toggle
   const filteredAppointments = useMemo(() => {
     let filtered = appointments;
+    
+    // Filter by series if active
+    if (seriesFilterActive) {
+      filtered = filtered.filter(
+        (apt) => apt.seriesMasterId && apt.type === "occurrence" && validSeriesIds.has(apt.seriesMasterId)
+      );
+    }
     
     // Filter by date if selected
     if (filterDate) {
       filtered = filtered.filter((apt) => apt.start.dateTime.startsWith(filterDate));
+    }
+    
+    // Filter by search query (title or attendee name/email)
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      filtered = filtered.filter((apt) => {
+        // Match title
+        if (apt.subject.toLowerCase().includes(query)) {
+          return true;
+        }
+        // Match attendee name or email
+        if (apt.attendees?.some(
+          (a) => 
+            a.emailAddress.name.toLowerCase().includes(query) ||
+            a.emailAddress.address.toLowerCase().includes(query)
+        )) {
+          return true;
+        }
+        return false;
+      });
     }
     
     // Filter out solo meetings if toggle is on, BUT keep selected ones visible
@@ -212,7 +235,7 @@ export default function Dashboard() {
     }
     
     return filtered;
-  }, [appointments, filterDate, hideSoloMeetings, session?.user?.email]);
+  }, [appointments, filterDate, seriesFilterActive, validSeriesIds, searchQuery, hideSoloMeetings, session?.user?.email]);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -222,17 +245,18 @@ export default function Dashboard() {
 
   // Persist state to localStorage whenever it changes
   useEffect(() => {
-    // Only save if we have appointments (don't overwrite with empty state on initial load)
-    if (appointments.length > 0) {
+    // Only save if we have appointments or synced entries (don't overwrite with empty state on initial load)
+    if (appointments.length > 0 || syncedEntries.length > 0) {
       saveState({
         startDate,
         endDate,
         appointments,
         filterDate,
         hideSoloMeetings,
+        syncedEntries,
       });
     }
-  }, [startDate, endDate, appointments, filterDate, hideSoloMeetings]);
+  }, [startDate, endDate, appointments, filterDate, hideSoloMeetings, syncedEntries]);
 
   useEffect(() => {
     // Load activities (global, not per employee)
@@ -310,7 +334,7 @@ export default function Dashboard() {
         );
         
         setAppointments(
-          appointmentsData.map((event: any) => {
+          appointmentsData.map((event: CalendarEvent) => {
             // Check if we have saved state for this appointment
             const saved = savedAppointmentsMap.get(event.id);
             
@@ -543,7 +567,12 @@ export default function Dashboard() {
           syncedEntries={syncedEntries}
           submittedIds={submittedIds}
           selectedDate={filterDate}
-          onDayClick={setFilterDate}
+          onDayClick={(date) => {
+            setFilterDate(date);
+            if (date) setSeriesFilterActive(false); // Clear series filter when selecting a date
+          }}
+          onSeriesClick={setSeriesFilterActive}
+          seriesFilterActive={seriesFilterActive}
         />
 
         {message && (
@@ -558,39 +587,44 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Filter toggle for solo meetings */}
+        {/* Search and filter controls */}
         {appointments.length > 0 && (
-          <div className="flex items-center justify-between bg-white rounded-lg px-4 py-3 shadow-sm">
-            <div className="flex items-center gap-2 text-sm text-gray-600">
-              <span>
-                {filteredAppointments.length} von {appointments.length} Terminen
-              </span>
-              {hideSoloMeetings && (
-                <span className="text-gray-400">
-                  ({appointments.length - filteredAppointments.length} Solo-Termine ausgeblendet)
-                </span>
+          <div className="flex items-center justify-between bg-white rounded-lg px-4 py-3 shadow-sm gap-4">
+            {/* Search input - disabled when date/series filter active */}
+            <div className="relative flex-1 max-w-xs">
+              <Search size={16} className={`absolute left-3 top-1/2 -translate-y-1/2 ${filterDate || seriesFilterActive ? "text-gray-300" : "text-gray-400"}`} />
+              <input
+                type="text"
+                placeholder={filterDate || seriesFilterActive ? "Filter aktiv..." : "Suche nach Titel oder Teilnehmer..."}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                disabled={!!filterDate || seriesFilterActive}
+                className={`w-full pl-9 pr-8 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                  filterDate || seriesFilterActive ? "bg-gray-50 text-gray-400 cursor-not-allowed" : ""
+                }`}
+              />
+              {searchQuery && !filterDate && !seriesFilterActive && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <X size={14} />
+                </button>
               )}
             </div>
-            <button
-              onClick={() => setHideSoloMeetings(!hideSoloMeetings)}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                hideSoloMeetings
-                  ? "bg-blue-100 text-blue-700 hover:bg-blue-200"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-              }`}
-            >
-              {hideSoloMeetings ? (
-                <>
-                  <Users size={16} />
-                  Nur Meetings mit Teilnehmern
-                </>
-              ) : (
-                <>
-                  <User size={16} />
-                  Alle Termine anzeigen
-                </>
-              )}
-            </button>
+            
+            <span className="text-sm text-gray-400 ml-auto">
+              {filteredAppointments.length}/{appointments.length}
+            </span>
+            <label className="flex items-center gap-2 text-sm text-gray-500 cursor-pointer hover:text-gray-700">
+              <input
+                type="checkbox"
+                checked={!hideSoloMeetings}
+                onChange={() => setHideSoloMeetings(!hideSoloMeetings)}
+                className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              Solo-Termine anzeigen
+            </label>
           </div>
         )}
 

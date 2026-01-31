@@ -11,6 +11,8 @@ interface Appointment {
   end: { dateTime: string };
   projectId: number | null;
   selected: boolean;
+  seriesMasterId?: string;
+  type?: string;
 }
 
 interface ZepAttendance {
@@ -28,9 +30,12 @@ interface CalendarHeatmapProps {
   submittedIds: Set<string>;
   selectedDate: string | null;
   onDayClick: (date: string | null) => void;
+  onSeriesClick: (seriesFilter: boolean) => void;
+  seriesFilterActive: boolean;
 }
 
 type DayStatus = "empty" | "unprocessed" | "edited" | "synced" | "weekend";
+type AppointmentStatus = "synced" | "edited" | "unprocessed" | "deselected";
 
 export default function CalendarHeatmap({
   startDate,
@@ -40,6 +45,8 @@ export default function CalendarHeatmap({
   submittedIds,
   selectedDate,
   onDayClick,
+  onSeriesClick,
+  seriesFilterActive,
 }: CalendarHeatmapProps) {
   // Generate all days in the range
   const days = useMemo(() => {
@@ -74,6 +81,87 @@ export default function CalendarHeatmap({
     });
     return map;
   }, [syncedEntries]);
+
+  // Find all recurring series (appointments with seriesMasterId)
+  const seriesData = useMemo(() => {
+    const seriesMap = new Map<string, Appointment[]>();
+    
+    appointments.forEach((apt) => {
+      if (apt.seriesMasterId && apt.type === "occurrence") {
+        const existing = seriesMap.get(apt.seriesMasterId) || [];
+        existing.push(apt);
+        seriesMap.set(apt.seriesMasterId, existing);
+      }
+    });
+
+    // Only count series with at least 2 occurrences
+    const validSeries = Array.from(seriesMap.entries()).filter(
+      ([, apts]) => apts.length >= 2
+    );
+
+    const totalSeriesAppointments = validSeries.reduce(
+      (acc, [, apts]) => acc + apts.length,
+      0
+    );
+
+    return {
+      count: validSeries.length,
+      series: validSeries, // Array of [seriesId, appointments[]]
+      appointments: validSeries.flatMap(([, apts]) => apts),
+      totalAppointments: totalSeriesAppointments,
+    };
+  }, [appointments]);
+
+  // Helper: Check if a specific appointment is synced to ZEP (needs to be before getSeriesStatus)
+  const isAppointmentSyncedCheck = (apt: Appointment): boolean => {
+    const zepEntries = syncedByDate.get(apt.start.dateTime.split("T")[0]) || [];
+    if (zepEntries.length === 0) return false;
+    
+    const aptDate = new Date(apt.start.dateTime);
+    const aptFromTime = aptDate.toTimeString().slice(0, 8);
+    const aptEndDate = new Date(apt.end.dateTime);
+    const aptToTime = aptEndDate.toTimeString().slice(0, 8);
+
+    return zepEntries.some((entry) => {
+      return (
+        entry.note === apt.subject &&
+        entry.from === aptFromTime &&
+        entry.to === aptToTime
+      );
+    });
+  };
+
+  // Calculate aggregated status for a series
+  const getSeriesStatus = (seriesAppointments: Appointment[]): AppointmentStatus => {
+    let hasUnprocessed = false;
+    let hasEdited = false;
+    let allSynced = true;
+    let allDeselected = true;
+
+    for (const apt of seriesAppointments) {
+      const isSynced = isAppointmentSyncedCheck(apt) || submittedIds.has(apt.id);
+      
+      if (apt.selected) {
+        allDeselected = false;
+        if (!isSynced) {
+          allSynced = false;
+          if (apt.projectId !== null) {
+            hasEdited = true;
+          } else {
+            hasUnprocessed = true;
+          }
+        }
+      } else {
+        allSynced = false;
+      }
+    }
+
+    if (allDeselected) return "deselected";
+    if (allSynced) return "synced";
+    if (hasUnprocessed) return "unprocessed";
+    if (hasEdited) return "edited";
+    return "deselected";
+  };
 
   // Helper: Check if a specific appointment is synced to ZEP
   const isAppointmentSynced = (apt: Appointment, zepEntries: ZepAttendance[]): boolean => {
@@ -111,11 +199,6 @@ export default function CalendarHeatmap({
     // Check each appointment's sync status
     const selectedAppointments = dayAppointments.filter((apt) => apt.selected);
     
-    // Check how many appointments are synced
-    const syncedAppointments = dayAppointments.filter((apt) => 
-      isAppointmentSynced(apt, dayZepEntries) || submittedIds.has(apt.id)
-    );
-    
     // All appointments are either synced or deselected
     const allDone = dayAppointments.length > 0 && 
       dayAppointments.every((apt) => 
@@ -144,22 +227,6 @@ export default function CalendarHeatmap({
     return "empty";
   };
 
-  const getStatusColor = (status: DayStatus): string => {
-    switch (status) {
-      case "synced":
-        return "bg-green-500";
-      case "edited":
-        return "bg-yellow-500";
-      case "unprocessed":
-        return "bg-red-400";
-      case "weekend":
-        return "bg-gray-200";
-      case "empty":
-      default:
-        return "bg-gray-100";
-    }
-  };
-
   const getStatusLabel = (status: DayStatus): string => {
     switch (status) {
       case "synced":
@@ -173,6 +240,33 @@ export default function CalendarHeatmap({
       case "empty":
       default:
         return "Keine Termine";
+    }
+  };
+
+  // Get status for individual appointment
+  const getAppointmentStatus = (apt: Appointment, zepEntries: ZepAttendance[]): AppointmentStatus => {
+    if (!apt.selected) {
+      return "deselected";
+    }
+    if (isAppointmentSynced(apt, zepEntries) || submittedIds.has(apt.id)) {
+      return "synced";
+    }
+    if (apt.projectId !== null) {
+      return "edited";
+    }
+    return "unprocessed";
+  };
+
+  const getAppointmentStatusColor = (status: AppointmentStatus): string => {
+    switch (status) {
+      case "synced":
+        return "bg-green-500";
+      case "edited":
+        return "bg-yellow-500";
+      case "unprocessed":
+        return "bg-red-400";
+      case "deselected":
+        return "bg-gray-300";
     }
   };
 
@@ -207,7 +301,15 @@ export default function CalendarHeatmap({
               onClick={() => onDayClick(null)}
               className="text-xs text-blue-600 hover:text-blue-800 underline"
             >
-              Filter aufheben
+              Datumsfilter aufheben
+            </button>
+          )}
+          {seriesFilterActive && (
+            <button
+              onClick={() => onSeriesClick(false)}
+              className="text-xs text-blue-600 hover:text-blue-800 underline"
+            >
+              Serienfilter aufheben ({seriesData.count} Serien)
             </button>
           )}
         </div>
@@ -227,11 +329,60 @@ export default function CalendarHeatmap({
         </div>
       </div>
 
-      {/* Horizontal row - all days as boxes, auto-scaling width */}
+      {/* Horizontal row - series tile + all days as boxes */}
       <div 
         className="grid gap-1"
-        style={{ gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))` }}
+        style={{ gridTemplateColumns: `auto repeat(${days.length}, minmax(0, 1fr))` }}
       >
+        {/* Series tile - always first */}
+        <div
+          className="flex flex-col items-center gap-0.5"
+          title={`${seriesData.count} Serien mit ${seriesData.totalAppointments} Terminen`}
+        >
+          {/* Label */}
+          <span className="text-[10px] text-gray-400">Serien</span>
+          
+          {/* Series box */}
+          <div
+            onClick={() => {
+              if (seriesData.count > 0) {
+                onSeriesClick(!seriesFilterActive);
+                if (!seriesFilterActive) {
+                  onDayClick(null); // Clear date filter when activating series filter
+                }
+              }
+            }}
+            className={`w-10 h-10 rounded overflow-hidden transition-all flex items-center justify-center ${
+              seriesData.count === 0
+                ? "bg-gray-100 border border-gray-200 cursor-default"
+                : "cursor-pointer hover:scale-110"
+            } ${seriesFilterActive ? "ring-2 ring-blue-600 ring-offset-1 scale-110" : ""}`}
+          >
+            {seriesData.count > 0 ? (
+              <div className="flex flex-col h-full w-full">
+                {seriesData.series.map(([seriesId, seriesAppointments]) => {
+                  const seriesStatus = getSeriesStatus(seriesAppointments);
+                  return (
+                    <div
+                      key={seriesId}
+                      className={`flex-1 ${getAppointmentStatusColor(seriesStatus)} border-b border-white/30 last:border-b-0`}
+                      title={`${seriesAppointments[0]?.subject || 'Serie'} (${seriesAppointments.length} Termine)`}
+                    />
+                  );
+                })}
+              </div>
+            ) : (
+              <span className="text-[10px] text-gray-400">-</span>
+            )}
+          </div>
+          
+          {/* Infinity symbol below */}
+          <span className={`text-[10px] font-medium ${
+            seriesData.count > 0 ? "text-gray-600" : "text-gray-400"
+          }`}>
+            ∞
+          </span>
+        </div>
         {days.map((day) => {
           const status = getDayStatus(day);
           const dateStr = format(day, "yyyy-MM-dd");
@@ -252,25 +403,36 @@ export default function CalendarHeatmap({
               {/* Weekday label */}
               <span className="text-[10px] text-gray-400">{weekday}</span>
               
-              {/* Day box */}
+              {/* Day box with stacked segments */}
               <div
                 onClick={() => onDayClick(isSelected ? null : dateStr)}
-                className={`aspect-square w-full max-w-8 rounded flex items-center justify-center text-xs font-medium cursor-pointer transition-all hover:scale-110 ${getStatusColor(status)} ${
-                  status === "synced" ? "text-white" :
-                  status === "edited" ? "text-yellow-900" :
-                  status === "unprocessed" ? "text-white" :
-                  "text-gray-400"
+                className={`w-full max-w-8 h-10 rounded overflow-hidden cursor-pointer transition-all hover:scale-110 ${
+                  status === "weekend" ? "bg-gray-100" : totalCount === 0 ? "bg-gray-100 border border-gray-200" : ""
                 } ${isSelected ? "ring-2 ring-blue-600 ring-offset-1 scale-110" : ""}`}
               >
-                {dayNum}
+                {/* Stacked segments for appointments */}
+                {totalCount > 0 ? (
+                  <div className="flex flex-col h-full w-full">
+                    {dayAppointments.map((apt) => {
+                      const aptStatus = getAppointmentStatus(apt, syncedByDate.get(dateStr) || []);
+                      return (
+                        <div
+                          key={apt.id}
+                          className={`flex-1 ${getAppointmentStatusColor(aptStatus)} border-b border-white/30 last:border-b-0`}
+                          title={`${apt.subject} - ${aptStatus === "synced" ? "Synchronisiert" : aptStatus === "edited" ? "Bearbeitet" : aptStatus === "unprocessed" ? "Unbearbeitet" : "Deaktiviert"}`}
+                        />
+                      );
+                    })}
+                  </div>
+                ) : null}
               </div>
               
-              {/* Appointment count indicator - shows selected/total */}
-              {totalCount > 0 && (
-                <span className={`text-[10px] ${selectedCount < totalCount ? "text-gray-400" : "text-gray-500"}`}>
-                  {selectedCount === totalCount ? totalCount : `${selectedCount}/${totalCount}`}
-                </span>
-              )}
+              {/* Day number below */}
+              <span className={`text-[10px] font-medium ${
+                status === "weekend" ? "text-gray-400" : "text-gray-600"
+              }`}>
+                {dayNum}
+              </span>
             </div>
           );
         })}
