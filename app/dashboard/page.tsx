@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { format, startOfMonth, endOfMonth, subMonths, isWeekend, addDays } from "date-fns";
 import { LogOut, X, Keyboard } from "lucide-react";
+import Image from "next/image";
 import DateRangePicker from "@/components/DateRangePicker";
 import AppointmentList from "@/components/AppointmentList";
 import CalendarHeatmap, { CalendarHeatmapLegend, HeatmapStats } from "@/components/CalendarHeatmap";
@@ -406,6 +407,7 @@ const setCachedAppointments = (startDate: string, endDate: string, appointments:
   }
 };
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const invalidateCalendarCache = (startDate?: string, endDate?: string) => {
   if (typeof window === "undefined") return;
   try {
@@ -1743,7 +1745,7 @@ export default function Dashboard() {
       <header className="bg-white shadow-sm">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="Logo" className="h-8 w-auto" />
+            <Image src="/logo.png" alt="Logo" width={32} height={32} className="h-8 w-auto" />
             <h1 className="text-xl font-bold text-gray-900">
               <span className="font-montserrat">Outlook ZEP</span>{" "}
               <span className="font-inter font-light">Sync</span>
