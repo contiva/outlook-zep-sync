@@ -827,7 +827,7 @@ export default function AppointmentRow({
                   }
                 }}
                 disabled={!(modifiedEntry?.newTaskId || syncedEntry.project_task_id)}
-                className={`flex items-center justify-center w-10 h-[34px] rounded-md border transition-colors ${
+                className={`flex items-center justify-center w-10 h-[38px] rounded-lg border transition-colors ${
                   !(modifiedEntry?.newTaskId || syncedEntry.project_task_id)
                     ? "bg-gray-100 border-gray-200 text-gray-300 cursor-not-allowed"
                     : (modifiedEntry?.newBillable ?? syncedEntry.billable)
@@ -917,7 +917,7 @@ export default function AppointmentRow({
               type="button"
               onClick={() => appointment.taskId && onBillableChange(appointment.id, !appointment.billable)}
               disabled={!appointment.taskId}
-              className={`flex items-center justify-center w-10 h-[34px] rounded-md border transition-colors ${
+              className={`flex items-center justify-center w-10 h-[38px] rounded-lg border transition-colors ${
                 !appointment.taskId
                   ? "bg-gray-100 border-gray-200 text-gray-300 cursor-not-allowed"
                   : appointment.billable
