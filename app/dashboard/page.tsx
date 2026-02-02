@@ -26,6 +26,21 @@ function determineBillable(projektFakt?: number, vorgangFakt?: number): boolean 
   return true;
 }
 
+// Helper: Determine if user can change billable status
+// Values 1 and 3 are editable, values 2 and 4 are locked
+function canChangeBillable(projektFakt?: number, vorgangFakt?: number): boolean {
+  // Task has own setting (not 0 = "inherited")
+  if (vorgangFakt !== undefined && vorgangFakt !== 0) {
+    return vorgangFakt === 1 || vorgangFakt === 3;
+  }
+  // Fallback to project setting
+  if (projektFakt !== undefined) {
+    return projektFakt === 1 || projektFakt === 3;
+  }
+  // Default: editable
+  return true;
+}
+
 // Zugeordnete Tätigkeit (zu Projekt oder Vorgang)
 interface AssignedActivity {
   name: string;      // Tätigkeit-Kürzel
@@ -97,6 +112,7 @@ interface Appointment {
   taskId: number | null;
   activityId: string;
   billable: boolean;
+  canChangeBillable: boolean; // false when task/project setting is locked (2 or 4)
   attendees?: Attendee[];
   organizer?: {
     emailAddress: {
@@ -646,6 +662,7 @@ export default function Dashboard() {
                 taskId: saved.taskId,
                 activityId: saved.activityId,
                 billable: saved.billable ?? true, // Default true for old saved data
+                canChangeBillable: saved.canChangeBillable ?? true, // Default true for old saved data
               };
             }
             
@@ -675,6 +692,7 @@ export default function Dashboard() {
               taskId: null,
               activityId: "be", // Default: Beratung
               billable: true, // Default: fakturierbar
+              canChangeBillable: true, // Default: änderbar (bis Task gewählt)
             };
           })
         );
@@ -772,6 +790,7 @@ export default function Dashboard() {
           taskId: null,
           activityId: "be", // Default zurücksetzen
           billable: true, // Default zurücksetzen
+          canChangeBillable: true, // Default zurücksetzen
         };
       })
     );
@@ -797,6 +816,12 @@ export default function Dashboard() {
         const relevantActivities = taskActivities.length > 0 ? taskActivities : projectActivities;
         const standardActivity = relevantActivities.find((a) => a.standard);
         
+        // Determine billable settings from task/project
+        const projektFakt = project?.voreinstFakturierbarkeit ?? project?.defaultFakt;
+        const vorgangFakt = singleTask.defaultFakt;
+        const newBillable = determineBillable(projektFakt, vorgangFakt);
+        const newCanChangeBillable = canChangeBillable(projektFakt, vorgangFakt);
+        
         setAppointments((prev) =>
           prev.map((apt) =>
             apt.id === id 
@@ -804,24 +829,26 @@ export default function Dashboard() {
                   ...apt, 
                   projectId, 
                   taskId: singleTask.id,
-                  activityId: standardActivity?.name || apt.activityId 
+                  activityId: standardActivity?.name || apt.activityId,
+                  billable: newBillable,
+                  canChangeBillable: newCanChangeBillable,
                 } 
               : apt
           )
         );
       } else {
-        // Multiple tasks or no tasks - just set project, clear task
+        // Multiple tasks or no tasks - just set project, clear task, reset billable settings
         setAppointments((prev) =>
           prev.map((apt) =>
-            apt.id === id ? { ...apt, projectId, taskId: null } : apt
+            apt.id === id ? { ...apt, projectId, taskId: null, canChangeBillable: true } : apt
           )
         );
       }
     } else {
-      // No project selected - clear everything
+      // No project selected - clear everything, reset billable settings
       setAppointments((prev) =>
         prev.map((apt) =>
-          apt.id === id ? { ...apt, projectId, taskId: null } : apt
+          apt.id === id ? { ...apt, projectId, taskId: null, canChangeBillable: true } : apt
         )
       );
     }
@@ -835,6 +862,7 @@ export default function Dashboard() {
         // Find standard activity for the selected task
         let newActivityId = apt.activityId;
         let newBillable = apt.billable;
+        let newCanChangeBillable = apt.canChangeBillable;
         
         if (taskId && apt.projectId) {
           const projectTasks = tasks[apt.projectId] || [];
@@ -853,13 +881,17 @@ export default function Dashboard() {
             newActivityId = standardActivity.name;
           }
           
-          // Determine billable status from task/project settings
+          // Determine billable status and editability from task/project settings
           const projektFakt = project?.voreinstFakturierbarkeit ?? project?.defaultFakt;
           const vorgangFakt = selectedTask?.defaultFakt;
           newBillable = determineBillable(projektFakt, vorgangFakt);
+          newCanChangeBillable = canChangeBillable(projektFakt, vorgangFakt);
+        } else {
+          // No task selected - reset to defaults
+          newCanChangeBillable = true;
         }
         
-        return { ...apt, taskId, activityId: newActivityId, billable: newBillable };
+        return { ...apt, taskId, activityId: newActivityId, billable: newBillable, canChangeBillable: newCanChangeBillable };
       })
     );
   };

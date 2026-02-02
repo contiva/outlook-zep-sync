@@ -19,6 +19,7 @@ interface Appointment {
   projectId: number | null;
   selected: boolean;
   billable?: boolean;
+  canChangeBillable?: boolean;
   seriesMasterId?: string;
   type?: string;
   attendees?: Attendee[];

@@ -8,6 +8,21 @@ import { getZepIdForOutlookEvent, getZepAttendanceUrl } from "@/lib/sync-history
 import SearchableSelect, { SelectOption } from "./SearchableSelect";
 import { DuplicateCheckResult } from "@/lib/zep-api";
 
+// Helper: Determine if user can change billable status
+// Values 1 and 3 are editable, values 2 and 4 are locked
+function canChangeBillableForTask(projektFakt?: number, vorgangFakt?: number): boolean {
+  // Task has own setting (not 0 = "inherited")
+  if (vorgangFakt !== undefined && vorgangFakt !== 0) {
+    return vorgangFakt === 1 || vorgangFakt === 3;
+  }
+  // Fallback to project setting
+  if (projektFakt !== undefined) {
+    return projektFakt === 1 || projektFakt === 3;
+  }
+  // Default: editable
+  return true;
+}
+
 // Zugeordnete Tätigkeit (zu Projekt oder Vorgang)
 interface AssignedActivity {
   name: string;      // Tätigkeit-Kürzel
@@ -19,6 +34,8 @@ interface Project {
   name: string;
   description: string;
   activities?: AssignedActivity[]; // Dem Projekt zugeordnete Tätigkeiten
+  voreinstFakturierbarkeit?: number; // 1-4: Projekt-Level Fakturierbarkeit
+  defaultFakt?: number; // 1-4: Projekt-Level Fakturierbarkeit (alternative)
 }
 
 interface Task {
@@ -27,6 +44,7 @@ interface Task {
   description: string | null;
   project_id: number;
   activities?: AssignedActivity[]; // Dem Vorgang zugeordnete Tätigkeiten (leer = erbt vom Projekt)
+  defaultFakt?: number; // 0=vom Projekt geerbt, 1-4=eigene Einstellung
 }
 
 interface Activity {
@@ -86,6 +104,7 @@ interface Appointment {
   taskId: number | null;
   activityId: string;
   billable: boolean;
+  canChangeBillable: boolean;
   attendees?: Attendee[];
   organizer?: {
     emailAddress: {
@@ -454,6 +473,28 @@ export default function AppointmentRow({
     }));
   }, [activities, projects, tasks, allTasks, appointment.projectId, appointment.taskId, isEditing, modifiedEntry?.newProjectId, modifiedEntry?.newTaskId, syncedEntry?.project_id, syncedEntry?.project_task_id]);
 
+  // Determine if billable can be changed in edit mode (based on task/project settings)
+  const canEditBillableInEditMode = useMemo(() => {
+    if (!isEditing) return true;
+    
+    const selectedProjectId = modifiedEntry?.newProjectId || syncedEntry?.project_id;
+    const selectedTaskId = modifiedEntry?.newTaskId || syncedEntry?.project_task_id;
+    
+    if (!selectedTaskId || !selectedProjectId) return true; // No task selected yet
+    
+    // Find the selected task and project
+    let selectedTask: Task | undefined;
+    if (allTasks && allTasks[selectedProjectId]) {
+      selectedTask = allTasks[selectedProjectId].find(t => t.id === selectedTaskId);
+    }
+    const selectedProject = projects.find(p => p.id === selectedProjectId);
+    
+    const projektFakt = selectedProject?.voreinstFakturierbarkeit ?? selectedProject?.defaultFakt;
+    const vorgangFakt = selectedTask?.defaultFakt;
+    
+    return canChangeBillableForTask(projektFakt, vorgangFakt);
+  }, [isEditing, allTasks, projects, modifiedEntry?.newProjectId, modifiedEntry?.newTaskId, syncedEntry?.project_id, syncedEntry?.project_task_id]);
+
   // Get ZEP link if this appointment was synced
   const zepLink = useMemo(() => {
     const zepId = getZepIdForOutlookEvent(appointment.id);
@@ -821,20 +862,28 @@ export default function AppointmentRow({
               <button
                 type="button"
                 onClick={() => {
-                  if (onModifyBillable && syncedEntry && (modifiedEntry?.newTaskId || syncedEntry.project_task_id)) {
+                  if (onModifyBillable && syncedEntry && canEditBillableInEditMode && (modifiedEntry?.newTaskId || syncedEntry.project_task_id)) {
                     const currentBillable = modifiedEntry?.newBillable ?? syncedEntry.billable;
                     onModifyBillable(appointment.id, appointment, syncedEntry, !currentBillable);
                   }
                 }}
-                disabled={!(modifiedEntry?.newTaskId || syncedEntry.project_task_id)}
+                disabled={!(modifiedEntry?.newTaskId || syncedEntry.project_task_id) || !canEditBillableInEditMode}
                 className={`flex items-center justify-center w-10 h-[38px] rounded-lg border transition-colors ${
-                  !(modifiedEntry?.newTaskId || syncedEntry.project_task_id)
+                  !(modifiedEntry?.newTaskId || syncedEntry.project_task_id) || !canEditBillableInEditMode
                     ? "bg-gray-100 border-gray-200 text-gray-300 cursor-not-allowed"
                     : (modifiedEntry?.newBillable ?? syncedEntry.billable)
                       ? "bg-green-50 border-green-300 text-green-600 hover:bg-green-100"
                       : "bg-gray-50 border-gray-300 text-gray-400 hover:bg-gray-100"
                 }`}
-                title={!(modifiedEntry?.newTaskId || syncedEntry.project_task_id) ? "Erst Task wählen" : (modifiedEntry?.newBillable ?? syncedEntry.billable) ? "Fakturierbar - klicken zum Ändern" : "Nicht fakturierbar (intern) - klicken zum Ändern"}
+                title={
+                  !(modifiedEntry?.newTaskId || syncedEntry.project_task_id)
+                    ? "Erst Task wählen"
+                    : !canEditBillableInEditMode
+                      ? `Fakturierbarkeit vom Projekt/Vorgang festgelegt (${(modifiedEntry?.newBillable ?? syncedEntry.billable) ? "fakturierbar" : "nicht fakturierbar"})`
+                      : (modifiedEntry?.newBillable ?? syncedEntry.billable)
+                        ? "Fakturierbar - klicken zum Ändern"
+                        : "Nicht fakturierbar (intern) - klicken zum Ändern"
+                }
               >
                 <Banknote size={18} className={!(modifiedEntry?.newTaskId || syncedEntry.project_task_id) || !(modifiedEntry?.newBillable ?? syncedEntry.billable) ? "opacity-50" : ""} />
               </button>
@@ -915,16 +964,24 @@ export default function AppointmentRow({
             <label className="text-xs text-gray-500 mb-1">Fakt.</label>
             <button
               type="button"
-              onClick={() => appointment.taskId && onBillableChange(appointment.id, !appointment.billable)}
-              disabled={!appointment.taskId}
+              onClick={() => appointment.taskId && appointment.canChangeBillable && onBillableChange(appointment.id, !appointment.billable)}
+              disabled={!appointment.taskId || !appointment.canChangeBillable}
               className={`flex items-center justify-center w-10 h-[38px] rounded-lg border transition-colors ${
-                !appointment.taskId
+                !appointment.taskId || !appointment.canChangeBillable
                   ? "bg-gray-100 border-gray-200 text-gray-300 cursor-not-allowed"
                   : appointment.billable
                     ? "bg-green-50 border-green-300 text-green-600 hover:bg-green-100"
                     : "bg-gray-50 border-gray-300 text-gray-400 hover:bg-gray-100"
               }`}
-              title={!appointment.taskId ? "Erst Task wählen" : appointment.billable ? "Fakturierbar - klicken zum Ändern" : "Nicht fakturierbar (intern) - klicken zum Ändern"}
+              title={
+                !appointment.taskId 
+                  ? "Erst Task wählen" 
+                  : !appointment.canChangeBillable
+                    ? `Fakturierbarkeit vom Projekt/Vorgang festgelegt (${appointment.billable ? "fakturierbar" : "nicht fakturierbar"})`
+                    : appointment.billable 
+                      ? "Fakturierbar - klicken zum Ändern" 
+                      : "Nicht fakturierbar (intern) - klicken zum Ändern"
+              }
             >
               <Banknote size={18} className={!appointment.taskId || !appointment.billable ? "opacity-50" : ""} />
             </button>

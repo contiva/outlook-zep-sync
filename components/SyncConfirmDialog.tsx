@@ -41,6 +41,7 @@ interface Appointment {
   taskId: number | null;
   activityId: string;
   billable: boolean;
+  canChangeBillable: boolean;
 }
 
 interface SyncConfirmDialogProps {

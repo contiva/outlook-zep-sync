@@ -45,6 +45,7 @@ interface Appointment {
   taskId: number | null;
   activityId: string;
   billable: boolean;
+  canChangeBillable: boolean;
   attendees?: Attendee[];
   isOrganizer?: boolean;
   seriesMasterId?: string;
