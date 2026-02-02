@@ -1,6 +1,6 @@
 "use client";
 
-import { Calendar, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { startOfMonth, endOfMonth, subMonths, subDays, format, formatDistanceToNow } from "date-fns";
 import { de } from "date-fns/locale";
 
@@ -8,11 +8,9 @@ interface DateRangePickerProps {
   startDate: string;
   endDate: string;
   filterDate: string | null;
-  onStartDateChange: (date: string) => void;
-  onEndDateChange: (date: string) => void;
   onLoad: () => void;
-  onDateRangeChange?: (startDate: string, endDate: string) => void;
-  onFilterDateChange?: (date: string | null) => void;
+  onDateRangeChange: (startDate: string, endDate: string) => void;
+  onFilterDateChange: (date: string | null) => void;
   loading: boolean;
   lastLoadedAt?: Date | null;
 }
@@ -49,8 +47,6 @@ export default function DateRangePicker({
   startDate,
   endDate,
   filterDate,
-  onStartDateChange,
-  onEndDateChange,
   onLoad,
   onDateRangeChange,
   onFilterDateChange,
@@ -86,24 +82,17 @@ export default function DateRangePicker({
     return false;
   };
   
-  const applyPreset = (preset: Preset, filterDate?: string) => {
+  const applyPreset = (preset: Preset, filterDateValue?: string) => {
     const { start, end } = preset.getRange();
     const startStr = format(start, "yyyy-MM-dd");
     const endStr = format(end, "yyyy-MM-dd");
     
-    // Nutze den kombinierten Callback wenn vorhanden (lädt automatisch)
-    if (onDateRangeChange) {
-      onDateRangeChange(startStr, endStr);
-    } else {
-      // Fallback: Nur Daten ändern, User muss manuell laden
-      onStartDateChange(startStr);
-      onEndDateChange(endStr);
-    }
+    onDateRangeChange(startStr, endStr);
     
     // Set filter date if provided
-    if (filterDate && onFilterDateChange) {
+    if (filterDateValue) {
       // Small delay to ensure data is loaded first
-      setTimeout(() => onFilterDateChange(filterDate), 100);
+      setTimeout(() => onFilterDateChange(filterDateValue), 100);
     }
   };
   
@@ -122,34 +111,8 @@ export default function DateRangePicker({
   };
 
   return (
-    <div className="p-4 bg-white rounded-lg shadow space-y-3">
-      {/* Preset buttons */}
-      <div className="flex flex-wrap items-center gap-2">
-        {/* Quick jump buttons */}
-        <button
-          onClick={jumpToYesterday}
-          className={`px-3 py-1 text-sm rounded-md transition ${
-            isYesterdayActive
-              ? "bg-blue-600 text-white"
-              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-          }`}
-        >
-          Gestern
-        </button>
-        <button
-          onClick={jumpToToday}
-          className={`px-3 py-1 text-sm rounded-md transition ${
-            isTodayActive
-              ? "bg-blue-600 text-white"
-              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-          }`}
-        >
-          Heute
-        </button>
-        
-        {/* Divider */}
-        <div className="h-5 w-px bg-gray-300 mx-1" />
-        
+    <div className="bg-white rounded-lg border border-gray-200">
+      <div className="flex items-center">
         {/* Month presets */}
         {presets.map((preset, index) => {
           const isActive = isPresetActive(preset);
@@ -160,51 +123,69 @@ export default function DateRangePicker({
               onClick={() => {
                 applyPreset(preset);
                 // Clear the filter date when clicking month directly
-                if (onFilterDateChange) {
-                  setTimeout(() => onFilterDateChange(null), 100);
-                }
+                setTimeout(() => onFilterDateChange(null), 100);
               }}
-              className={`px-3 py-1 text-sm rounded-md transition ${
+              className={`px-4 py-3 text-sm whitespace-nowrap transition ${
                 isActive && !isRelated
-                  ? "bg-blue-600 text-white"
+                  ? "text-blue-600 bg-blue-50"
                   : isRelated
-                  ? "bg-gray-300 text-gray-700 hover:bg-gray-400"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  ? "text-gray-700 bg-gray-100"
+                  : "text-gray-600 hover:bg-gray-50"
               }`}
             >
               {preset.label}
             </button>
           );
         })}
-      </div>
-      
-      {/* Date inputs and load button */}
-      <div className="flex flex-wrap items-center gap-4">
-        <Calendar className="text-gray-400 hidden sm:block" size={24} />
-        <div className="flex items-center gap-2">
-          <label htmlFor="startDate" className="text-sm text-gray-600">Von:</label>
-          <input
-            id="startDate"
-            type="date"
-            value={startDate}
-            onChange={(e) => onStartDateChange(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <label htmlFor="endDate" className="text-sm text-gray-600">Bis:</label>
-          <input
-            id="endDate"
-            type="date"
-            value={endDate}
-            onChange={(e) => onEndDateChange(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
+        
+        <div className="h-8 w-px bg-gray-200" />
+        
+        {/* Quick jump buttons */}
+        <button
+          onClick={jumpToYesterday}
+          className={`px-4 py-3 text-sm whitespace-nowrap transition ${
+            isYesterdayActive
+              ? "text-blue-600 bg-blue-50"
+              : "text-gray-600 hover:bg-gray-50"
+          }`}
+        >
+          Gestern
+        </button>
+        
+        <div className="h-8 w-px bg-gray-200" />
+        
+        <button
+          onClick={jumpToToday}
+          className={`px-4 py-3 text-sm whitespace-nowrap transition ${
+            isTodayActive
+              ? "text-blue-600 bg-blue-50"
+              : "text-gray-600 hover:bg-gray-50"
+          }`}
+        >
+          Heute
+        </button>
+        
+        {/* Spacer */}
+        <div className="flex-1" />
+        
+        {/* Last loaded status */}
+        {lastLoadedAt && !loading && (
+          <>
+            <span 
+              className="px-3 text-xs text-gray-400 hidden sm:inline" 
+              title={format(lastLoadedAt, "PPpp", { locale: de })}
+            >
+              {formatDistanceToNow(lastLoadedAt, { addSuffix: true, locale: de })}
+            </span>
+            <div className="h-8 w-px bg-gray-200" />
+          </>
+        )}
+        
+        {/* Load button */}
         <button
           onClick={onLoad}
           disabled={loading}
-          className="relative px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:cursor-wait transition flex items-center gap-2 overflow-hidden"
+          className="relative flex items-center gap-2 px-4 py-3 text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:cursor-wait transition overflow-hidden rounded-r-lg"
         >
           {/* Progress bar background animation */}
           {loading && (
@@ -225,15 +206,9 @@ export default function DateRangePicker({
           )}
           <span className="relative z-10 flex items-center gap-2">
             <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-            Termine laden
+            <span className="hidden sm:inline">Termine laden</span>
           </span>
         </button>
-        
-        {lastLoadedAt && !loading && (
-          <span className="text-xs text-gray-400 hidden sm:inline" title={format(lastLoadedAt, "PPpp", { locale: de })}>
-            Zuletzt geladen: {formatDistanceToNow(lastLoadedAt, { addSuffix: true, locale: de })}
-          </span>
-        )}
       </div>
     </div>
   );
