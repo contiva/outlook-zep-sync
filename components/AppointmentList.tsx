@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Search, X } from "lucide-react";
+import { Search, X, RotateCcw } from "lucide-react";
 import AppointmentRow from "./AppointmentRow";
 import SeriesGroup from "./SeriesGroup";
 import SyncConfirmDialog from "./SyncConfirmDialog";
@@ -461,6 +461,44 @@ export default function AppointmentList({
                 </div>
                 <span className="hidden sm:inline">Solo</span>
               </button>
+
+              {/* Divider before sync button */}
+              <div className="h-8 w-px bg-gray-200" />
+
+              {/* Sync button */}
+              <button
+                onClick={() => setShowConfirmDialog(true)}
+                disabled={
+                  submitting ||
+                  (syncReadyAppointments.length === 0 && completeModificationsCount === 0)
+                }
+                className="flex items-center gap-2 px-4 py-3 text-sm font-medium bg-green-600 text-white hover:bg-green-700 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition"
+              >
+                {submitting ? (
+                  "Übertragen..."
+                ) : (
+                  <>
+                    <span>ZEP Sync</span>
+                    {(syncReadyAppointments.length > 0 || completeModificationsCount > 0) && (
+                      <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 text-xs font-medium bg-white/20 rounded-full">
+                        {syncReadyAppointments.length + completeModificationsCount}
+                      </span>
+                    )}
+                  </>
+                )}
+              </button>
+
+              {/* Reset button (icon only) */}
+              {(selectedAppointments.length > 0 || completeModificationsCount > 0) && (
+                <button
+                  onClick={onReset}
+                  disabled={submitting}
+                  className="p-3 text-gray-400 hover:text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                  title="Auswahl zurücksetzen"
+                >
+                  <RotateCcw size={16} />
+                </button>
+              )}
             </>
           )}
 
@@ -471,6 +509,46 @@ export default function AppointmentList({
               <div className="text-sm text-blue-600 px-4">
                 {seriesCount} Terminserie{seriesCount > 1 ? "n" : ""}
               </div>
+            </>
+          )}
+
+          {/* Sync button when no filter controls */}
+          {!showFilterControls && (
+            <>
+              <div className="flex-1" />
+              <div className="h-8 w-px bg-gray-200" />
+              <button
+                onClick={() => setShowConfirmDialog(true)}
+                disabled={
+                  submitting ||
+                  (syncReadyAppointments.length === 0 && completeModificationsCount === 0)
+                }
+                className="flex items-center gap-2 px-4 py-3 text-sm font-medium bg-green-600 text-white hover:bg-green-700 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition"
+              >
+                {submitting ? (
+                  "Übertragen..."
+                ) : (
+                  <>
+                    <span>ZEP Sync</span>
+                    {(syncReadyAppointments.length > 0 || completeModificationsCount > 0) && (
+                      <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 text-xs font-medium bg-white/20 rounded-full">
+                        {syncReadyAppointments.length + completeModificationsCount}
+                      </span>
+                    )}
+                  </>
+                )}
+              </button>
+              {/* Reset button (icon only) */}
+              {(selectedAppointments.length > 0 || completeModificationsCount > 0) && (
+                <button
+                  onClick={onReset}
+                  disabled={submitting}
+                  className="p-3 text-gray-400 hover:text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                  title="Auswahl zurücksetzen"
+                >
+                  <RotateCcw size={16} />
+                </button>
+              )}
             </>
           )}
         </div>
@@ -540,81 +618,29 @@ export default function AppointmentList({
           )}
       </div>
 
-      <div className="p-4 border border-gray-200 bg-white rounded-b-lg">
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-600">
-              Ausgewählt: {selectedAppointments.length} Termine ({hours}h{" "}
-              {minutes}min)
-              {syncReadyAppointments.length > 0 && (
-                <span className="ml-2 text-amber-600">
-                  ({syncReadyAppointments.length} bereit zum Sync)
-                </span>
-              )}
-              {completeModificationsCount > 0 && (
-                <span className="ml-2 text-blue-600">
-                  ({completeModificationsCount} zu aktualisieren)
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              {(selectedAppointments.length > 0 || completeModificationsCount > 0) && (
-                <button
-                  onClick={onReset}
-                  disabled={submitting}
-                  className="px-4 py-2 text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                  title="Alle ausstehenden Syncs zurücksetzen"
-                >
-                  Zurücksetzen
-                </button>
-              )}
-              <button
-                onClick={() => setShowConfirmDialog(true)}
-                disabled={
-                  submitting ||
-                  (syncReadyAppointments.length === 0 && completeModificationsCount === 0)
-                }
-                className="relative px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition"
-              >
-                {submitting 
-                  ? "Wird übertragen..." 
-                  : syncReadyAppointments.length > 0 && completeModificationsCount > 0
-                    ? (
-                      <span className="flex items-center gap-2">
-                        An ZEP übertragen
-                        <span className="inline-flex items-center justify-center px-2 py-0.5 text-xs font-medium bg-white text-green-700 rounded-full">
-                          {syncReadyAppointments.length} neu
-                        </span>
-                        <span className="inline-flex items-center justify-center px-2 py-0.5 text-xs font-medium bg-yellow-100 text-yellow-800 rounded-full">
-                          {completeModificationsCount} ändern
-                        </span>
-                      </span>
-                    )
-                    : completeModificationsCount > 0 
-                      ? (
-                        <span className="flex items-center gap-2">
-                          Änderungen übertragen
-                          <span className="inline-flex items-center justify-center px-2 py-0.5 text-xs font-medium bg-yellow-100 text-yellow-800 rounded-full">
-                            {completeModificationsCount}
-                          </span>
-                        </span>
-                      )
-                      : (
-                        <span className="flex items-center gap-2">
-                          An ZEP übertragen
-                          <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 text-xs font-medium bg-white text-green-700 rounded-full">
-                            {syncReadyAppointments.length}
-                          </span>
-                        </span>
-                      )
-                }
-              </button>
-            </div>
-          </div>
-          {incompleteUnsyncedAppointments.length > 0 && (
-            <p className="text-sm text-gray-500 mt-2">
-              {incompleteUnsyncedAppointments.length} weitere Termine benötigen noch Projekt/Task-Zuweisung.
-            </p>
+      {/* Footer - Status summary */}
+      <div className="px-4 py-3 border border-gray-200 bg-white rounded-b-lg">
+        <div className="flex items-center gap-4 text-sm text-gray-600">
+          <span>
+            Ausgewählt: <span className="font-medium text-gray-900">{selectedAppointments.length}</span> Termine
+            <span className="text-gray-400 ml-1">({hours}h {minutes}min)</span>
+          </span>
+          {syncReadyAppointments.length > 0 && (
+            <span className="text-green-600">
+              {syncReadyAppointments.length} bereit
+            </span>
           )}
+          {completeModificationsCount > 0 && (
+            <span className="text-blue-600">
+              {completeModificationsCount} zu aktualisieren
+            </span>
+          )}
+          {incompleteUnsyncedAppointments.length > 0 && (
+            <span className="text-amber-600">
+              {incompleteUnsyncedAppointments.length} unvollständig
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Sync Confirmation Dialog */}

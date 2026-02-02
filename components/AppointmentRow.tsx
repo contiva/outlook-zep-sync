@@ -711,6 +711,12 @@ export default function AppointmentRow({
 
         {/* Status badges */}
         <div className="shrink-0 flex items-center gap-1.5">
+          {/* Editing badge */}
+          {isSynced && isEditing && (
+            <span className="px-2 py-0.5 text-xs font-medium text-red-700 bg-red-50 rounded">
+              In Bearbeitung
+            </span>
+          )}
           {isSynced && (
             zepLink ? (
               <a
@@ -747,14 +753,21 @@ export default function AppointmentRow({
             </button>
           )}
           
-          {/* Edit button for synced */}
-          {isSynced && !isEditing && onStartEditSynced && (
+          {/* Edit/Cancel button for synced */}
+          {isSynced && onStartEditSynced && onCancelEditSynced && (
             <button
-              onClick={() => onStartEditSynced(appointment.id)}
-              className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition"
-              title="Bearbeiten"
+              onClick={() => isEditing 
+                ? onCancelEditSynced(appointment.id) 
+                : onStartEditSynced(appointment.id)
+              }
+              className={`p-1 rounded transition ${
+                isEditing 
+                  ? "text-blue-600 hover:text-blue-800 hover:bg-blue-100" 
+                  : "text-gray-400 hover:text-blue-600 hover:bg-blue-50"
+              }`}
+              title={isEditing ? "Bearbeitung abbrechen" : "Bearbeiten"}
             >
-              <Pencil size={12} />
+              {isEditing ? <X size={12} /> : <Pencil size={12} />}
             </button>
           )}
         </div>
@@ -801,110 +814,99 @@ export default function AppointmentRow({
         </div>
       )}
 
-      {/* Editing UI for synced entries */}
+      {/* Editing UI for synced entries - inline like normal appointments */}
       {isSynced && isEditing && syncedEntry && (
-        <div className="mt-3 ml-8 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-medium text-blue-800">Eintrag bearbeiten</span>
-            {onCancelEditSynced && (
-              <button
-                onClick={() => onCancelEditSynced(appointment.id)}
-                className="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition"
-                title="Bearbeitung abbrechen"
-              >
-                <X size={16} />
-              </button>
-            )}
-          </div>
-          <div className="flex flex-wrap items-end gap-3">
-            {/* Projekt-Dropdown */}
-            <div className="flex flex-col min-w-0">
-              <label className="text-xs text-gray-500 mb-1">Projekt</label>
-              <SearchableSelect
-                options={projectOptions}
-                value={modifiedEntry?.newProjectId || syncedEntry.project_id}
-                onChange={(val) => {
-                  if (val !== null && onModifyProject && syncedEntry) {
-                    onModifyProject(appointment.id, appointment, syncedEntry, Number(val));
-                  }
-                }}
-                placeholder="-- Projekt wählen --"
-                className="w-64 sm:w-72"
-              />
-            </div>
-
-            {/* Task-Dropdown */}
-            <div className="flex flex-col min-w-0">
-              <label className="text-xs text-gray-500 mb-1">Task</label>
-              <SearchableSelect
-                options={editingTaskOptions}
-                value={modifiedEntry?.newTaskId || syncedEntry.project_task_id}
-                onChange={(val) => {
-                  if (val !== null && onModifyTask) {
-                    onModifyTask(appointment.id, Number(val));
-                  }
-                }}
-                placeholder="-- Task wählen --"
-                disabled={editingTaskOptions.length === 0}
-                disabledMessage={editingTaskOptions.length === 0 ? "Laden..." : undefined}
-                className="w-64 sm:w-72"
-              />
-            </div>
-
-            {/* Activity-Dropdown */}
-            <div className="flex flex-col min-w-0">
-              <label className="text-xs text-gray-500 mb-1">Tätigkeit</label>
-              <SearchableSelect
-                options={activityOptions}
-                value={modifiedEntry?.newActivityId || syncedEntry.activity_id}
-                onChange={(val) => {
-                  if (val !== null && onModifyActivity && syncedEntry) {
-                    onModifyActivity(appointment.id, appointment, syncedEntry, String(val));
-                  }
-                }}
-                placeholder="-- Tätigkeit wählen --"
-                disabled={!(modifiedEntry?.newTaskId || syncedEntry.project_task_id)}
-                disabledMessage={!(modifiedEntry?.newProjectId || syncedEntry.project_id) ? "Erst Projekt wählen" : "Erst Task wählen"}
-                className="w-40 sm:w-48"
-              />
-            </div>
-
-            {/* Billable Toggle */}
-            <div className="flex flex-col">
-              <label className="text-xs text-gray-500 mb-1">Fakt.</label>
-              <button
-                type="button"
-                onClick={() => {
-                  if (onModifyBillable && syncedEntry && canEditBillableInEditMode && (modifiedEntry?.newTaskId || syncedEntry.project_task_id)) {
-                    const currentBillable = modifiedEntry?.newBillable ?? syncedEntry.billable;
-                    onModifyBillable(appointment.id, appointment, syncedEntry, !currentBillable);
-                  }
-                }}
-                disabled={!(modifiedEntry?.newTaskId || syncedEntry.project_task_id) || !canEditBillableInEditMode}
-                className={`flex items-center justify-center w-10 h-9.5 rounded-lg border transition-colors ${
-                  !(modifiedEntry?.newTaskId || syncedEntry.project_task_id) || !canEditBillableInEditMode
-                    ? "bg-gray-100 border-gray-200 text-gray-300 cursor-not-allowed"
-                    : (modifiedEntry?.newBillable ?? syncedEntry.billable)
-                      ? "bg-green-50 border-green-300 text-green-600 hover:bg-green-100"
-                      : "bg-gray-50 border-gray-300 text-gray-400 hover:bg-gray-100"
-                }`}
-                title={
-                  !(modifiedEntry?.newTaskId || syncedEntry.project_task_id)
-                    ? "Erst Task wählen"
-                    : !canEditBillableInEditMode
-                      ? `Fakturierbarkeit vom Projekt/Vorgang festgelegt (${(modifiedEntry?.newBillable ?? syncedEntry.billable) ? "fakturierbar" : "nicht fakturierbar"})`
-                      : (modifiedEntry?.newBillable ?? syncedEntry.billable)
-                        ? "Fakturierbar - klicken zum Ändern"
-                        : "Nicht fakturierbar (intern) - klicken zum Ändern"
+        <div className="mt-3 ml-8 flex flex-wrap items-end gap-3">
+          {/* Projekt-Dropdown */}
+          <div className="flex flex-col min-w-0">
+            <label className="text-xs text-gray-500 mb-1">Projekt</label>
+            <SearchableSelect
+              options={projectOptions}
+              value={modifiedEntry?.newProjectId || syncedEntry.project_id}
+              onChange={(val) => {
+                if (val !== null && onModifyProject && syncedEntry) {
+                  onModifyProject(appointment.id, appointment, syncedEntry, Number(val));
                 }
-              >
-                <Banknote size={18} className={!(modifiedEntry?.newTaskId || syncedEntry.project_task_id) || !(modifiedEntry?.newBillable ?? syncedEntry.billable) ? "opacity-50" : ""} />
-              </button>
-            </div>
+              }}
+              placeholder="-- Projekt wählen --"
+              className="w-64 sm:w-72"
+            />
           </div>
+
+          {/* Task-Dropdown */}
+          <div className="flex flex-col min-w-0">
+            <label className="text-xs text-gray-500 mb-1">Task</label>
+            <SearchableSelect
+              options={editingTaskOptions}
+              value={modifiedEntry?.newTaskId || syncedEntry.project_task_id}
+              onChange={(val) => {
+                if (val !== null && onModifyTask) {
+                  onModifyTask(appointment.id, Number(val));
+                }
+              }}
+              placeholder="-- Task wählen --"
+              disabled={editingTaskOptions.length === 0}
+              disabledMessage={editingTaskOptions.length === 0 ? "Laden..." : undefined}
+              className="w-64 sm:w-72"
+            />
+          </div>
+
+          {/* Activity-Dropdown */}
+          <div className="flex flex-col min-w-0">
+            <label className="text-xs text-gray-500 mb-1">Tätigkeit</label>
+            <SearchableSelect
+              options={activityOptions}
+              value={modifiedEntry?.newActivityId || syncedEntry.activity_id}
+              onChange={(val) => {
+                if (val !== null && onModifyActivity && syncedEntry) {
+                  onModifyActivity(appointment.id, appointment, syncedEntry, String(val));
+                }
+              }}
+              placeholder="-- Tätigkeit wählen --"
+              disabled={!(modifiedEntry?.newTaskId || syncedEntry.project_task_id)}
+              disabledMessage={!(modifiedEntry?.newProjectId || syncedEntry.project_id) ? "Erst Projekt wählen" : "Erst Task wählen"}
+              className="w-40 sm:w-48"
+            />
+          </div>
+
+          {/* Billable Toggle */}
+          <div className="flex flex-col">
+            <label className="text-xs text-gray-500 mb-1">Fakt.</label>
+            <button
+              type="button"
+              onClick={() => {
+                if (onModifyBillable && syncedEntry && canEditBillableInEditMode && (modifiedEntry?.newTaskId || syncedEntry.project_task_id)) {
+                  const currentBillable = modifiedEntry?.newBillable ?? syncedEntry.billable;
+                  onModifyBillable(appointment.id, appointment, syncedEntry, !currentBillable);
+                }
+              }}
+              disabled={!(modifiedEntry?.newTaskId || syncedEntry.project_task_id) || !canEditBillableInEditMode}
+              className={`flex items-center justify-center w-10 h-9.5 rounded-lg border transition-colors ${
+                !(modifiedEntry?.newTaskId || syncedEntry.project_task_id) || !canEditBillableInEditMode
+                  ? "bg-gray-100 border-gray-200 text-gray-300 cursor-not-allowed"
+                  : (modifiedEntry?.newBillable ?? syncedEntry.billable)
+                    ? "bg-green-50 border-green-300 text-green-600 hover:bg-green-100"
+                    : "bg-gray-50 border-gray-300 text-gray-400 hover:bg-gray-100"
+              }`}
+              title={
+                !(modifiedEntry?.newTaskId || syncedEntry.project_task_id)
+                  ? "Erst Task wählen"
+                  : !canEditBillableInEditMode
+                    ? `Fakturierbarkeit vom Projekt/Vorgang festgelegt (${(modifiedEntry?.newBillable ?? syncedEntry.billable) ? "fakturierbar" : "nicht fakturierbar"})`
+                    : (modifiedEntry?.newBillable ?? syncedEntry.billable)
+                      ? "Fakturierbar - klicken zum Ändern"
+                      : "Nicht fakturierbar (intern) - klicken zum Ändern"
+              }
+            >
+              <Banknote size={18} className={!(modifiedEntry?.newTaskId || syncedEntry.project_task_id) || !(modifiedEntry?.newBillable ?? syncedEntry.billable) ? "opacity-50" : ""} />
+            </button>
+          </div>
+
+          {/* Status indicator for pending changes */}
           {isModificationComplete && isModified && (
-            <div className="mt-2 text-xs text-amber-700">
-              Änderungen werden beim nächsten Sync übertragen.
+            <div className="flex items-center text-xs text-amber-600">
+              <CloudUpload size={14} className="mr-1" />
+              <span>Änderung ausstehend</span>
             </div>
           )}
         </div>
