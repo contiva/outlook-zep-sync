@@ -178,6 +178,44 @@ export interface ModifiedEntry {
 // localStorage key for persisting work state
 const STORAGE_KEY = "outlook-zep-sync-state";
 
+// localStorage key for caching Outlook calendar data and ZEP entries
+const CALENDAR_CACHE_KEY = "outlook-calendar-cache";
+const ZEP_CACHE_KEY = "zep-entries-cache";
+const PROJECTS_CACHE_KEY = "zep-projects-cache";
+
+// Cache duration: 1 hour in milliseconds
+const CACHE_DURATION_MS = 60 * 60 * 1000;
+
+interface CalendarCacheEntry {
+  appointments: CalendarEvent[];
+  cachedAt: number;
+}
+
+interface CalendarCache {
+  // Key format: "YYYY-MM-DD_YYYY-MM-DD" (startDate_endDate)
+  [dateRange: string]: CalendarCacheEntry;
+}
+
+interface ZepCacheEntry {
+  entries: ZepEntry[];
+  cachedAt: number;
+}
+
+interface ZepCache {
+  // Key format: "employeeId_YYYY-MM-DD_YYYY-MM-DD"
+  [key: string]: ZepCacheEntry;
+}
+
+interface ProjectsCacheEntry {
+  projects: Project[];
+  cachedAt: number;
+}
+
+interface ProjectsCache {
+  // Key format: "employeeId_date"
+  [key: string]: ProjectsCacheEntry;
+}
+
 // Helper: Get the nth workday of a month (1-based)
 function getNthWorkday(date: Date, n: number): Date {
   const start = startOfMonth(date);
@@ -314,6 +352,189 @@ const saveState = (state: Omit<PersistedState, "savedAt">) => {
       STORAGE_KEY,
       JSON.stringify({ ...state, savedAt: Date.now() })
     );
+  } catch {
+    // Ignore storage errors (quota exceeded, etc.)
+  }
+};
+
+// Calendar cache helper functions
+const getCalendarCache = (): CalendarCache => {
+  if (typeof window === "undefined") return {};
+  try {
+    const stored = localStorage.getItem(CALENDAR_CACHE_KEY);
+    if (!stored) return {};
+    return JSON.parse(stored) as CalendarCache;
+  } catch {
+    return {};
+  }
+};
+
+const getCachedAppointments = (startDate: string, endDate: string): CalendarEvent[] | null => {
+  const cache = getCalendarCache();
+  const key = `${startDate}_${endDate}`;
+  const entry = cache[key];
+  
+  if (!entry) return null;
+  
+  // Check if cache is still valid
+  if (Date.now() - entry.cachedAt > CACHE_DURATION_MS) {
+    // Cache expired, remove it
+    delete cache[key];
+    try {
+      localStorage.setItem(CALENDAR_CACHE_KEY, JSON.stringify(cache));
+    } catch {
+      // Ignore storage errors
+    }
+    return null;
+  }
+  
+  return entry.appointments;
+};
+
+const setCachedAppointments = (startDate: string, endDate: string, appointments: CalendarEvent[]) => {
+  if (typeof window === "undefined") return;
+  try {
+    const cache = getCalendarCache();
+    const key = `${startDate}_${endDate}`;
+    cache[key] = {
+      appointments,
+      cachedAt: Date.now(),
+    };
+    localStorage.setItem(CALENDAR_CACHE_KEY, JSON.stringify(cache));
+  } catch {
+    // Ignore storage errors (quota exceeded, etc.)
+  }
+};
+
+const invalidateCalendarCache = (startDate?: string, endDate?: string) => {
+  if (typeof window === "undefined") return;
+  try {
+    if (startDate && endDate) {
+      // Invalidate specific date range
+      const cache = getCalendarCache();
+      const key = `${startDate}_${endDate}`;
+      delete cache[key];
+      localStorage.setItem(CALENDAR_CACHE_KEY, JSON.stringify(cache));
+    } else {
+      // Invalidate all cache
+      localStorage.removeItem(CALENDAR_CACHE_KEY);
+    }
+  } catch {
+    // Ignore storage errors
+  }
+};
+
+// ZEP cache helper functions
+const getZepCache = (): ZepCache => {
+  if (typeof window === "undefined") return {};
+  try {
+    const stored = localStorage.getItem(ZEP_CACHE_KEY);
+    if (!stored) return {};
+    return JSON.parse(stored) as ZepCache;
+  } catch {
+    return {};
+  }
+};
+
+const getCachedZepEntries = (employeeId: string, startDate: string, endDate: string): ZepEntry[] | null => {
+  const cache = getZepCache();
+  const key = `${employeeId}_${startDate}_${endDate}`;
+  const entry = cache[key];
+  
+  if (!entry) return null;
+  
+  // Check if cache is still valid
+  if (Date.now() - entry.cachedAt > CACHE_DURATION_MS) {
+    // Cache expired, remove it
+    delete cache[key];
+    try {
+      localStorage.setItem(ZEP_CACHE_KEY, JSON.stringify(cache));
+    } catch {
+      // Ignore storage errors
+    }
+    return null;
+  }
+  
+  return entry.entries;
+};
+
+const setCachedZepEntries = (employeeId: string, startDate: string, endDate: string, entries: ZepEntry[]) => {
+  if (typeof window === "undefined") return;
+  try {
+    const cache = getZepCache();
+    const key = `${employeeId}_${startDate}_${endDate}`;
+    cache[key] = {
+      entries,
+      cachedAt: Date.now(),
+    };
+    localStorage.setItem(ZEP_CACHE_KEY, JSON.stringify(cache));
+  } catch {
+    // Ignore storage errors (quota exceeded, etc.)
+  }
+};
+
+const invalidateZepCache = (employeeId?: string, startDate?: string, endDate?: string) => {
+  if (typeof window === "undefined") return;
+  try {
+    if (employeeId && startDate && endDate) {
+      // Invalidate specific entry
+      const cache = getZepCache();
+      const key = `${employeeId}_${startDate}_${endDate}`;
+      delete cache[key];
+      localStorage.setItem(ZEP_CACHE_KEY, JSON.stringify(cache));
+    } else {
+      // Invalidate all cache
+      localStorage.removeItem(ZEP_CACHE_KEY);
+    }
+  } catch {
+    // Ignore storage errors
+  }
+};
+
+// Projects cache helper functions
+const getProjectsCache = (): ProjectsCache => {
+  if (typeof window === "undefined") return {};
+  try {
+    const stored = localStorage.getItem(PROJECTS_CACHE_KEY);
+    if (!stored) return {};
+    return JSON.parse(stored) as ProjectsCache;
+  } catch {
+    return {};
+  }
+};
+
+const getCachedProjects = (employeeId: string, date: string): Project[] | null => {
+  const cache = getProjectsCache();
+  const key = `${employeeId}_${date}`;
+  const entry = cache[key];
+  
+  if (!entry) return null;
+  
+  // Check if cache is still valid
+  if (Date.now() - entry.cachedAt > CACHE_DURATION_MS) {
+    // Cache expired, remove it
+    delete cache[key];
+    try {
+      localStorage.setItem(PROJECTS_CACHE_KEY, JSON.stringify(cache));
+    } catch {
+      // Ignore storage errors
+    }
+    return null;
+  }
+  
+  return entry.projects;
+};
+
+const setCachedProjects = (employeeId: string, date: string, projects: Project[]) => {
+  if (typeof window === "undefined") return;
+  try {
+    const cache = getProjectsCache();
+    const key = `${employeeId}_${date}`;
+    cache[key] = {
+      projects,
+      cachedAt: Date.now(),
+    };
+    localStorage.setItem(PROJECTS_CACHE_KEY, JSON.stringify(cache));
   } catch {
     // Ignore storage errors (quota exceeded, etc.)
   }
@@ -560,33 +781,6 @@ export default function Dashboard() {
     loadEmployee();
   }, [session?.user?.email]);
 
-  // Load projects when employeeId or date range changes
-  // Uses the selected start date as reference for filtering bookable projects
-  const loadProjects = useCallback(async () => {
-    if (!employeeId) return;
-
-    try {
-      // Use startDate as reference date for project filtering
-      // This ensures we show projects that were bookable in the selected date range
-      // (not just projects bookable today)
-      const params = new URLSearchParams({
-        employeeId: employeeId,
-        date: startDate,
-      });
-      const res = await fetch(`/api/zep/employee-projects?${params}`);
-      const data = await res.json();
-      if (Array.isArray(data)) {
-        setProjects(data);
-      }
-    } catch (error) {
-      console.error("Failed to load projects:", error);
-    }
-  }, [employeeId, startDate]);
-
-  useEffect(() => {
-    loadProjects();
-  }, [loadProjects]);
-
   // Auto-load appointments when page opens (after employee is loaded)
   const hasAutoLoaded = useRef(false);
   useEffect(() => {
@@ -671,7 +865,7 @@ export default function Dashboard() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projects.length]); // Only run when projects are loaded, not on every appointment/syncedEntry change
 
-  const loadAppointments = async (overrideStartDate?: string, overrideEndDate?: string) => {
+  const loadAppointments = async (overrideStartDate?: string, overrideEndDate?: string, forceRefresh?: boolean) => {
     const effectiveStartDate = overrideStartDate ?? startDate;
     const effectiveEndDate = overrideEndDate ?? endDate;
     
@@ -680,22 +874,43 @@ export default function Dashboard() {
     try {
       // Build projects URL with today's date for filtering bookable projects
       const today = new Date().toISOString().split("T")[0];
-      const projectsParams = employeeId 
-        ? new URLSearchParams({ employeeId: employeeId, date: today })
-        : null;
 
-      // Load appointments, ZEP entries, and projects in parallel
-      const [appointmentsRes, zepRes, projectsRes] = await Promise.all([
-        fetch(`/api/calendar?startDate=${effectiveStartDate}&endDate=${effectiveEndDate}`),
-        employeeId 
-          ? fetch(`/api/zep/timeentries?employeeId=${employeeId}&startDate=${effectiveStartDate}&endDate=${effectiveEndDate}`)
-          : Promise.resolve(null),
-        projectsParams
-          ? fetch(`/api/zep/employee-projects?${projectsParams}`)
-          : Promise.resolve(null),
+      // Check if we have cached data (unless force refresh)
+      const cachedAppointments = forceRefresh ? null : getCachedAppointments(effectiveStartDate, effectiveEndDate);
+      const cachedZepEntries = forceRefresh || !employeeId ? null : getCachedZepEntries(employeeId, effectiveStartDate, effectiveEndDate);
+      const cachedProjects = forceRefresh || !employeeId ? null : getCachedProjects(employeeId, today);
+      
+      // Load appointments (from cache or API), ZEP entries (from cache or API), and projects (from cache or API) in parallel
+      const [appointmentsData, zepData, projectsData] = await Promise.all([
+        cachedAppointments 
+          ? Promise.resolve(cachedAppointments)
+          : fetch(`/api/calendar?startDate=${effectiveStartDate}&endDate=${effectiveEndDate}`).then(res => res.json()),
+        cachedZepEntries
+          ? Promise.resolve(cachedZepEntries)
+          : employeeId 
+            ? fetch(`/api/zep/timeentries?employeeId=${employeeId}&startDate=${effectiveStartDate}&endDate=${effectiveEndDate}`).then(res => res.json())
+            : Promise.resolve(null),
+        cachedProjects
+          ? Promise.resolve(cachedProjects)
+          : employeeId
+            ? fetch(`/api/zep/employee-projects?${new URLSearchParams({ employeeId, date: today })}`).then(res => res.json())
+            : Promise.resolve(null),
       ]);
-
-      const appointmentsData = await appointmentsRes.json();
+      
+      // Cache the appointments if we fetched them fresh
+      if (!cachedAppointments && Array.isArray(appointmentsData)) {
+        setCachedAppointments(effectiveStartDate, effectiveEndDate, appointmentsData);
+      }
+      
+      // Cache the ZEP entries if we fetched them fresh
+      if (!cachedZepEntries && employeeId && Array.isArray(zepData)) {
+        setCachedZepEntries(employeeId, effectiveStartDate, effectiveEndDate, zepData);
+      }
+      
+      // Cache the projects if we fetched them fresh
+      if (!cachedProjects && employeeId && Array.isArray(projectsData)) {
+        setCachedProjects(employeeId, today, projectsData);
+      }
 
       if (Array.isArray(appointmentsData)) {
         const userEmail = session?.user?.email?.toLowerCase();
@@ -757,29 +972,23 @@ export default function Dashboard() {
       }
 
       // Load ZEP entries for sync status
-      if (zepRes) {
-        const zepData = await zepRes.json();
-        if (Array.isArray(zepData)) {
-          setSyncedEntries(zepData);
-          
-          // Load tasks for all synced projects so we can display task names
-          // Note: Skip filtering here since we need all tasks to display existing entries
-          const syncedProjectIds = [...new Set(zepData.map((entry: ZepEntry) => entry.project_id))];
-          syncedProjectIds.forEach((projectId) => {
-            if (!tasks[projectId]) {
-              // Load tasks in background without filtering (skipFilter: true)
-              loadTasksForProject(projectId, { skipFilter: true });
-            }
-          });
-        }
+      if (Array.isArray(zepData)) {
+        setSyncedEntries(zepData);
+        
+        // Load tasks for all synced projects so we can display task names
+        // Note: Skip filtering here since we need all tasks to display existing entries
+        const syncedProjectIds = [...new Set(zepData.map((entry: ZepEntry) => entry.project_id))];
+        syncedProjectIds.forEach((projectId) => {
+          if (!tasks[projectId]) {
+            // Load tasks in background without filtering (skipFilter: true)
+            loadTasksForProject(projectId, { skipFilter: true });
+          }
+        });
       }
 
-      // Load projects
-      if (projectsRes) {
-        const projectsData = await projectsRes.json();
-        if (Array.isArray(projectsData)) {
-          setProjects(projectsData);
-        }
+      // Set projects
+      if (Array.isArray(projectsData)) {
+        setProjects(projectsData);
       }
       
       // Update last loaded timestamp
@@ -791,8 +1000,8 @@ export default function Dashboard() {
     setLoading(false);
   };
 
-  // Update ref so keyboard shortcuts can call loadAppointments
-  loadAppointmentsRef.current = loadAppointments;
+  // Update ref so keyboard shortcuts can call loadAppointments with force refresh
+  loadAppointmentsRef.current = () => loadAppointments(undefined, undefined, true);
 
   // Handler für Preset-Buttons: setzt Datum UND lädt sofort
   const handleDateRangeChange = (newStartDate: string, newEndDate: string) => {
@@ -1197,10 +1406,15 @@ export default function Dashboard() {
   const loadSyncedEntries = useCallback(async () => {
     if (!employeeId) return;
     try {
+      // Invalidate cache first since we want fresh data after sync
+      invalidateZepCache(employeeId, startDate, endDate);
+      
       const res = await fetch(`/api/zep/timeentries?employeeId=${employeeId}&startDate=${startDate}&endDate=${endDate}`);
       const data = await res.json();
       if (Array.isArray(data)) {
         setSyncedEntries(data);
+        // Cache the fresh data
+        setCachedZepEntries(employeeId, startDate, endDate, data);
       }
     } catch (e) {
       console.error("Failed to reload synced entries:", e);
@@ -1429,15 +1643,8 @@ export default function Dashboard() {
 
       // Reload synced entries to update status display
       if (employeeId && totalSucceeded > 0) {
-        try {
-          const res = await fetch(`/api/zep/timeentries?employeeId=${employeeId}&startDate=${startDate}&endDate=${endDate}`);
-          const data = await res.json();
-          if (Array.isArray(data)) {
-            setSyncedEntries(data);
-          }
-        } catch (e) {
-          console.error("Failed to reload synced entries:", e);
-        }
+        // Invalidate ZEP cache and reload
+        await loadSyncedEntries();
       }
     } catch (error) {
       console.error("Submit error:", error);
@@ -1508,7 +1715,7 @@ export default function Dashboard() {
           startDate={startDate}
           endDate={endDate}
           filterDate={filterDate}
-          onLoad={() => loadAppointments()}
+          onLoad={() => loadAppointments(undefined, undefined, true)}
           onDateRangeChange={handleDateRangeChange}
           onFilterDateChange={setFilterDate}
           loading={loading}
