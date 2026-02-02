@@ -358,21 +358,21 @@ export default function CalendarHeatmap({
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-3 rounded-sm bg-green-500" />
             <span className="text-gray-600">Synchronisiert</span>
-            <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 text-xs font-medium bg-gray-100 text-gray-600 rounded-full">
+            <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 text-xs font-medium bg-gray-100 text-gray-600 rounded-full">
               {stats.synced}
             </span>
           </div>
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-3 rounded-sm bg-yellow-500" />
             <span className="text-gray-600">Bearbeitet</span>
-            <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 text-xs font-medium bg-gray-100 text-gray-600 rounded-full">
+            <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 text-xs font-medium bg-gray-100 text-gray-600 rounded-full">
               {stats.edited}
             </span>
           </div>
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-3 rounded-sm bg-red-400" />
             <span className="text-gray-600">Unbearbeitet</span>
-            <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 text-xs font-medium bg-gray-100 text-gray-600 rounded-full">
+            <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 text-xs font-medium bg-gray-100 text-gray-600 rounded-full">
               {stats.unprocessed}
             </span>
           </div>

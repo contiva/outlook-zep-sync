@@ -240,7 +240,7 @@ function AttendeePopover({ attendees, organizer, isOrganizer }: AttendeePopoverP
       {isOpen && (
         <div
           ref={popoverRef}
-          className="absolute left-0 top-full mt-1 z-50 bg-white rounded-lg shadow-lg border border-gray-200 p-3 min-w-[280px] max-w-[360px]"
+          className="absolute left-0 top-full mt-1 z-50 bg-white rounded-lg shadow-lg border border-gray-200 p-3 min-w-70 max-w-90"
         >
           <div className="text-xs font-medium text-gray-700 mb-2">
             {attendeeCount} Teilnehmer
@@ -264,7 +264,7 @@ function AttendeePopover({ attendees, organizer, isOrganizer }: AttendeePopoverP
             </div>
           )}
           
-          <div className="space-y-2 max-h-[300px] overflow-y-auto">
+          <div className="space-y-2 max-h-75 overflow-y-auto">
             {/* Accepted */}
             {accepted.length > 0 && (
               <div>
@@ -556,9 +556,9 @@ export default function AppointmentRow({
     <div
       className={`px-3 py-2 border-b border-gray-100 ${
         isSynced 
-          ? "bg-gradient-to-r from-green-50 via-emerald-50/50 to-white" 
+          ? "bg-linear-to-r from-green-50 via-emerald-50/50 to-white" 
           : isSyncReady
-            ? "bg-gradient-to-r from-amber-50 via-yellow-50/50 to-white"
+            ? "bg-linear-to-r from-amber-50 via-yellow-50/50 to-white"
             : appointment.selected 
               ? "bg-white" 
               : "bg-gray-50/50"
@@ -566,7 +566,7 @@ export default function AppointmentRow({
     >
       <div className="flex items-start gap-3">
         {/* Status icons: Synced (green) or Checkbox + SyncReady indicator (amber) */}
-        <div className="flex flex-col items-center gap-0.5 flex-shrink-0 pt-0.5">
+        <div className="flex flex-col items-center gap-0.5 shrink-0 pt-0.5">
           {isSynced ? (
             <div 
               className="h-5 w-5 flex items-center justify-center" 
@@ -615,7 +615,7 @@ export default function AppointmentRow({
           <div className="flex items-center gap-1.5">
             {appointment.isOnlineMeeting && appointment.onlineMeetingProvider === "teamsForBusiness" && (
               <svg
-                className={`w-3.5 h-3.5 flex-shrink-0 ${isMuted ? "opacity-40" : ""}`}
+                className={`w-3.5 h-3.5 shrink-0 ${isMuted ? "opacity-40" : ""}`}
                 viewBox="0 0 2228.833 2073.333"
                 xmlns="http://www.w3.org/2000/svg"
                 aria-label="Teams Meeting"
@@ -710,7 +710,7 @@ export default function AppointmentRow({
         </div>
 
         {/* Status badges */}
-        <div className="flex-shrink-0 flex items-center gap-1.5">
+        <div className="shrink-0 flex items-center gap-1.5">
           {isSynced && (
             zepLink ? (
               <a
@@ -881,7 +881,7 @@ export default function AppointmentRow({
                   }
                 }}
                 disabled={!(modifiedEntry?.newTaskId || syncedEntry.project_task_id) || !canEditBillableInEditMode}
-                className={`flex items-center justify-center w-10 h-[38px] rounded-lg border transition-colors ${
+                className={`flex items-center justify-center w-10 h-9.5 rounded-lg border transition-colors ${
                   !(modifiedEntry?.newTaskId || syncedEntry.project_task_id) || !canEditBillableInEditMode
                     ? "bg-gray-100 border-gray-200 text-gray-300 cursor-not-allowed"
                     : (modifiedEntry?.newBillable ?? syncedEntry.billable)
@@ -979,7 +979,7 @@ export default function AppointmentRow({
               type="button"
               onClick={() => appointment.taskId && appointment.canChangeBillable && onBillableChange(appointment.id, !appointment.billable)}
               disabled={!appointment.taskId || !appointment.canChangeBillable}
-              className={`flex items-center justify-center w-10 h-[38px] rounded-lg border transition-colors ${
+              className={`flex items-center justify-center w-10 h-9.5 rounded-lg border transition-colors ${
                 !appointment.taskId || !appointment.canChangeBillable
                   ? "bg-gray-100 border-gray-200 text-gray-300 cursor-not-allowed"
                   : appointment.billable
