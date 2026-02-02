@@ -123,36 +123,6 @@ interface AppointmentRowProps {
   isCorrectingTime?: boolean;
 }
 
-function getStatusColor(response: string): string {
-  switch (response) {
-    case "accepted":
-      return "text-green-600";
-    case "tentativelyAccepted":
-      return "text-yellow-600";
-    case "declined":
-      return "text-red-600";
-    case "organizer":
-      return "text-blue-600";
-    default:
-      return "text-gray-400";
-  }
-}
-
-function getStatusIcon(response: string): string {
-  switch (response) {
-    case "accepted":
-      return "✓";
-    case "tentativelyAccepted":
-      return "?";
-    case "declined":
-      return "✗";
-    case "organizer":
-      return "★";
-    default:
-      return "○";
-  }
-}
-
 // Attendee Status Icon Component
 function AttendeeStatusIcon({ response }: { response: string }) {
   switch (response) {
@@ -166,23 +136,6 @@ function AttendeeStatusIcon({ response }: { response: string }) {
       return <span className="text-blue-600 text-xs font-medium">★</span>;
     default:
       return <Clock size={12} className="text-gray-400" />;
-  }
-}
-
-function getStatusLabel(response: string): string {
-  switch (response) {
-    case "accepted":
-      return "Zugesagt";
-    case "tentativelyAccepted":
-      return "Vorbehaltlich";
-    case "declined":
-      return "Abgesagt";
-    case "organizer":
-      return "Organisator";
-    case "none":
-    case "notResponded":
-    default:
-      return "Keine Antwort";
   }
 }
 
@@ -337,7 +290,6 @@ function AttendeePopover({ attendees, organizer, isOrganizer }: AttendeePopoverP
 function AttendeeItem({ attendee }: { attendee: Attendee }) {
   const name = attendee.emailAddress.name || attendee.emailAddress.address.split('@')[0];
   const email = attendee.emailAddress.address;
-  const domain = email.split('@')[1];
 
   return (
     <div className="flex items-center gap-2 py-0.5 text-xs">

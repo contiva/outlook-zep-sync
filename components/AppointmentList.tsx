@@ -349,6 +349,7 @@ export default function AppointmentList({
                 tasks={tasks}
                 activities={activities}
                 syncedEntries={syncedEntries}
+                duplicateWarnings={duplicateWarnings}
                 loadingTasks={loadingTasks}
                 onToggle={onToggle}
                 onToggleSeries={onToggleSeries}
@@ -356,6 +357,9 @@ export default function AppointmentList({
                 onTaskChange={onTaskChange}
                 onActivityChange={onActivityChange}
                 onApplyToSeries={onApplyToSeries}
+                // Rescheduled time correction
+                onCorrectTime={onCorrectTime}
+                correctingTimeIds={correctingTimeIds}
               />
             ) : (
               <AppointmentRow

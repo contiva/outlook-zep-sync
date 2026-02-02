@@ -2,7 +2,7 @@
 
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { format, startOfMonth, endOfMonth, subMonths, isWeekend, addDays } from "date-fns";
 import { LogOut, Search, X, Keyboard } from "lucide-react";
 import DateRangePicker from "@/components/DateRangePicker";
@@ -185,6 +185,19 @@ interface PersistedState {
   savedAt: number; // timestamp for cache invalidation
 }
 
+// Helper: Parse error message - remove HTML tags and clean up
+function parseErrorMessage(error: string): string {
+  return error
+    // Replace <br />, <br/>, <br> with newlines for display
+    .replace(/<br\s*\/?>/gi, " | ")
+    // Remove any remaining HTML tags
+    .replace(/<[^>]*>/g, "")
+    // Clean up multiple spaces
+    .replace(/\s+/g, " ")
+    // Trim
+    .trim();
+}
+
 // Helper: Check if an appointment is already synced to ZEP
 function isAppointmentSynced(apt: Appointment, syncedEntries: ZepEntry[]): boolean {
   if (!syncedEntries || syncedEntries.length === 0) {
@@ -254,7 +267,6 @@ export default function Dashboard() {
       hideSoloMeetings: stored?.hideSoloMeetings ?? true,
       syncedEntries: stored?.syncedEntries ?? [],
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run once on mount
 
   const [startDate, setStartDate] = useState(initialState.startDate);
@@ -289,6 +301,9 @@ export default function Dashboard() {
   const [correctingTimeIds, setCorrectingTimeIds] = useState<Set<string>>(new Set());
 
   const employeeId = zepEmployee?.username ?? "";
+
+  // Ref to hold the loadAppointments function for keyboard shortcuts
+  const loadAppointmentsRef = useRef<(() => void) | null>(null);
 
 
 
@@ -436,7 +451,7 @@ export default function Dashboard() {
       // Ctrl/Cmd + R - Refresh/load appointments
       if ((e.ctrlKey || e.metaKey) && e.key === "r") {
         e.preventDefault();
-        loadAppointments();
+        loadAppointmentsRef.current?.();
       }
     };
 
@@ -649,6 +664,9 @@ export default function Dashboard() {
     setLoading(false);
   };
 
+  // Update ref so keyboard shortcuts can call loadAppointments
+  loadAppointmentsRef.current = loadAppointments;
+
   // Handler für Preset-Buttons: setzt Datum UND lädt sofort
   const handleDateRangeChange = (newStartDate: string, newEndDate: string) => {
     setStartDate(newStartDate);
@@ -782,27 +800,6 @@ export default function Dashboard() {
   // =========================================================================
   // Functions for editing synced entries (rebooking)
   // =========================================================================
-
-  // Helper: Find the synced ZEP entry for an appointment
-  const findSyncedEntry = useCallback((apt: Appointment): ZepEntry | null => {
-    if (!syncedEntries || syncedEntries.length === 0) return null;
-
-    const aptDate = new Date(apt.start.dateTime);
-    const aptDateStr = aptDate.toISOString().split("T")[0];
-    const aptFromTime = aptDate.toTimeString().slice(0, 8);
-    const aptEndDate = new Date(apt.end.dateTime);
-    const aptToTime = aptEndDate.toTimeString().slice(0, 8);
-
-    return syncedEntries.find((entry) => {
-      const entryDate = entry.date.split("T")[0];
-      return (
-        entry.note === apt.subject &&
-        entryDate === aptDateStr &&
-        entry.from === aptFromTime &&
-        entry.to === aptToTime
-      );
-    }) || null;
-  }, [syncedEntries]);
 
   // Start editing a synced appointment
   const startEditingSyncedAppointment = useCallback((appointmentId: string) => {
@@ -1077,7 +1074,7 @@ export default function Dashboard() {
         const result = await res.json();
         createSucceeded = result.succeeded || 0;
         createFailed = result.failed || 0;
-        if (result.errors) allErrors.push(...result.errors);
+        if (result.errors) allErrors.push(...result.errors.map(parseErrorMessage));
 
         if (result.succeeded > 0) {
           // Save sync history with ZEP IDs
@@ -1136,7 +1133,7 @@ export default function Dashboard() {
         const modResult = await modRes.json();
         modifySucceeded = modResult.succeeded || 0;
         modifyFailed = modResult.failed || 0;
-        if (modResult.errors) allErrors.push(...modResult.errors);
+        if (modResult.errors) allErrors.push(...modResult.errors.map(parseErrorMessage));
 
         if (modResult.succeeded > 0) {
           // Clear modified entries that were successfully updated

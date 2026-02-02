@@ -144,7 +144,7 @@ export default function CalendarHeatmap({
       appointments: validSeries.flatMap(([, apts]) => apts),
       totalAppointments: totalSeriesAppointments,
     };
-  }, [appointments]);
+  }, [filteredAppointments]);
 
   // Helper: Check if a specific appointment is synced to ZEP (needs to be before getSeriesStatus)
   // Uses rounded times for comparison (ZEP stores times in 15-min intervals)

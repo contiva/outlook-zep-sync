@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { ChevronDown, ChevronRight, Repeat, Link2, Unlink2, CloudUpload } from "lucide-react";
+import { ChevronDown, ChevronRight, Repeat, Link2, Unlink2, CloudUpload, CheckCircle2 } from "lucide-react";
 import AppointmentRow from "./AppointmentRow";
 import SearchableSelect, { SelectOption } from "./SearchableSelect";
-import { formatZepStartTime, formatZepEndTime } from "@/lib/zep-api";
+import { formatZepStartTime, formatZepEndTime, DuplicateCheckResult } from "@/lib/zep-api";
 
 // Zugeordnete Tätigkeit (zu Projekt oder Vorgang)
 interface AssignedActivity {
@@ -86,6 +86,7 @@ interface SeriesGroupProps {
   tasks: Record<number, Task[]>;
   activities: Activity[];
   syncedEntries: ZepEntry[];
+  duplicateWarnings?: Map<string, DuplicateCheckResult>;
   loadingTasks?: Set<number>;
   onToggle: (id: string) => void;
   onToggleSeries: (seriesId: string, selected: boolean) => void;
@@ -98,6 +99,9 @@ interface SeriesGroupProps {
     taskId: number | null,
     activityId: string
   ) => void;
+  // Rescheduled appointment time correction
+  onCorrectTime?: (appointmentId: string, duplicateWarning: DuplicateCheckResult) => void;
+  correctingTimeIds?: Set<string>;
 }
 
 // Helper: Check if an appointment is synced to ZEP
@@ -145,6 +149,7 @@ export default function SeriesGroup({
   tasks,
   activities,
   syncedEntries,
+  duplicateWarnings,
   loadingTasks,
   onToggle,
   onToggleSeries,
@@ -152,6 +157,8 @@ export default function SeriesGroup({
   onTaskChange,
   onActivityChange,
   onApplyToSeries,
+  onCorrectTime,
+  correctingTimeIds,
 }: SeriesGroupProps) {
   const [expanded, setExpanded] = useState(false);
   const [linkedEdit, setLinkedEdit] = useState(true);
@@ -162,6 +169,9 @@ export default function SeriesGroup({
   const allSelected = appointments.every((a) => a.selected);
   const someSelected = appointments.some((a) => a.selected);
   const selectedCount = appointments.filter((a) => a.selected).length;
+  
+  // Count how many appointments are already synced
+  const syncedCount = appointments.filter((a) => isAppointmentSynced(a, syncedEntries)).length;
   
   // Count how many appointments are ready to sync
   const syncReadyCount = appointments.filter((a) => isAppointmentSyncReady(a, syncedEntries)).length;
@@ -411,6 +421,26 @@ export default function SeriesGroup({
                   von {firstAppointment.isOrganizer ? "Dir" : (firstAppointment.organizer.emailAddress.name || firstAppointment.organizer.emailAddress.address.split("@")[0])}
                 </span>
               )}
+              {/* Sync Status Badge */}
+              <span 
+                className={`flex items-center gap-1.5 text-sm px-2 py-0.5 rounded-full ${
+                  syncedCount === appointments.length
+                    ? "bg-green-100 text-green-700"
+                    : syncedCount > 0
+                    ? "bg-yellow-100 text-yellow-700"
+                    : "bg-gray-100 text-gray-600"
+                }`}
+                title={`${syncedCount} von ${appointments.length} Terminen synchronisiert`}
+              >
+                <CheckCircle2 className={`h-3.5 w-3.5 ${
+                  syncedCount === appointments.length
+                    ? "text-green-600"
+                    : syncedCount > 0
+                    ? "text-yellow-600"
+                    : "text-gray-400"
+                }`} />
+                {syncedCount}/{appointments.length} sync
+              </span>
               {syncReadyCount > 0 && (
                 <span 
                   className="flex items-center gap-1 text-sm text-amber-600"
@@ -519,11 +549,15 @@ export default function SeriesGroup({
               isSynced={isAppointmentSynced(appointment, syncedEntries)}
               isSyncReady={isAppointmentSyncReady(appointment, syncedEntries)}
               syncedEntry={findSyncedEntry(appointment, syncedEntries)}
+              duplicateWarning={duplicateWarnings?.get(appointment.id)}
               loadingTasks={appointment.projectId ? loadingTasks?.has(appointment.projectId) : false}
               onToggle={onToggle}
               onProjectChange={onProjectChange}
               onTaskChange={onTaskChange}
               onActivityChange={onActivityChange}
+              // Rescheduled time correction
+              onCorrectTime={onCorrectTime}
+              isCorrectingTime={correctingTimeIds?.has(appointment.id) || false}
             />
           ))}
         </div>

@@ -3,7 +3,7 @@
 import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
 import { X, CloudUpload, AlertTriangle, RefreshCw } from "lucide-react";
 import { DuplicateCheckResult } from "@/lib/zep-api";
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 
 // Modified entry for rebooking synced entries
 interface ModifiedEntry {
@@ -66,14 +66,21 @@ export default function SyncConfirmDialog({
   const [excludedIds, setExcludedIds] = useState<Set<string>>(new Set());
   // Track which modifications are excluded
   const [excludedModificationIds, setExcludedModificationIds] = useState<Set<string>>(new Set());
+  // Track if we've seen the dialog open (to reset state on first open)
+  const [wasOpen, setWasOpen] = useState(false);
   
-  // Reset excluded when dialog opens
-  useEffect(() => {
-    if (isOpen) {
+  // Reset excluded when dialog opens for the first time or reopens
+  if (isOpen && !wasOpen) {
+    setWasOpen(true);
+    if (excludedIds.size > 0) {
       setExcludedIds(new Set());
+    }
+    if (excludedModificationIds.size > 0) {
       setExcludedModificationIds(new Set());
     }
-  }, [isOpen]);
+  } else if (!isOpen && wasOpen) {
+    setWasOpen(false);
+  }
 
   // Get complete modifications (have both project and task)
   const completeModifications = useMemo(() => {

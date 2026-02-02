@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { readMitarbeiter, findEmployeeByEmail, mapMitarbeiterToRestFormat } from "@/lib/zep-soap";
+import { findEmployeeByEmail, mapMitarbeiterToRestFormat } from "@/lib/zep-soap";
 
 // GET /api/zep/employees?email=robert.fels@contiva.com
 // Returns matching ZEP employee or 404
