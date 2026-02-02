@@ -24,8 +24,10 @@ export default function LoginForm() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="max-w-md w-full space-y-8 p-8 bg-white rounded-xl shadow-lg">
         <div className="text-center">
+          <img src="/logo.png" alt="Logo" className="h-16 w-auto mx-auto mb-4" />
           <h1 className="text-3xl font-bold text-gray-900">
-            Outlook → ZEP
+            <span className="font-montserrat">Outlook ZEP</span>{" "}
+            <span className="font-inter font-light">Sync</span>
           </h1>
           <p className="mt-2 text-gray-600">
             Übertrage deine Termine zur Zeiterfassung

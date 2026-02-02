@@ -379,10 +379,10 @@ export default function CalendarHeatmap({
         </div>
       </div>
 
-      {/* Horizontal row - series tile + all days as boxes */}
+      {/* Horizontal row - series tile + divider + all days as boxes */}
       <div 
-        className="grid gap-1"
-        style={{ gridTemplateColumns: `auto repeat(${days.length}, minmax(0, 1fr))` }}
+        className="grid gap-1 items-end"
+        style={{ gridTemplateColumns: `auto auto repeat(${days.length}, minmax(0, 1fr))` }}
       >
         {/* Series tile - always first */}
         <div className="flex flex-col items-center gap-0.5">
@@ -436,6 +436,14 @@ export default function CalendarHeatmap({
             ∞
           </span>
         </div>
+        
+        {/* Divider between series and days */}
+        <div className="flex flex-col items-center gap-0.5 px-1">
+          <span className="text-[10px] text-transparent" aria-hidden="true">.</span>
+          <div className="w-px h-10 bg-gray-300" />
+          <span className="text-[10px] text-transparent" aria-hidden="true">.</span>
+        </div>
+        
         {days.map((day) => {
           const status = getDayStatus(day);
           const dateStr = format(day, "yyyy-MM-dd");

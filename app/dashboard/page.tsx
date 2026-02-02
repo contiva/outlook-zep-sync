@@ -1665,17 +1665,16 @@ export default function Dashboard() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-sm">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-xl font-bold text-gray-900">
-            Outlook → ZEP Sync
-          </h1>
+          <div className="flex items-center gap-3">
+            <img src="/logo.png" alt="Logo" className="h-8 w-auto" />
+            <h1 className="text-xl font-bold text-gray-900">
+              <span className="font-montserrat">Outlook ZEP</span>{" "}
+              <span className="font-inter font-light">Sync</span>
+            </h1>
+          </div>
           <div className="flex items-center gap-4">
             <span className="text-sm text-gray-600">
               {session?.user?.email}
-              {zepEmployee && (
-                <span className="ml-1 text-gray-500">
-                  (ZEP: {zepEmployee.username})
-                </span>
-              )}
               {employeeLoading && (
                 <span className="ml-1 text-gray-400">(Lade ZEP...)</span>
               )}
