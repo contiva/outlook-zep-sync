@@ -33,6 +33,13 @@ export interface OutlookEvent {
   // Für wiederkehrende Termine
   type?: "singleInstance" | "occurrence" | "exception" | "seriesMaster";
   seriesMasterId?: string;
+  // Online Meeting Info
+  isOnlineMeeting?: boolean;
+  onlineMeetingProvider?: "teamsForBusiness" | "skypeForBusiness" | "skypeForConsumer" | "unknown";
+  // Abgesagte Termine
+  isCancelled?: boolean;
+  // Letzte Änderung (bei abgesagten Terminen = Absage-Zeitpunkt)
+  lastModifiedDateTime?: string;
 }
 
 export interface CalendarResponse {
@@ -57,7 +64,7 @@ export async function getCalendarEvents(
     u.searchParams.set("endDateTime", `${endDate}T23:59:59`);
     u.searchParams.set("$orderby", "start/dateTime");
     u.searchParams.set("$top", "250"); // Max allowed by Graph API
-    u.searchParams.set("$select", "id,subject,start,end,bodyPreview,attendees,organizer,isOrganizer,type,seriesMasterId");
+    u.searchParams.set("$select", "id,subject,start,end,bodyPreview,attendees,organizer,isOrganizer,type,seriesMasterId,isOnlineMeeting,onlineMeetingProvider,isCancelled,lastModifiedDateTime");
     return u.toString();
   })();
 
@@ -67,6 +74,9 @@ export async function getCalendarEvents(
       headers: {
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
+        // Request times in Europe/Berlin timezone
+        // This ensures start.dateTime and end.dateTime are in local German time
+        "Prefer": 'outlook.timezone="Europe/Berlin"',
       },
     });
 

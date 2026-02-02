@@ -1,18 +1,27 @@
 import { NextResponse } from "next/server";
-import { getZepActivities } from "@/lib/zep-api";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { readTaetigkeit, mapTaetigkeitToRestFormat } from "@/lib/zep-soap";
 
 export async function GET() {
-  const token = process.env.ZEP_API_TOKEN;
+  // Check authentication
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const token = process.env.ZEP_SOAP_TOKEN;
 
   if (!token) {
     return NextResponse.json(
-      { error: "ZEP_API_TOKEN not configured" },
+      { error: "ZEP_SOAP_TOKEN not configured" },
       { status: 500 }
     );
   }
 
   try {
-    const activities = await getZepActivities(token);
+    const taetigkeiten = await readTaetigkeit(token);
+    const activities = taetigkeiten.map(mapTaetigkeitToRestFormat);
     return NextResponse.json(activities);
   } catch (error) {
     console.error("ZEP activities fetch error:", error);
