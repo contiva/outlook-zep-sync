@@ -370,17 +370,25 @@ export async function PATCH(request: Request) {
           throw new Error(`Missing required fields: id, projektNr, or vorgangNr`);
         }
 
-        // Ermittle Fakturierbarkeit basierend auf neuer Projekt-/Vorgang-Zuordnung
-        const projektData = patchProjektCache.get(entry.projektNr);
-        const vorgangCacheKey = `${entry.projektNr}:${entry.vorgangNr}`;
-        const vorgangData = patchVorgangCache.get(vorgangCacheKey);
-        
-        // Priorität: voreinstFakturierbarkeit > defaultFakt auf Projekt-Ebene
-        const projektFakt = projektData?.voreinstFakturierbarkeit ?? projektData?.defaultFakt;
-        const vorgangFakt = vorgangData?.defaultFakt;
-        
-        // Berechne neue Fakturierbarkeit basierend auf dem neuen Projekt/Vorgang
-        const istFakturierbar = determineBillable(projektFakt, vorgangFakt);
+        // Fakturierbarkeit: Verwende den explizit gesendeten Wert wenn vorhanden,
+        // ansonsten berechne basierend auf Projekt-/Vorgang-Einstellungen
+        let istFakturierbar: boolean;
+        if (typeof entry.istFakturierbar === 'boolean') {
+          // Explizit vom Client gesendet - verwenden
+          istFakturierbar = entry.istFakturierbar;
+        } else {
+          // Ermittle Fakturierbarkeit basierend auf neuer Projekt-/Vorgang-Zuordnung
+          const projektData = patchProjektCache.get(entry.projektNr);
+          const vorgangCacheKey = `${entry.projektNr}:${entry.vorgangNr}`;
+          const vorgangData = patchVorgangCache.get(vorgangCacheKey);
+          
+          // Priorität: voreinstFakturierbarkeit > defaultFakt auf Projekt-Ebene
+          const projektFakt = projektData?.voreinstFakturierbarkeit ?? projektData?.defaultFakt;
+          const vorgangFakt = vorgangData?.defaultFakt;
+          
+          // Berechne neue Fakturierbarkeit basierend auf dem neuen Projekt/Vorgang
+          istFakturierbar = determineBillable(projektFakt, vorgangFakt);
+        }
 
         const soapEntry = {
           id: entry.id,
