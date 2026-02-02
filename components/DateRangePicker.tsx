@@ -1,7 +1,7 @@
 "use client";
 
 import { Calendar, RefreshCw } from "lucide-react";
-import { startOfWeek, endOfWeek, startOfMonth, endOfMonth, subWeeks, subMonths, format, formatDistanceToNow } from "date-fns";
+import { startOfMonth, endOfMonth, subMonths, format, formatDistanceToNow } from "date-fns";
 import { de } from "date-fns/locale";
 
 interface DateRangePickerProps {
@@ -15,55 +15,33 @@ interface DateRangePickerProps {
   lastLoadedAt?: Date | null;
 }
 
-type PresetKey = "thisWeek" | "lastWeek" | "thisMonth" | "lastMonth";
-
 interface Preset {
   label: string;
   getRange: () => { start: Date; end: Date };
 }
 
-const presets: Record<PresetKey, Preset> = {
-  thisWeek: {
-    label: "Diese Woche",
-    getRange: () => {
-      const now = new Date();
-      return {
-        start: startOfWeek(now, { weekStartsOn: 1 }),
-        end: endOfWeek(now, { weekStartsOn: 1 }),
-      };
-    },
-  },
-  lastWeek: {
-    label: "Letzte Woche",
-    getRange: () => {
-      const lastWeek = subWeeks(new Date(), 1);
-      return {
-        start: startOfWeek(lastWeek, { weekStartsOn: 1 }),
-        end: endOfWeek(lastWeek, { weekStartsOn: 1 }),
-      };
-    },
-  },
-  thisMonth: {
-    label: "Dieser Monat",
-    getRange: () => {
-      const now = new Date();
-      return {
-        start: startOfMonth(now),
-        end: endOfMonth(now),
-      };
-    },
-  },
-  lastMonth: {
-    label: "Letzter Monat",
-    getRange: () => {
-      const lastMonth = subMonths(new Date(), 1);
-      return {
+// Generate presets dynamically with actual month names
+function getPresets(): Preset[] {
+  const now = new Date();
+  const lastMonth = subMonths(now, 1);
+  
+  return [
+    {
+      label: format(lastMonth, "MMMM", { locale: de }),
+      getRange: () => ({
         start: startOfMonth(lastMonth),
         end: endOfMonth(lastMonth),
-      };
+      }),
     },
-  },
-};
+    {
+      label: format(now, "MMMM", { locale: de }),
+      getRange: () => ({
+        start: startOfMonth(now),
+        end: endOfMonth(now),
+      }),
+    },
+  ];
+}
 
 export default function DateRangePicker({
   startDate,
@@ -75,8 +53,18 @@ export default function DateRangePicker({
   loading,
   lastLoadedAt,
 }: DateRangePickerProps) {
-  const applyPreset = (key: PresetKey) => {
-    const { start, end } = presets[key].getRange();
+  const presets = getPresets();
+  
+  // Check if a preset matches the current date range
+  const isPresetActive = (preset: Preset): boolean => {
+    const { start, end } = preset.getRange();
+    const presetStart = format(start, "yyyy-MM-dd");
+    const presetEnd = format(end, "yyyy-MM-dd");
+    return startDate === presetStart && endDate === presetEnd;
+  };
+  
+  const applyPreset = (preset: Preset) => {
+    const { start, end } = preset.getRange();
     const startStr = format(start, "yyyy-MM-dd");
     const endStr = format(end, "yyyy-MM-dd");
     
@@ -94,15 +82,22 @@ export default function DateRangePicker({
     <div className="p-4 bg-white rounded-lg shadow space-y-3">
       {/* Preset buttons */}
       <div className="flex flex-wrap gap-2">
-        {(Object.keys(presets) as PresetKey[]).map((key) => (
-          <button
-            key={key}
-            onClick={() => applyPreset(key)}
-            className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition"
-          >
-            {presets[key].label}
-          </button>
-        ))}
+        {presets.map((preset, index) => {
+          const isActive = isPresetActive(preset);
+          return (
+            <button
+              key={index}
+              onClick={() => applyPreset(preset)}
+              className={`px-3 py-1 text-sm rounded-md transition ${
+                isActive
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              }`}
+            >
+              {preset.label}
+            </button>
+          );
+        })}
       </div>
       
       {/* Date inputs and load button */}
@@ -131,10 +126,29 @@ export default function DateRangePicker({
         <button
           onClick={onLoad}
           disabled={loading}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 transition flex items-center gap-2"
+          className="relative px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:cursor-wait transition flex items-center gap-2 overflow-hidden"
         >
-          <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-          {loading ? "Laden..." : "Termine laden"}
+          {/* Progress bar background animation */}
+          {loading && (
+            <>
+              <style>{`
+                @keyframes progress-sweep {
+                  0% { transform: translateX(-100%); }
+                  100% { transform: translateX(100%); }
+                }
+              `}</style>
+              <div 
+                className="absolute inset-0 bg-blue-400 opacity-60"
+                style={{
+                  animation: "progress-sweep 1.5s ease-in-out infinite",
+                }}
+              />
+            </>
+          )}
+          <span className="relative z-10 flex items-center gap-2">
+            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+            Termine laden
+          </span>
         </button>
         
         {lastLoadedAt && !loading && (

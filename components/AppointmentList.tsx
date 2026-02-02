@@ -421,15 +421,39 @@ export default function AppointmentList({
                   submitting ||
                   (syncReadyAppointments.length === 0 && completeModificationsCount === 0)
                 }
-                className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition"
+                className="relative px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition"
               >
                 {submitting 
                   ? "Wird übertragen..." 
                   : syncReadyAppointments.length > 0 && completeModificationsCount > 0
-                    ? `An ZEP übertragen (${syncReadyAppointments.length} neu, ${completeModificationsCount} ändern)`
+                    ? (
+                      <span className="flex items-center gap-2">
+                        An ZEP übertragen
+                        <span className="inline-flex items-center justify-center px-2 py-0.5 text-xs font-medium bg-white text-green-700 rounded-full">
+                          {syncReadyAppointments.length} neu
+                        </span>
+                        <span className="inline-flex items-center justify-center px-2 py-0.5 text-xs font-medium bg-yellow-100 text-yellow-800 rounded-full">
+                          {completeModificationsCount} ändern
+                        </span>
+                      </span>
+                    )
                     : completeModificationsCount > 0 
-                      ? `${completeModificationsCount} Änderung(en) übertragen`
-                      : `An ZEP übertragen (${syncReadyAppointments.length})`
+                      ? (
+                        <span className="flex items-center gap-2">
+                          Änderungen übertragen
+                          <span className="inline-flex items-center justify-center px-2 py-0.5 text-xs font-medium bg-yellow-100 text-yellow-800 rounded-full">
+                            {completeModificationsCount}
+                          </span>
+                        </span>
+                      )
+                      : (
+                        <span className="flex items-center gap-2">
+                          An ZEP übertragen
+                          <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 text-xs font-medium bg-white text-green-700 rounded-full">
+                            {syncReadyAppointments.length}
+                          </span>
+                        </span>
+                      )
                 }
               </button>
             </div>

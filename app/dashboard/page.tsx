@@ -3,7 +3,7 @@
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { format, startOfMonth, endOfMonth } from "date-fns";
+import { format, startOfMonth, endOfMonth, subMonths, isWeekend, addDays } from "date-fns";
 import { LogOut, Search, X, Keyboard } from "lucide-react";
 import DateRangePicker from "@/components/DateRangePicker";
 import AppointmentList from "@/components/AppointmentList";
@@ -130,6 +130,51 @@ export interface ModifiedEntry {
 // localStorage key for persisting work state
 const STORAGE_KEY = "outlook-zep-sync-state";
 
+// Helper: Get the nth workday of a month (1-based)
+function getNthWorkday(date: Date, n: number): Date {
+  const start = startOfMonth(date);
+  let workdays = 0;
+  let current = start;
+  
+  while (workdays < n) {
+    if (!isWeekend(current)) {
+      workdays++;
+      if (workdays === n) {
+        return current;
+      }
+    }
+    current = addDays(current, 1);
+  }
+  return current;
+}
+
+// Helper: Check if we should default to last month (before 5th workday of current month)
+function shouldDefaultToLastMonth(): boolean {
+  const today = new Date();
+  const fifthWorkday = getNthWorkday(today, 5);
+  return today <= fifthWorkday;
+}
+
+// Helper: Get default date range based on current date
+function getDefaultDateRange(): { startDate: string; endDate: string } {
+  const today = new Date();
+  
+  if (shouldDefaultToLastMonth()) {
+    // Before 5th workday: default to last month
+    const lastMonth = subMonths(today, 1);
+    return {
+      startDate: format(startOfMonth(lastMonth), "yyyy-MM-dd"),
+      endDate: format(endOfMonth(lastMonth), "yyyy-MM-dd"),
+    };
+  } else {
+    // After 5th workday: default to this month
+    return {
+      startDate: format(startOfMonth(today), "yyyy-MM-dd"),
+      endDate: format(endOfMonth(today), "yyyy-MM-dd"),
+    };
+  }
+}
+
 interface PersistedState {
   startDate: string;
   endDate: string;
@@ -198,12 +243,12 @@ export default function Dashboard() {
   const router = useRouter();
 
   // Load initial state from localStorage or use defaults
-  const today = new Date();
   const initialState = useMemo(() => {
     const stored = getStoredState();
+    const defaultRange = getDefaultDateRange();
     return {
-      startDate: stored?.startDate ?? format(startOfMonth(today), "yyyy-MM-dd"),
-      endDate: stored?.endDate ?? format(endOfMonth(today), "yyyy-MM-dd"),
+      startDate: stored?.startDate ?? defaultRange.startDate,
+      endDate: stored?.endDate ?? defaultRange.endDate,
       appointments: stored?.appointments ?? [],
       filterDate: stored?.filterDate ?? null,
       hideSoloMeetings: stored?.hideSoloMeetings ?? true,
