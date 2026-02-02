@@ -120,6 +120,17 @@ export interface SoapProjekt {
   projekttaetigkeitListe?: {
     taetigkeit?: ProjektTaetigkeit | ProjektTaetigkeit[];
   };
+  // Fakturierbarkeits-Voreinstellungen
+  // voreinstFakturierbarkeit (int1_4): 
+  //   1=Voreinstellung Fakturierbar, durch Mitarbeiter änderbar
+  //   2=Voreinstellung Fakturierbar, durch Mitarbeiter NICHT änderbar
+  //   3=Voreinstellung Nicht Fakturierbar, durch Mitarbeiter änderbar
+  //   4=Voreinstellung Nicht Fakturierbar, durch Mitarbeiter NICHT änderbar
+  voreinstFakturierbarkeit?: number;
+  // defaultFakt (int1_4): Projekt-Level Fakturierbarkeit
+  //   1=Fakturierbar änderbar, 2=Fakturierbar nicht änderbar
+  //   3=Nicht fakturierbar änderbar, 4=Nicht fakturierbar nicht änderbar
+  defaultFakt?: number;
 }
 
 export interface SoapProjektMitarbeiter {
@@ -190,6 +201,13 @@ export interface SoapVorgang {
   vorgangstaetigkeitListe?: {
     taetigkeit?: VorgangTaetigkeit | VorgangTaetigkeit[];
   };
+  // defaultFakt (int0_4): Fakturierbarkeits-Einstellung auf Vorgang-Ebene
+  //   0 = Fakturierbarkeit vom Projekt geerbt
+  //   1 = Fakturierbar, änderbar durch Mitarbeiter
+  //   2 = Fakturierbar, NICHT änderbar durch Mitarbeiter
+  //   3 = Nicht fakturierbar, änderbar durch Mitarbeiter
+  //   4 = Nicht fakturierbar, NICHT änderbar durch Mitarbeiter
+  defaultFakt?: number;
 }
 
 interface ReadVorgangSearchCriteria {
@@ -868,13 +886,14 @@ export function formatSoapEndTime(date: Date): string {
  */
 export function mapProjektToRestFormat(projekt: SoapProjekt) {
   // Extract activities from projekttaetigkeitListe
-  let activities: Array<{ name: string; standard: boolean }> = [];
+  let activities: Array<{ name: string; standard: boolean; defaultFakt?: number }> = [];
   if (projekt.projekttaetigkeitListe?.taetigkeit) {
     const taetigkeitData = projekt.projekttaetigkeitListe.taetigkeit;
     const taetigkeitArray = Array.isArray(taetigkeitData) ? taetigkeitData : [taetigkeitData];
     activities = taetigkeitArray.map(t => ({
       name: t.taetigkeit,
       standard: t.standard || false,
+      defaultFakt: t.defaultFakt, // 0=vom Vorgang, 1-4=eigene Einstellung
     }));
   }
 
@@ -893,6 +912,9 @@ export function mapProjektToRestFormat(projekt: SoapProjekt) {
     end_date: projekt.endeDatum || null,
     projektNr: projekt.projektNr, // Keep original for SOAP calls
     activities, // Zugeordnete Tätigkeiten
+    // Fakturierbarkeits-Voreinstellungen
+    voreinstFakturierbarkeit: projekt.voreinstFakturierbarkeit,
+    defaultFakt: projekt.defaultFakt,
   };
 }
 
@@ -923,7 +945,47 @@ export function mapVorgangToRestFormat(vorgang: SoapVorgang) {
     vorgangNr: vorgang.vorgangNr, // Keep original for SOAP calls
     projektNr: vorgang.projektNr,
     activities, // Zugeordnete Tätigkeiten (leer = erbt vom Projekt)
+    // Fakturierbarkeits-Einstellung (0=vom Projekt geerbt, 1-4=eigene Einstellung)
+    defaultFakt: vorgang.defaultFakt,
   };
+}
+
+/**
+ * Ermittelt die Fakturierbarkeit basierend auf Projekt- und Vorgang-Einstellungen.
+ * 
+ * Hierarchie:
+ * 1. Vorgang.defaultFakt (wenn != 0): verwendet die Vorgang-Einstellung
+ * 2. Sonst: Projekt.voreinstFakturierbarkeit oder Projekt.defaultFakt
+ * 
+ * Werte (int1_4 bzw. int0_4):
+ *   0 = vom Projekt geerbt (nur bei Vorgang)
+ *   1 = Fakturierbar, änderbar durch Mitarbeiter
+ *   2 = Fakturierbar, NICHT änderbar durch Mitarbeiter
+ *   3 = Nicht fakturierbar, änderbar durch Mitarbeiter
+ *   4 = Nicht fakturierbar, NICHT änderbar durch Mitarbeiter
+ * 
+ * @param projektFakt - voreinstFakturierbarkeit oder defaultFakt vom Projekt (int1_4)
+ * @param vorgangFakt - defaultFakt vom Vorgang (int0_4), 0 = vom Projekt geerbt
+ * @returns boolean - true wenn fakturierbar, false wenn nicht fakturierbar
+ */
+export function determineBillable(
+  projektFakt: number | undefined,
+  vorgangFakt: number | undefined
+): boolean {
+  // Vorgang hat eigene Einstellung (nicht 0 = "geerbt")
+  if (vorgangFakt !== undefined && vorgangFakt !== 0) {
+    // 1, 2 = Fakturierbar; 3, 4 = Nicht Fakturierbar
+    return vorgangFakt === 1 || vorgangFakt === 2;
+  }
+  
+  // Fallback auf Projekt-Einstellung
+  if (projektFakt !== undefined) {
+    // 1, 2 = Fakturierbar; 3, 4 = Nicht Fakturierbar
+    return projektFakt === 1 || projektFakt === 2;
+  }
+  
+  // Default: fakturierbar (wenn keine Einstellung vorhanden)
+  return true;
 }
 
 /**

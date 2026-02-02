@@ -135,6 +135,7 @@ function isAppointmentSynced(apt: Appointment, syncedEntries: ZepEntry[]): boole
 
 // Helper: Find the matching synced entry for an appointment
 // Compares using rounded times (ZEP stores times in 15-min intervals)
+// Trims subject/note for comparison (Outlook may have trailing spaces that ZEP trims)
 function findSyncedEntry(apt: Appointment, syncedEntries: ZepEntry[]): ZepEntry | null {
   if (!syncedEntries || syncedEntries.length === 0) {
     return null;
@@ -147,11 +148,15 @@ function findSyncedEntry(apt: Appointment, syncedEntries: ZepEntry[]): ZepEntry 
   // Use rounded times for comparison (same logic as when syncing to ZEP)
   const aptFromTimeRounded = formatZepStartTime(aptDate);
   const aptToTimeRounded = formatZepEndTime(aptEndDate);
+  
+  // Trim subject for comparison (Outlook may have trailing spaces)
+  const aptSubject = apt.subject.trim();
 
   return syncedEntries.find((entry) => {
     const entryDate = entry.date.split("T")[0];
+    const entryNote = (entry.note || "").trim();
     return (
-      entry.note === apt.subject &&
+      entryNote === aptSubject &&
       entryDate === aptDateStr &&
       entry.from === aptFromTimeRounded &&
       entry.to === aptToTimeRounded

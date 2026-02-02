@@ -199,6 +199,8 @@ function parseErrorMessage(error: string): string {
 }
 
 // Helper: Check if an appointment is already synced to ZEP
+// Uses rounded times (same as when syncing to ZEP) for accurate comparison
+// Trims subject/note for comparison (Outlook may have trailing spaces that ZEP trims)
 function isAppointmentSynced(apt: Appointment, syncedEntries: ZepEntry[]): boolean {
   if (!syncedEntries || syncedEntries.length === 0) {
     return false;
@@ -206,14 +208,20 @@ function isAppointmentSynced(apt: Appointment, syncedEntries: ZepEntry[]): boole
 
   const aptDate = new Date(apt.start.dateTime);
   const aptDateStr = aptDate.toISOString().split("T")[0];
-  const aptFromTime = aptDate.toTimeString().slice(0, 8);
   const aptEndDate = new Date(apt.end.dateTime);
-  const aptToTime = aptEndDate.toTimeString().slice(0, 8);
+  
+  // Use rounded times (same logic as when syncing to ZEP)
+  const aptFromTime = formatZepStartTime(aptDate);
+  const aptToTime = formatZepEndTime(aptEndDate);
+  
+  // Trim subject for comparison (Outlook may have trailing spaces)
+  const aptSubject = apt.subject.trim();
 
   return syncedEntries.some((entry) => {
     const entryDate = entry.date.split("T")[0];
+    const entryNote = (entry.note || "").trim();
     return (
-      entry.note === apt.subject &&
+      entryNote === aptSubject &&
       entryDate === aptDateStr &&
       entry.from === aptFromTime &&
       entry.to === aptToTime
@@ -520,8 +528,9 @@ export default function Dashboard() {
 
   // Note: Synced entries are loaded together with appointments in loadAppointments()
 
-  const loadTasksForProject = useCallback(async (projectId: number, options?: { skipFilter?: boolean }) => {
-    if (tasks[projectId]) return;
+  const loadTasksForProject = useCallback(async (projectId: number, options?: { skipFilter?: boolean }): Promise<Task[]> => {
+    // Return cached tasks if available
+    if (tasks[projectId]) return tasks[projectId];
 
     setLoadingTasks((prev) => new Set(prev).add(projectId));
     try {
@@ -549,9 +558,12 @@ export default function Dashboard() {
       const data = await res.json();
       if (Array.isArray(data)) {
         setTasks((prev) => ({ ...prev, [projectId]: data }));
+        return data;
       }
+      return [];
     } catch (error) {
       console.error("Failed to load tasks:", error);
+      return [];
     } finally {
       setLoadingTasks((prev) => {
         const next = new Set(prev);
@@ -730,14 +742,48 @@ export default function Dashboard() {
   };
 
   const changeProject = async (id: string, projectId: number | null) => {
-    setAppointments((prev) =>
-      prev.map((apt) =>
-        apt.id === id ? { ...apt, projectId, taskId: null } : apt
-      )
-    );
-
     if (projectId) {
-      await loadTasksForProject(projectId);
+      // Load tasks first to check if auto-selection is possible
+      const loadedTasks = await loadTasksForProject(projectId);
+      
+      // Auto-select if there's exactly one task
+      if (loadedTasks.length === 1) {
+        const singleTask = loadedTasks[0];
+        
+        // Find standard activity for this task
+        const project = projects.find((p) => p.id === projectId);
+        const taskActivities = singleTask.activities || [];
+        const projectActivities = project?.activities || [];
+        const relevantActivities = taskActivities.length > 0 ? taskActivities : projectActivities;
+        const standardActivity = relevantActivities.find((a) => a.standard);
+        
+        setAppointments((prev) =>
+          prev.map((apt) =>
+            apt.id === id 
+              ? { 
+                  ...apt, 
+                  projectId, 
+                  taskId: singleTask.id,
+                  activityId: standardActivity?.name || apt.activityId 
+                } 
+              : apt
+          )
+        );
+      } else {
+        // Multiple tasks or no tasks - just set project, clear task
+        setAppointments((prev) =>
+          prev.map((apt) =>
+            apt.id === id ? { ...apt, projectId, taskId: null } : apt
+          )
+        );
+      }
+    } else {
+      // No project selected - clear everything
+      setAppointments((prev) =>
+        prev.map((apt) =>
+          apt.id === id ? { ...apt, projectId, taskId: null } : apt
+        )
+      );
     }
   };
 

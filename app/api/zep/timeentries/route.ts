@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { 
   readProjektzeiten, 
   createProjektzeit,
@@ -8,8 +10,34 @@ import {
   readVorgang,
   formatSoapDate,
   formatSoapStartTime,
-  formatSoapEndTime
+  formatSoapEndTime,
+  findEmployeeByEmail,
+  determineBillable
 } from "@/lib/zep-soap";
+
+// Helper: Validate that the requested employeeId matches the logged-in user
+async function validateEmployeeAccess(requestedEmployeeId: string, token: string): Promise<{ valid: boolean; error?: string; status?: number }> {
+  const session = await getServerSession(authOptions);
+  
+  if (!session?.user?.email) {
+    return { valid: false, error: "Nicht authentifiziert", status: 401 };
+  }
+
+  // Find the ZEP employee for the logged-in user
+  const employee = await findEmployeeByEmail(token, session.user.email);
+  
+  if (!employee) {
+    return { valid: false, error: "Kein ZEP-Benutzer für diesen Account gefunden", status: 403 };
+  }
+
+  // Check if the requested employeeId matches the logged-in user's ZEP username
+  if (employee.userId !== requestedEmployeeId) {
+    console.warn(`Security: User ${session.user.email} (ZEP: ${employee.userId}) tried to access data for ${requestedEmployeeId}`);
+    return { valid: false, error: "Zugriff verweigert: Sie können nur Ihre eigenen Einträge abrufen", status: 403 };
+  }
+
+  return { valid: true };
+}
 
 // GET: Fetch existing time entries for employee in date range
 export async function GET(request: Request) {
@@ -31,6 +59,15 @@ export async function GET(request: Request) {
     return NextResponse.json(
       { error: "employeeId, startDate, and endDate required" },
       { status: 400 }
+    );
+  }
+
+  // Security: Validate that user can only access their own data
+  const accessCheck = await validateEmployeeAccess(employeeId, token);
+  if (!accessCheck.valid) {
+    return NextResponse.json(
+      { error: accessCheck.error },
+      { status: accessCheck.status || 403 }
     );
   }
 
@@ -71,8 +108,18 @@ interface RequestBody {
 }
 
 // Cache for projekt lookups during batch creation
-const projektCache = new Map<number, string>();
-const vorgangCache = new Map<number, string>();
+// Stores full project data for billability determination
+interface ProjektCacheEntry {
+  projektNr: string;
+  voreinstFakturierbarkeit?: number;
+  defaultFakt?: number;
+}
+interface VorgangCacheEntry {
+  vorgangNr: string;
+  defaultFakt?: number;
+}
+const projektCache = new Map<number, ProjektCacheEntry>();
+const vorgangCache = new Map<number, VorgangCacheEntry>();
 
 export async function POST(request: Request) {
   const token = process.env.ZEP_SOAP_TOKEN;
@@ -94,27 +141,52 @@ export async function POST(request: Request) {
     );
   }
 
+  // Security: Validate that all entries belong to the logged-in user
+  const uniqueEmployeeIds = [...new Set(entries.map(e => e.employee_id))];
+  
+  for (const employeeId of uniqueEmployeeIds) {
+    const accessCheck = await validateEmployeeAccess(employeeId, token);
+    if (!accessCheck.valid) {
+      return NextResponse.json(
+        { error: accessCheck.error },
+        { status: accessCheck.status || 403 }
+      );
+    }
+  }
+
   try {
     // Pre-fetch projekt and vorgang info for entries that don't have projektNr/vorgangNr
+    // Also fetch billability settings from projekt and vorgang
     for (const entry of entries) {
-      if (!entry.projektNr && entry.project_id) {
-        if (!projektCache.has(entry.project_id)) {
-          const projekte = await readProjekte(token, { id: entry.project_id });
-          if (projekte.length > 0) {
-            projektCache.set(entry.project_id, projekte[0].projektNr);
-          }
+      if (entry.project_id && !projektCache.has(entry.project_id)) {
+        const projekte = await readProjekte(token, { id: entry.project_id });
+        if (projekte.length > 0) {
+          const projekt = projekte[0];
+          projektCache.set(entry.project_id, {
+            projektNr: projekt.projektNr,
+            voreinstFakturierbarkeit: projekt.voreinstFakturierbarkeit,
+            defaultFakt: projekt.defaultFakt,
+          });
         }
-        entry.projektNr = projektCache.get(entry.project_id);
+      }
+      if (!entry.projektNr && entry.project_id) {
+        const cached = projektCache.get(entry.project_id);
+        entry.projektNr = cached?.projektNr;
       }
       
-      if (!entry.vorgangNr && entry.project_task_id) {
-        if (!vorgangCache.has(entry.project_task_id)) {
-          const vorgaenge = await readVorgang(token, { id: entry.project_task_id });
-          if (vorgaenge.length > 0) {
-            vorgangCache.set(entry.project_task_id, vorgaenge[0].vorgangNr);
-          }
+      if (entry.project_task_id && !vorgangCache.has(entry.project_task_id)) {
+        const vorgaenge = await readVorgang(token, { id: entry.project_task_id });
+        if (vorgaenge.length > 0) {
+          const vorgang = vorgaenge[0];
+          vorgangCache.set(entry.project_task_id, {
+            vorgangNr: vorgang.vorgangNr,
+            defaultFakt: vorgang.defaultFakt,
+          });
         }
-        entry.vorgangNr = vorgangCache.get(entry.project_task_id);
+      }
+      if (!entry.vorgangNr && entry.project_task_id) {
+        const cached = vorgangCache.get(entry.project_task_id);
+        entry.vorgangNr = cached?.vorgangNr;
       }
     }
 
@@ -135,6 +207,16 @@ export async function POST(request: Request) {
         const toDate = new Date(entryDate);
         toDate.setHours(toHours, toMinutes, 0, 0);
 
+        // Ermittle Fakturierbarkeit basierend auf Projekt- und Vorgang-Einstellungen
+        const projektData = projektCache.get(entry.project_id);
+        const vorgangData = vorgangCache.get(entry.project_task_id);
+        
+        // Priorität: voreinstFakturierbarkeit > defaultFakt auf Projekt-Ebene
+        const projektFakt = projektData?.voreinstFakturierbarkeit ?? projektData?.defaultFakt;
+        const vorgangFakt = vorgangData?.defaultFakt;
+        
+        const istFakturierbar = determineBillable(projektFakt, vorgangFakt);
+
         const soapEntry = {
           userId: entry.employee_id,
           datum: formatSoapDate(entryDate),
@@ -144,7 +226,7 @@ export async function POST(request: Request) {
           vorgangNr: entry.vorgangNr,
           taetigkeit: entry.activity_id,
           bemerkung: entry.note || undefined,
-          istFakturierbar: entry.billable,
+          istFakturierbar: istFakturierbar,
         };
 
         const id = await createProjektzeit(token, soapEntry);
@@ -202,12 +284,19 @@ interface ModifyEntryInput {
   von: string;
   bis: string;
   bemerkung?: string;
-  istFakturierbar?: boolean;
+  istFakturierbar?: boolean;  // Optional - will be recalculated if not provided
+  // Optional: project/task IDs for billability lookup
+  project_id?: number;
+  project_task_id?: number;
 }
 
 interface ModifyRequestBody {
   entries: ModifyEntryInput[];
 }
+
+// Cache for PATCH requests (separate from POST to avoid conflicts)
+const patchProjektCache = new Map<string, ProjektCacheEntry>();
+const patchVorgangCache = new Map<string, VorgangCacheEntry>();
 
 export async function PATCH(request: Request) {
   const token = process.env.ZEP_SOAP_TOKEN;
@@ -229,12 +318,69 @@ export async function PATCH(request: Request) {
     );
   }
 
+  // Security: Validate that all entries belong to the logged-in user
+  const uniqueUserIds = [...new Set(entries.map(e => e.userId))];
+  
+  for (const userId of uniqueUserIds) {
+    const accessCheck = await validateEmployeeAccess(userId, token);
+    if (!accessCheck.valid) {
+      return NextResponse.json(
+        { error: accessCheck.error },
+        { status: accessCheck.status || 403 }
+      );
+    }
+  }
+
   try {
+    // Pre-fetch projekt and vorgang info for billability determination
+    for (const entry of entries) {
+      // Use projektNr as cache key since we may not have project_id
+      if (entry.projektNr && !patchProjektCache.has(entry.projektNr)) {
+        const projekte = await readProjekte(token, { projektNr: entry.projektNr });
+        if (projekte.length > 0) {
+          const projekt = projekte[0];
+          patchProjektCache.set(entry.projektNr, {
+            projektNr: projekt.projektNr,
+            voreinstFakturierbarkeit: projekt.voreinstFakturierbarkeit,
+            defaultFakt: projekt.defaultFakt,
+          });
+        }
+      }
+      
+      // Use vorgangNr as cache key
+      const cacheKey = `${entry.projektNr}:${entry.vorgangNr}`;
+      if (entry.vorgangNr && !patchVorgangCache.has(cacheKey)) {
+        const vorgaenge = await readVorgang(token, { 
+          projektNr: entry.projektNr,
+          vorgangNr: entry.vorgangNr 
+        });
+        if (vorgaenge.length > 0) {
+          const vorgang = vorgaenge[0];
+          patchVorgangCache.set(cacheKey, {
+            vorgangNr: vorgang.vorgangNr,
+            defaultFakt: vorgang.defaultFakt,
+          });
+        }
+      }
+    }
+
     const results = await Promise.allSettled(
       entries.map(async (entry) => {
         if (!entry.id || !entry.projektNr || !entry.vorgangNr) {
           throw new Error(`Missing required fields: id, projektNr, or vorgangNr`);
         }
+
+        // Ermittle Fakturierbarkeit basierend auf neuer Projekt-/Vorgang-Zuordnung
+        const projektData = patchProjektCache.get(entry.projektNr);
+        const vorgangCacheKey = `${entry.projektNr}:${entry.vorgangNr}`;
+        const vorgangData = patchVorgangCache.get(vorgangCacheKey);
+        
+        // Priorität: voreinstFakturierbarkeit > defaultFakt auf Projekt-Ebene
+        const projektFakt = projektData?.voreinstFakturierbarkeit ?? projektData?.defaultFakt;
+        const vorgangFakt = vorgangData?.defaultFakt;
+        
+        // Berechne neue Fakturierbarkeit basierend auf dem neuen Projekt/Vorgang
+        const istFakturierbar = determineBillable(projektFakt, vorgangFakt);
 
         const soapEntry = {
           id: entry.id,
@@ -246,7 +392,7 @@ export async function PATCH(request: Request) {
           vorgangNr: entry.vorgangNr,
           taetigkeit: entry.taetigkeit,
           bemerkung: entry.bemerkung,
-          istFakturierbar: entry.istFakturierbar,
+          istFakturierbar: istFakturierbar,
         };
 
         await updateProjektzeit(token, soapEntry);

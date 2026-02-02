@@ -148,6 +148,7 @@ export default function CalendarHeatmap({
 
   // Helper: Check if a specific appointment is synced to ZEP (needs to be before getSeriesStatus)
   // Uses rounded times for comparison (ZEP stores times in 15-min intervals)
+  // Trims subject/note for comparison (Outlook may have trailing spaces that ZEP trims)
   const isAppointmentSyncedCheck = (apt: Appointment): boolean => {
     const zepEntries = syncedByDate.get(apt.start.dateTime.split("T")[0]) || [];
     if (zepEntries.length === 0) return false;
@@ -158,10 +159,14 @@ export default function CalendarHeatmap({
     // Use rounded times (same logic as when syncing to ZEP)
     const aptFromTime = formatZepStartTime(aptDate);
     const aptToTime = formatZepEndTime(aptEndDate);
+    
+    // Trim subject for comparison (Outlook may have trailing spaces)
+    const aptSubject = apt.subject.trim();
 
     return zepEntries.some((entry) => {
+      const entryNote = (entry.note || "").trim();
       return (
-        entry.note === apt.subject &&
+        entryNote === aptSubject &&
         entry.from === aptFromTime &&
         entry.to === aptToTime
       );
@@ -206,6 +211,7 @@ export default function CalendarHeatmap({
 
   // Helper: Check if a specific appointment is synced to ZEP
   // Uses rounded times for comparison (ZEP stores times in 15-min intervals)
+  // Trims subject/note for comparison (Outlook may have trailing spaces that ZEP trims)
   const isAppointmentSynced = (apt: Appointment, zepEntries: ZepAttendance[]): boolean => {
     if (!zepEntries || zepEntries.length === 0) return false;
     
@@ -215,10 +221,14 @@ export default function CalendarHeatmap({
     // Use rounded times (same logic as when syncing to ZEP)
     const aptFromTime = formatZepStartTime(aptDate);
     const aptToTime = formatZepEndTime(aptEndDate);
+    
+    // Trim subject for comparison (Outlook may have trailing spaces)
+    const aptSubject = apt.subject.trim();
 
     return zepEntries.some((entry) => {
+      const entryNote = (entry.note || "").trim();
       return (
-        entry.note === apt.subject &&
+        entryNote === aptSubject &&
         entry.from === aptFromTime &&
         entry.to === aptToTime
       );
