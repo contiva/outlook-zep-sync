@@ -213,7 +213,7 @@ export default function AppointmentRow({
   return (
     <div
       className={`p-4 border-b border-gray-100 ${
-        appointment.selected ? "bg-white" : "bg-gray-50 opacity-60"
+        appointment.selected || isSynced ? "bg-white" : "bg-gray-50 opacity-60"
       }`}
     >
       <div className="flex items-start gap-4">

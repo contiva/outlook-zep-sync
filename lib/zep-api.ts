@@ -242,18 +242,31 @@ export async function getZepProjectsForEmployee(
   // Get all projects and filter to assigned ones
   const allProjects = await getZepProjects(token);
   
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  // Use the requested date range for filtering
+  const rangeStart = startDate ? new Date(startDate) : null;
+  const rangeEnd = endDate ? new Date(endDate) : null;
+  if (rangeStart) rangeStart.setHours(0, 0, 0, 0);
+  if (rangeEnd) rangeEnd.setHours(23, 59, 59, 999);
 
   return allProjects.filter((p) => {
     // Must be in assigned projects
     if (!projectIds.includes(p.id)) return false;
 
-    // Hide expired projects
-    if (p.end_date) {
+    // Check if project overlaps with the selected date range
+    // Project is valid if: project.start_date <= rangeEnd AND project.end_date >= rangeStart
+    
+    if (p.end_date && rangeStart) {
       const projectEndDate = new Date(p.end_date);
-      projectEndDate.setHours(0, 0, 0, 0);
-      if (projectEndDate < today) return false;
+      projectEndDate.setHours(23, 59, 59, 999);
+      // Project ended before the range starts - hide it
+      if (projectEndDate < rangeStart) return false;
+    }
+
+    if (p.start_date && rangeEnd) {
+      const projectStartDate = new Date(p.start_date);
+      projectStartDate.setHours(0, 0, 0, 0);
+      // Project starts after the range ends - hide it
+      if (projectStartDate > rangeEnd) return false;
     }
 
     return true;

@@ -504,6 +504,22 @@ export default function Dashboard() {
         const zepData = await zepRes.json();
         if (Array.isArray(zepData)) {
           setSyncedEntries(zepData);
+          
+          // Load tasks for all synced projects so we can display task names
+          const syncedProjectIds = [...new Set(zepData.map((entry: ZepEntry) => entry.project_id))];
+          syncedProjectIds.forEach((projectId) => {
+            if (!tasks[projectId]) {
+              // Load tasks in background (don't await)
+              fetch(`/api/zep/tasks?projectId=${projectId}`)
+                .then((res) => res.json())
+                .then((data) => {
+                  if (Array.isArray(data)) {
+                    setTasks((prev) => ({ ...prev, [projectId]: data }));
+                  }
+                })
+                .catch((err) => console.error("Failed to load tasks for synced project:", err));
+            }
+          });
         }
       }
       

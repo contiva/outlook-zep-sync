@@ -173,30 +173,34 @@ export default function CalendarHeatmap({
     let hasUnprocessed = false;
     let hasEdited = false;
     let allSynced = true;
-    let allDeselected = true;
+    let allDeselectedOrSynced = true;
 
     for (const apt of seriesAppointments) {
       const isSynced = isAppointmentSyncedCheck(apt) || submittedIds.has(apt.id);
       
-      if (apt.selected) {
-        allDeselected = false;
-        if (!isSynced) {
-          allSynced = false;
-          if (apt.projectId !== null) {
-            hasEdited = true;
-          } else {
-            hasUnprocessed = true;
-          }
-        }
-      } else {
-        allSynced = false;
+      if (isSynced) {
+        // Synced appointments are fine, continue checking others
+        continue;
       }
+      
+      // Not synced
+      allSynced = false;
+      
+      if (apt.selected) {
+        allDeselectedOrSynced = false;
+        if (apt.projectId !== null) {
+          hasEdited = true;
+        } else {
+          hasUnprocessed = true;
+        }
+      }
+      // Deselected but not synced - counts as deselected
     }
 
-    if (allDeselected) return "deselected";
     if (allSynced) return "synced";
     if (hasUnprocessed) return "unprocessed";
     if (hasEdited) return "edited";
+    if (allDeselectedOrSynced) return "deselected";
     return "deselected";
   };
 
@@ -236,23 +240,20 @@ export default function CalendarHeatmap({
       return "empty";
     }
 
-    // Check each appointment's sync status
-    const selectedAppointments = dayAppointments.filter((apt) => apt.selected);
+    // Check each appointment's sync status - synced appointments count as done regardless of selected state
+    const unsyncedAppointments = dayAppointments.filter(
+      (apt) => !isAppointmentSynced(apt, dayZepEntries) && !submittedIds.has(apt.id)
+    );
     
-    // All appointments are either synced or deselected
-    const allDone = dayAppointments.length > 0 && 
-      dayAppointments.every((apt) => 
-        !apt.selected || isAppointmentSynced(apt, dayZepEntries) || submittedIds.has(apt.id)
-      );
-    
-    if (allDone) {
+    // All appointments are synced
+    if (unsyncedAppointments.length === 0 && dayAppointments.length > 0) {
       return "synced";
     }
 
+    // Check unsynced appointments that are selected
+    const unsyncedSelected = unsyncedAppointments.filter((apt) => apt.selected);
+    
     // Check if any selected (non-synced) appointment has a project assigned
-    const unsyncedSelected = selectedAppointments.filter(
-      (apt) => !isAppointmentSynced(apt, dayZepEntries) && !submittedIds.has(apt.id)
-    );
     const anyEdited = unsyncedSelected.some((apt) => apt.projectId !== null);
     
     if (anyEdited) {
@@ -262,6 +263,11 @@ export default function CalendarHeatmap({
     // Has selected appointments without project (unprocessed)
     if (unsyncedSelected.length > 0) {
       return "unprocessed";
+    }
+
+    // All unsynced appointments are deselected - treat as synced/done if there are synced ones
+    if (dayAppointments.some((apt) => isAppointmentSynced(apt, dayZepEntries) || submittedIds.has(apt.id))) {
+      return "synced";
     }
 
     return "empty";
@@ -285,11 +291,12 @@ export default function CalendarHeatmap({
 
   // Get status for individual appointment
   const getAppointmentStatus = (apt: Appointment, zepEntries: ZepAttendance[]): AppointmentStatus => {
-    if (!apt.selected) {
-      return "deselected";
-    }
+    // Synced check comes FIRST - synced appointments should always show as green
     if (isAppointmentSynced(apt, zepEntries) || submittedIds.has(apt.id)) {
       return "synced";
+    }
+    if (!apt.selected) {
+      return "deselected";
     }
     if (apt.projectId !== null) {
       return "edited";
