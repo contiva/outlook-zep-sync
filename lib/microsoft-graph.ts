@@ -81,7 +81,9 @@ export async function getCalendarEvents(
     });
 
     if (!response.ok) {
-      throw new Error(`Graph API error: ${response.status}`);
+      const errorBody = await response.text();
+      console.error("Graph API error response:", errorBody);
+      throw new Error(`Graph API error: ${response.status} - ${errorBody.slice(0, 200)}`);
     }
 
     const data: PaginatedCalendarResponse = await response.json();

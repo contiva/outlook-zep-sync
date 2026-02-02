@@ -30,8 +30,18 @@ export async function GET(request: Request) {
     return NextResponse.json(events);
   } catch (error) {
     console.error("Calendar fetch error:", error);
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    
+    // Check if it's a token expiry issue
+    if (errorMessage.includes("401") || errorMessage.includes("unauthorized")) {
+      return NextResponse.json(
+        { error: "Token expired - please sign out and sign in again" },
+        { status: 401 }
+      );
+    }
+    
     return NextResponse.json(
-      { error: "Failed to fetch calendar" },
+      { error: `Failed to fetch calendar: ${errorMessage}` },
       { status: 500 }
     );
   }

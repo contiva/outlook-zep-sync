@@ -1496,6 +1496,7 @@ export default function Dashboard() {
         <DateRangePicker
           startDate={startDate}
           endDate={endDate}
+          filterDate={filterDate}
           onStartDateChange={setStartDate}
           onEndDateChange={setEndDate}
           onLoad={() => loadAppointments()}

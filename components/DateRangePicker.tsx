@@ -7,6 +7,7 @@ import { de } from "date-fns/locale";
 interface DateRangePickerProps {
   startDate: string;
   endDate: string;
+  filterDate: string | null;
   onStartDateChange: (date: string) => void;
   onEndDateChange: (date: string) => void;
   onLoad: () => void;
@@ -47,6 +48,7 @@ function getPresets(): Preset[] {
 export default function DateRangePicker({
   startDate,
   endDate,
+  filterDate,
   onStartDateChange,
   onEndDateChange,
   onLoad,
@@ -59,12 +61,29 @@ export default function DateRangePicker({
   const today = new Date();
   const yesterday = subDays(today, 1);
   
+  // Format dates for comparison
+  const todayStr = format(today, "yyyy-MM-dd");
+  const yesterdayStr = format(yesterday, "yyyy-MM-dd");
+  
+  // Check if today/yesterday filter is active
+  const isTodayActive = filterDate === todayStr;
+  const isYesterdayActive = filterDate === yesterdayStr;
+  
   // Check if a preset matches the current date range
   const isPresetActive = (preset: Preset): boolean => {
     const { start, end } = preset.getRange();
     const presetStart = format(start, "yyyy-MM-dd");
     const presetEnd = format(end, "yyyy-MM-dd");
     return startDate === presetStart && endDate === presetEnd;
+  };
+  
+  // Check if preset is "related" to active today/yesterday filter (for darker styling)
+  const isPresetRelated = (presetIndex: number): boolean => {
+    if (!isTodayActive && !isYesterdayActive) return false;
+    const isYesterdayInPreviousMonth = yesterday.getMonth() !== today.getMonth();
+    if (isTodayActive) return presetIndex === 1; // Current month
+    if (isYesterdayActive) return isYesterdayInPreviousMonth ? presetIndex === 0 : presetIndex === 1;
+    return false;
   };
   
   const applyPreset = (preset: Preset, filterDate?: string) => {
@@ -90,14 +109,12 @@ export default function DateRangePicker({
   
   // Jump to today: load current month and filter to today
   const jumpToToday = () => {
-    const todayStr = format(today, "yyyy-MM-dd");
     const currentMonthPreset = presets[1]; // Current month is second preset
     applyPreset(currentMonthPreset, todayStr);
   };
   
   // Jump to yesterday: load appropriate month and filter to yesterday
   const jumpToYesterday = () => {
-    const yesterdayStr = format(yesterday, "yyyy-MM-dd");
     // Check if yesterday is in the previous month
     const isInPreviousMonth = yesterday.getMonth() !== today.getMonth();
     const targetPreset = isInPreviousMonth ? presets[0] : presets[1];
@@ -111,13 +128,21 @@ export default function DateRangePicker({
         {/* Quick jump buttons */}
         <button
           onClick={jumpToYesterday}
-          className="px-3 py-1 text-sm rounded-md transition bg-gray-100 text-gray-700 hover:bg-gray-200"
+          className={`px-3 py-1 text-sm rounded-md transition ${
+            isYesterdayActive
+              ? "bg-blue-600 text-white"
+              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+          }`}
         >
           Gestern
         </button>
         <button
           onClick={jumpToToday}
-          className="px-3 py-1 text-sm rounded-md transition bg-gray-100 text-gray-700 hover:bg-gray-200"
+          className={`px-3 py-1 text-sm rounded-md transition ${
+            isTodayActive
+              ? "bg-blue-600 text-white"
+              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+          }`}
         >
           Heute
         </button>
@@ -128,13 +153,22 @@ export default function DateRangePicker({
         {/* Month presets */}
         {presets.map((preset, index) => {
           const isActive = isPresetActive(preset);
+          const isRelated = isPresetRelated(index);
           return (
             <button
               key={index}
-              onClick={() => applyPreset(preset)}
+              onClick={() => {
+                applyPreset(preset);
+                // Clear the filter date when clicking month directly
+                if (onFilterDateChange) {
+                  setTimeout(() => onFilterDateChange(null), 100);
+                }
+              }}
               className={`px-3 py-1 text-sm rounded-md transition ${
-                isActive
+                isActive && !isRelated
                   ? "bg-blue-600 text-white"
+                  : isRelated
+                  ? "bg-gray-300 text-gray-700 hover:bg-gray-400"
                   : "bg-gray-100 text-gray-700 hover:bg-gray-200"
               }`}
             >
