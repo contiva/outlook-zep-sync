@@ -223,6 +223,18 @@ function getDefaultDateRange(): { startDate: string; endDate: string } {
   }
 }
 
+// Helper: Get default filter date based on current date
+// Returns today's date (yyyy-MM-dd) when showing current month, null otherwise
+function getDefaultFilterDate(): string | null {
+  if (shouldDefaultToLastMonth()) {
+    // Before 5th workday: showing last month, no default filter
+    return null;
+  } else {
+    // After 5th workday: showing current month, default to today
+    return format(new Date(), "yyyy-MM-dd");
+  }
+}
+
 interface PersistedState {
   startDate: string;
   endDate: string;
@@ -315,11 +327,12 @@ export default function Dashboard() {
   const initialState = useMemo(() => {
     const stored = getStoredState();
     const defaultRange = getDefaultDateRange();
+    const defaultFilterDate = getDefaultFilterDate();
     return {
       startDate: stored?.startDate ?? defaultRange.startDate,
       endDate: stored?.endDate ?? defaultRange.endDate,
       appointments: stored?.appointments ?? [],
-      filterDate: stored?.filterDate ?? null,
+      filterDate: stored?.filterDate ?? defaultFilterDate,
       hideSoloMeetings: stored?.hideSoloMeetings ?? true,
       syncedEntries: stored?.syncedEntries ?? [],
     };
