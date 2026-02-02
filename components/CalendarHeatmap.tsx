@@ -401,11 +401,11 @@ export default function CalendarHeatmap({
               }
             }}
             disabled={seriesData.count === 0}
-            className={`w-10 h-10 rounded overflow-hidden flex items-center justify-center focus:outline-none ${
+            className={`w-10 h-10 rounded overflow-hidden flex items-center justify-center focus:outline-none transition-transform ${
               seriesData.count === 0
                 ? "bg-gray-100 border border-gray-200 cursor-default"
                 : seriesFilterActive 
-                  ? "cursor-pointer ring-2 ring-blue-600 ring-offset-1" 
+                  ? "cursor-pointer ring-2 ring-blue-600 ring-offset-1 scale-110" 
                   : "cursor-pointer hover:brightness-110 hover:shadow-md"
             }`}
             aria-label={`Terminserien filtern: ${seriesData.count} Serien mit ${seriesData.totalAppointments} Terminen`}
@@ -459,9 +459,9 @@ export default function CalendarHeatmap({
               <button
                 type="button"
                 onClick={() => onDayClick(isSelected ? null : dateStr)}
-                className={`w-full max-w-8 h-10 rounded overflow-hidden cursor-pointer focus:outline-none ${
+                className={`w-full max-w-8 h-10 rounded overflow-hidden cursor-pointer focus:outline-none transition-transform ${
                   status === "weekend" ? "bg-gray-100" : totalCount === 0 ? "bg-gray-100 border border-gray-200" : ""
-                } ${isSelected ? "ring-2 ring-blue-600 ring-offset-1" : "hover:brightness-110 hover:shadow-md"}`}
+                } ${isSelected ? "ring-2 ring-blue-600 ring-offset-1 scale-110" : "hover:brightness-110 hover:shadow-md"}`}
                 aria-label={`${format(day, "EEEE, d. MMMM", { locale: de })}: ${totalCount} Termine, ${selectedCount} ausgewählt, Status: ${getStatusLabel(status)}`}
                 aria-pressed={isSelected}
               >
