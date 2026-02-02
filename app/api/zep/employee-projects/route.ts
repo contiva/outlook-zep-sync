@@ -1,7 +1,15 @@
 import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { getBookableProjects, mapProjektToRestFormat } from "@/lib/zep-soap";
 
 export async function GET(request: Request) {
+  // Check authentication
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const token = process.env.ZEP_SOAP_TOKEN;
   const { searchParams } = new URL(request.url);
   const employeeId = searchParams.get("employeeId");
