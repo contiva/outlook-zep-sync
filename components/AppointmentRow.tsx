@@ -554,14 +554,14 @@ export default function AppointmentRow({
 
   return (
     <div
-      className={`px-3 py-2 border-b border-gray-100 ${
+      className={`px-3 py-2 border-x border-b border-t ${
         isSynced 
-          ? "bg-linear-to-r from-green-50 via-emerald-50/50 to-white" 
+          ? "border-green-200 bg-linear-to-r from-green-50 via-emerald-50/50 to-white" 
           : isSyncReady
-            ? "bg-linear-to-r from-amber-50 via-yellow-50/50 to-white"
+            ? "border-amber-200 bg-linear-to-r from-amber-50 via-yellow-50/50 to-white"
             : appointment.selected 
-              ? "bg-white" 
-              : "bg-gray-50/50"
+              ? "border-gray-200 bg-white" 
+              : "border-gray-200 bg-gray-50/50"
       }`}
     >
       <div className="flex items-start gap-3">

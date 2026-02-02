@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Search, X } from "lucide-react";
 import AppointmentRow from "./AppointmentRow";
 import SeriesGroup from "./SeriesGroup";
 import SyncConfirmDialog from "./SyncConfirmDialog";
@@ -124,6 +125,16 @@ interface AppointmentListProps {
   // Rescheduled appointment time correction
   onCorrectTime?: (appointmentId: string, duplicateWarning: DuplicateCheckResult) => void;
   correctingTimeIds?: Set<string>;
+  // Filter props
+  totalAppointmentsCount?: number;
+  searchQuery?: string;
+  onSearchChange?: (query: string) => void;
+  filterDate?: string | null;
+  onFilterDateClear?: () => void;
+  seriesFilterActive?: boolean;
+  onSeriesFilterClear?: () => void;
+  hideSoloMeetings?: boolean;
+  onHideSoloMeetingsChange?: (hide: boolean) => void;
 }
 
 interface GroupedItem {
@@ -206,6 +217,16 @@ export default function AppointmentList({
   onModifyBillable,
   onCorrectTime,
   correctingTimeIds,
+  // Filter props
+  totalAppointmentsCount,
+  searchQuery,
+  onSearchChange,
+  filterDate,
+  onFilterDateClear,
+  seriesFilterActive,
+  onSeriesFilterClear,
+  hideSoloMeetings,
+  onHideSoloMeetingsChange,
 }: AppointmentListProps) {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
@@ -280,6 +301,11 @@ export default function AppointmentList({
   // Appointments that are ready to sync (selected, complete, NOT already synced)
   const syncReadyAppointments = appointments.filter((a) => isAppointmentSyncReady(a, syncedEntries));
 
+  // Selected appointments that are NOT synced and still need project/task assignment
+  const incompleteUnsyncedAppointments = selectedAppointments.filter(
+    (a) => !isAppointmentSynced(a, syncedEntries) && (!a.projectId || !a.taskId)
+  );
+
   const totalMinutes = selectedAppointments.reduce((acc, apt) => {
     const start = new Date(apt.start.dateTime);
     const end = new Date(apt.end.dateTime);
@@ -288,11 +314,6 @@ export default function AppointmentList({
 
   const hours = Math.floor(totalMinutes / 60);
   const minutes = Math.round(totalMinutes % 60);
-
-  // Alle ausgewählten Termine müssen Projekt, Task und Activity haben
-  const allComplete = selectedAppointments.every(
-    (a) => a.projectId && a.taskId && a.activityId
-  );
 
   // Handle confirm from dialog with filtered appointments and modifications
   const handleConfirmSync = (includedAppointments: Appointment[], modifications?: ModifiedEntry[]) => {
@@ -308,49 +329,155 @@ export default function AppointmentList({
   const allSelectableSelected = selectableAppointments.length > 0 && selectedSelectableCount === selectableAppointments.length;
   const someSelectableSelected = selectedSelectableCount > 0 && selectedSelectableCount < selectableAppointments.length;
 
+  // Keine Termine vorhanden
+  if (appointments.length === 0) {
+    return (
+      <div className="p-8 text-center text-gray-500 bg-gray-50 rounded-lg border border-gray-200">
+        Keine Termine gefunden. Wähle einen Zeitraum und klicke auf &quot;Termine laden&quot;.
+      </div>
+    );
+  }
+
+  // Determine if filter controls should be shown
+  const showFilterControls = onSearchChange !== undefined;
+
   return (
-    <div className="bg-white rounded-lg shadow">
-      {/* Header mit "Alle auswählen" Checkbox */}
-      <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          {selectableAppointments.length > 0 && (
-            <>
-              <input
-                type="checkbox"
-                checked={allSelectableSelected}
-                ref={(el) => {
-                  if (el) {
-                    el.indeterminate = someSelectableSelected;
-                  }
-                }}
-                onChange={(e) => onSelectAll(e.target.checked)}
-                className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                aria-label="Alle Termine auswählen"
-              />
-              <span className="text-sm text-gray-600">
-                Alle auswählen ({selectableAppointments.length} verfügbar)
+    <div>
+      {/* Header mit "Alle auswählen" Checkbox und Filter */}
+      <div className="bg-white rounded-t-lg border border-gray-200">
+        <div className="flex items-center">
+          {/* Checkbox und Auswahl-Text */}
+          <div className="flex items-center gap-3 px-4 py-3">
+            {selectableAppointments.length > 0 && (
+              <>
+                <input
+                  type="checkbox"
+                  checked={allSelectableSelected}
+                  ref={(el) => {
+                    if (el) {
+                      el.indeterminate = someSelectableSelected;
+                    }
+                  }}
+                  onChange={(e) => onSelectAll(e.target.checked)}
+                  className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                  aria-label="Alle Termine auswählen"
+                />
+                <span className="text-sm text-gray-600 whitespace-nowrap">
+                  Alle ({selectableAppointments.length})
+                </span>
+              </>
+            )}
+            {selectableAppointments.length === 0 && appointments.length > 0 && (
+              <span className="text-sm text-gray-500 whitespace-nowrap">
+                Alle synchronisiert
               </span>
+            )}
+          </div>
+
+          {showFilterControls && (
+            <>
+              {/* Divider */}
+              <div className="h-8 w-px bg-gray-200" />
+
+              {/* Search input */}
+              <div className="relative flex-1">
+                <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Suchen..."
+                  value={searchQuery || ""}
+                  onChange={(e) => onSearchChange?.(e.target.value)}
+                  className="w-full pl-11 pr-10 py-3 text-sm bg-transparent border-0 focus:outline-none focus:ring-0"
+                  aria-label="Termine durchsuchen"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => onSearchChange?.("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition"
+                    aria-label="Suche löschen"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+
+              {/* Divider */}
+              <div className="h-8 w-px bg-gray-200" />
+
+              {/* Filter count */}
+              <div className="px-3 text-sm text-gray-500 whitespace-nowrap">
+                <span className="font-medium text-gray-700">{appointments.length}</span>
+                {totalAppointmentsCount !== undefined && totalAppointmentsCount !== appointments.length && (
+                  <span className="text-gray-400"> / {totalAppointmentsCount}</span>
+                )}
+              </div>
+
+              {/* Active filters */}
+              {(filterDate || seriesFilterActive) && (
+                <>
+                  <div className="h-8 w-px bg-gray-200" />
+                  <div className="flex items-center gap-2 px-2">
+                    {filterDate && (
+                      <button
+                        onClick={() => onFilterDateClear?.()}
+                        className="flex items-center gap-1.5 px-2 py-1 text-xs text-blue-700 bg-blue-50 rounded-full hover:bg-blue-100 transition"
+                      >
+                        <span>{new Date(filterDate).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}</span>
+                        <X size={12} />
+                      </button>
+                    )}
+                    {seriesFilterActive && (
+                      <button
+                        onClick={() => onSeriesFilterClear?.()}
+                        className="flex items-center gap-1.5 px-2 py-1 text-xs text-purple-700 bg-purple-50 rounded-full hover:bg-purple-100 transition"
+                      >
+                        <span>Serien</span>
+                        <X size={12} />
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {/* Divider */}
+              <div className="h-8 w-px bg-gray-200" />
+
+              {/* Solo toggle */}
+              <button
+                onClick={() => onHideSoloMeetingsChange?.(!hideSoloMeetings)}
+                className={`flex items-center gap-2 px-4 py-3 text-sm whitespace-nowrap transition ${
+                  !hideSoloMeetings 
+                    ? "text-blue-600 bg-blue-50" 
+                    : "text-gray-500 hover:bg-gray-50"
+                }`}
+                title={hideSoloMeetings ? "Solo-Termine werden ausgeblendet" : "Solo-Termine werden angezeigt"}
+              >
+                <div className={`w-8 h-5 rounded-full relative transition-colors ${
+                  !hideSoloMeetings ? "bg-blue-600" : "bg-gray-300"
+                }`}>
+                  <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                    !hideSoloMeetings ? "translate-x-3.5" : "translate-x-0.5"
+                  }`} />
+                </div>
+                <span className="hidden sm:inline">Solo</span>
+              </button>
             </>
           )}
-          {selectableAppointments.length === 0 && appointments.length > 0 && (
-            <span className="text-sm text-gray-500">
-              Alle Termine bereits synchronisiert
-            </span>
+
+          {/* Serien-Anzeige (nur wenn keine Filter-Controls) */}
+          {!showFilterControls && seriesCount > 0 && (
+            <>
+              <div className="flex-1" />
+              <div className="text-sm text-blue-600 px-4">
+                {seriesCount} Terminserie{seriesCount > 1 ? "n" : ""}
+              </div>
+            </>
           )}
         </div>
-        {seriesCount > 0 && (
-          <div className="text-sm text-blue-600">
-            {seriesCount} Terminserie{seriesCount > 1 ? "n" : ""}
-          </div>
-        )}
       </div>
 
-      <div className="divide-y divide-gray-100">
-        {groupedItems.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">
-            Keine Termine gefunden. Wähle einen Zeitraum und klicke auf &quot;Termine laden&quot;.
-          </div>
-        ) : (
+      <div className="flex flex-col gap-1 py-1">
+        {
           groupedItems.map((item) =>
             item.type === "series" ? (
               <SeriesGroup
@@ -410,12 +537,10 @@ export default function AppointmentList({
                 isCorrectingTime={correctingTimeIds?.has(item.appointments[0].id) || false}
               />
             )
-          )
-        )}
+          )}
       </div>
 
-      {appointments.length > 0 && (
-        <div className="p-4 border-t border-gray-200 bg-gray-50 rounded-b-lg">
+      <div className="p-4 border border-gray-200 bg-white rounded-b-lg">
           <div className="flex items-center justify-between">
             <div className="text-sm text-gray-600">
               Ausgewählt: {selectedAppointments.length} Termine ({hours}h{" "}
@@ -485,13 +610,12 @@ export default function AppointmentList({
               </button>
             </div>
           </div>
-          {selectedAppointments.length > 0 && !allComplete && syncReadyAppointments.length < selectedAppointments.length && (
+          {incompleteUnsyncedAppointments.length > 0 && (
             <p className="text-sm text-gray-500 mt-2">
-              {selectedAppointments.length - syncReadyAppointments.length} weitere Termine benötigen noch Projekt/Task-Zuweisung.
+              {incompleteUnsyncedAppointments.length} weitere Termine benötigen noch Projekt/Task-Zuweisung.
             </p>
           )}
-        </div>
-      )}
+      </div>
 
       {/* Sync Confirmation Dialog */}
       <SyncConfirmDialog

@@ -4,7 +4,7 @@ import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { format, startOfMonth, endOfMonth, subMonths, isWeekend, addDays } from "date-fns";
-import { LogOut, Search, X, Keyboard } from "lucide-react";
+import { LogOut, X, Keyboard } from "lucide-react";
 import DateRangePicker from "@/components/DateRangePicker";
 import AppointmentList from "@/components/AppointmentList";
 import CalendarHeatmap from "@/components/CalendarHeatmap";
@@ -1536,94 +1536,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Search and filter controls */}
-        {appointments.length > 0 && (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-100">
-            <div className="flex items-center">
-              {/* Search input */}
-              <div className="relative flex-1">
-                <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Termine durchsuchen..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-11 pr-10 py-3 text-sm bg-transparent border-0 focus:outline-none focus:ring-0"
-                  aria-label="Termine durchsuchen"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery("")}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition"
-                    aria-label="Suche löschen"
-                  >
-                    <X size={14} />
-                  </button>
-                )}
-              </div>
-              
-              {/* Divider */}
-              <div className="h-8 w-px bg-gray-200" />
-              
-              {/* Filter count */}
-              <div className="px-4 text-sm text-gray-500 whitespace-nowrap">
-                <span className="font-medium text-gray-700">{filteredAppointments.length}</span>
-                <span className="text-gray-400"> / {appointments.length}</span>
-              </div>
-              
-              {/* Active filters */}
-              {(filterDate || seriesFilterActive) && (
-                <>
-                  <div className="h-8 w-px bg-gray-200" />
-                  <div className="flex items-center gap-2 px-2">
-                    {filterDate && (
-                      <button
-                        onClick={() => setFilterDate(null)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-blue-700 bg-blue-50 rounded-full hover:bg-blue-100 transition"
-                      >
-                        <span>{new Date(filterDate).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}</span>
-                        <X size={14} />
-                      </button>
-                    )}
-                    {seriesFilterActive && (
-                      <button
-                        onClick={() => setSeriesFilterActive(false)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-purple-700 bg-purple-50 rounded-full hover:bg-purple-100 transition"
-                      >
-                        <span>Serien</span>
-                        <X size={14} />
-                      </button>
-                    )}
-                  </div>
-                </>
-              )}
-              
-              {/* Divider */}
-              <div className="h-8 w-px bg-gray-200" />
-              
-              {/* Solo toggle */}
-              <button
-                onClick={() => setHideSoloMeetings(!hideSoloMeetings)}
-                className={`flex items-center gap-2 px-4 py-3 text-sm whitespace-nowrap transition ${
-                  !hideSoloMeetings 
-                    ? "text-blue-600 bg-blue-50" 
-                    : "text-gray-500 hover:bg-gray-50"
-                }`}
-                title={hideSoloMeetings ? "Solo-Termine werden ausgeblendet" : "Solo-Termine werden angezeigt"}
-              >
-                <div className={`w-8 h-5 rounded-full relative transition-colors ${
-                  !hideSoloMeetings ? "bg-blue-600" : "bg-gray-300"
-                }`}>
-                  <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
-                    !hideSoloMeetings ? "translate-x-3.5" : "translate-x-0.5"
-                  }`} />
-                </div>
-                <span className="hidden sm:inline">Solo-Termine</span>
-              </button>
-            </div>
-          </div>
-        )}
-
         <AppointmentList
           appointments={filteredAppointments}
           projects={projects}
@@ -1655,6 +1567,16 @@ export default function Dashboard() {
           // Correcting rescheduled appointment times
           onCorrectTime={correctRescheduledTime}
           correctingTimeIds={correctingTimeIds}
+          // Filter controls
+          totalAppointmentsCount={appointments.length}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          filterDate={filterDate}
+          onFilterDateClear={() => setFilterDate(null)}
+          seriesFilterActive={seriesFilterActive}
+          onSeriesFilterClear={() => setSeriesFilterActive(false)}
+          hideSoloMeetings={hideSoloMeetings}
+          onHideSoloMeetingsChange={setHideSoloMeetings}
         />
       </main>
     </div>
