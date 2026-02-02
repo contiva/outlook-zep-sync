@@ -494,21 +494,21 @@ export default function CalendarHeatmap({
 // Legend component exported separately to be placed outside the container
 export function CalendarHeatmapLegend({ stats }: { stats: { synced: number; edited: number; unprocessed: number } }) {
   return (
-    <div className="flex items-center justify-end gap-4 text-xs px-1 mt-2">
-      <div className="flex items-center gap-1.5">
-        <div className="w-2.5 h-2.5 rounded bg-success" />
-        <span className="text-muted-foreground">Synchronisiert</span>
-        <span className="text-muted font-medium">{stats.synced}</span>
+    <div className="flex items-center justify-end gap-3 text-[10px] px-1 mt-1">
+      <div className="flex items-center gap-1">
+        <div className="w-2 h-2 rounded-sm bg-green-500/60" />
+        <span className="text-gray-400">Synchronisiert</span>
+        <span className="text-gray-400">{stats.synced}</span>
       </div>
-      <div className="flex items-center gap-1.5">
-        <div className="w-2.5 h-2.5 rounded bg-warning" />
-        <span className="text-muted-foreground">Bearbeitet</span>
-        <span className="text-muted font-medium">{stats.edited}</span>
+      <div className="flex items-center gap-1">
+        <div className="w-2 h-2 rounded-sm bg-yellow-500/60" />
+        <span className="text-gray-400">Bearbeitet</span>
+        <span className="text-gray-400">{stats.edited}</span>
       </div>
-      <div className="flex items-center gap-1.5">
-        <div className="w-2.5 h-2.5 rounded bg-error" />
-        <span className="text-muted-foreground">Unbearbeitet</span>
-        <span className="text-muted font-medium">{stats.unprocessed}</span>
+      <div className="flex items-center gap-1">
+        <div className="w-2 h-2 rounded-sm bg-red-400/60" />
+        <span className="text-gray-400">Unbearbeitet</span>
+        <span className="text-gray-400">{stats.unprocessed}</span>
       </div>
     </div>
   );

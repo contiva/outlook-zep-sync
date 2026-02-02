@@ -1734,70 +1734,47 @@ export default function Dashboard() {
 
   if (status === "loading") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-          <span className="text-muted text-sm">Laden...</span>
-        </div>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-gray-500">Laden...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="bg-card border-b border-border sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+    <div className="min-h-screen bg-gray-50">
+      <header className="bg-white shadow-sm">
+        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-9 h-9 bg-primary/10 rounded-lg">
-              <Image src="/logo.png" alt="Logo" width={24} height={24} className="h-6 w-auto" />
-            </div>
-            <h1 className="text-lg font-semibold text-foreground">
+            <Image src="/logo.png" alt="Logo" width={32} height={32} className="h-8 w-auto" />
+            <h1 className="text-xl font-bold text-gray-900">
               <span className="font-montserrat">Outlook ZEP</span>{" "}
-              <span className="font-normal text-muted">Sync</span>
+              <span className="font-inter font-light">Sync</span>
             </h1>
           </div>
-          <div className="flex items-center gap-3">
-            {/* User info */}
-            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-background rounded-lg border border-border">
-              <div className="w-2 h-2 bg-success rounded-full" />
-              <span className="text-sm text-muted">
-                {session?.user?.email?.split("@")[0]}
-                {employeeLoading && (
-                  <span className="ml-1 text-muted-foreground animate-pulse">...</span>
-                )}
-              </span>
-            </div>
-            
-            {/* Keyboard shortcuts hint */}
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-gray-600">
+              {session?.user?.email}
+              {employeeLoading && (
+                <span className="ml-1 text-gray-400">(Lade ZEP...)</span>
+              )}
+            </span>
             <div 
               className="relative group"
               title="Tastaturkürzel: Esc = Filter löschen, Strg+R = Neu laden"
             >
-              <button className="p-2 text-muted hover:text-foreground hover:bg-background rounded-lg transition">
-                <Keyboard size={18} />
-              </button>
-              <div className="hidden group-hover:block absolute right-0 top-full mt-1 p-3 bg-foreground text-white text-xs rounded-lg shadow-xl whitespace-nowrap z-50 min-w-[180px]">
-                <div className="font-medium mb-2 text-white/80">Tastaturkürzel</div>
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-white/70">Filter löschen</span>
-                    <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] font-mono">Esc</kbd>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-white/70">Termine laden</span>
-                    <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] font-mono">Strg+R</kbd>
-                  </div>
-                </div>
+              <Keyboard size={16} className="text-gray-400 cursor-help" />
+              <div className="hidden group-hover:block absolute right-0 top-full mt-1 p-2 bg-gray-900 text-white text-xs rounded shadow-lg whitespace-nowrap z-50">
+                <div className="font-medium mb-1">Tastaturkürzel</div>
+                <div><kbd className="px-1 bg-gray-700 rounded">Esc</kbd> Filter löschen</div>
+                <div><kbd className="px-1 bg-gray-700 rounded">Strg+R</kbd> Termine laden</div>
               </div>
             </div>
-            
-            {/* Logout button */}
             <button
               onClick={() => signOut({ callbackUrl: "/" })}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm text-muted hover:text-foreground hover:bg-background rounded-lg transition"
+              className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700"
             >
               <LogOut size={16} />
-              <span className="hidden sm:inline">Abmelden</span>
+              Abmelden
             </button>
           </div>
         </div>
@@ -1805,22 +1782,16 @@ export default function Dashboard() {
 
       {employeeError && (
         <div className="max-w-6xl mx-auto px-4 pt-4">
-          <div className="p-4 rounded-xl bg-error-light border border-error/20 text-error flex items-start gap-3">
-            <div className="w-5 h-5 rounded-full bg-error/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-              <X size={12} className="text-error" />
-            </div>
-            <div>
-              <p className="font-medium">ZEP-Verbindungsfehler</p>
-              <p className="text-sm text-error/80 mt-0.5">{employeeError}</p>
-            </div>
+          <div className="p-4 rounded-lg bg-red-50 border border-red-200 text-red-800">
+            <strong>ZEP-Fehler:</strong> {employeeError}
           </div>
         </div>
       )}
 
-      <main className="max-w-6xl mx-auto px-4 py-6 space-y-4">
+      <main className="max-w-6xl mx-auto px-4 py-8 space-y-4">
         {/* Combined Date Picker and Calendar Heatmap with Legend */}
         <div>
-          <div className="bg-card rounded-xl border border-border overflow-hidden shadow-sm">
+          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
             <DateRangePicker
               startDate={startDate}
               endDate={endDate}
@@ -1856,37 +1827,29 @@ export default function Dashboard() {
 
         {message && (
           <div
-            className={`p-4 rounded-xl relative flex items-start gap-3 ${
+            className={`p-4 rounded-lg relative ${
               message.type === "error"
-                ? "bg-error-light text-error border border-error/20"
-                : "bg-success-light text-success border border-success/20"
+                ? "bg-red-50 text-red-800 border border-red-200"
+                : "bg-green-50 text-green-800 border border-green-200"
             }`}
           >
-            <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
-              message.type === "error" ? "bg-error/10" : "bg-success/10"
-            }`}>
-              {message.type === "error" ? <X size={12} /> : <span className="text-xs">✓</span>}
-            </div>
-            <div className="flex-1 pr-6">
+            <button
+              onClick={() => setMessage(null)}
+              className="absolute top-2 right-2 p-1 rounded hover:bg-black/5 transition"
+              aria-label="Meldung schließen"
+            >
+              <X size={16} />
+            </button>
+            <div className="pr-8">
               <p className="font-medium">{message.text}</p>
               {message.details && message.details.length > 0 && (
-                <ul className="mt-2 text-sm opacity-80 space-y-1">
+                <ul className="mt-2 text-sm list-disc list-inside">
                   {message.details.map((detail, idx) => (
-                    <li key={idx} className="flex items-start gap-2">
-                      <span className="text-[10px] mt-1.5">•</span>
-                      {detail}
-                    </li>
+                    <li key={idx}>{detail}</li>
                   ))}
                 </ul>
               )}
             </div>
-            <button
-              onClick={() => setMessage(null)}
-              className="absolute top-3 right-3 p-1 rounded-lg hover:bg-black/5 transition"
-              aria-label="Meldung schließen"
-            >
-              <X size={14} />
-            </button>
           </div>
         )}
 
