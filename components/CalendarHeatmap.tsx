@@ -341,37 +341,28 @@ export default function CalendarHeatmap({
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-4">
       <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-3">
-          <h3 className="text-sm font-medium text-gray-700">Sync-Status</h3>
-          {selectedDate && (
-            <button
-              onClick={() => onDayClick(null)}
-              className="text-xs text-blue-600 hover:text-blue-800 underline"
-            >
-              Datumsfilter aufheben
-            </button>
-          )}
-          {seriesFilterActive && (
-            <button
-              onClick={() => onSeriesClick(false)}
-              className="text-xs text-blue-600 hover:text-blue-800 underline"
-            >
-              Serienfilter aufheben ({seriesData.count} Serien)
-            </button>
-          )}
-        </div>
-        <div className="flex items-center gap-4 text-xs">
-          <div className="flex items-center gap-1">
+        <h3 className="text-sm font-medium text-gray-700">Sync-Status</h3>
+        <div className="flex items-center gap-3 text-xs">
+          <div className="flex items-center gap-1.5">
             <div className="w-3 h-3 rounded-sm bg-green-500" />
-            <span className="text-gray-600">Synchronisiert ({stats.synced})</span>
+            <span className="text-gray-600">Synchronisiert</span>
+            <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 text-xs font-medium bg-gray-100 text-gray-600 rounded-full">
+              {stats.synced}
+            </span>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
             <div className="w-3 h-3 rounded-sm bg-yellow-500" />
-            <span className="text-gray-600">Bearbeitet ({stats.edited})</span>
+            <span className="text-gray-600">Bearbeitet</span>
+            <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 text-xs font-medium bg-gray-100 text-gray-600 rounded-full">
+              {stats.edited}
+            </span>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
             <div className="w-3 h-3 rounded-sm bg-red-400" />
-            <span className="text-gray-600">Unbearbeitet ({stats.unprocessed})</span>
+            <span className="text-gray-600">Unbearbeitet</span>
+            <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 text-xs font-medium bg-gray-100 text-gray-600 rounded-full">
+              {stats.unprocessed}
+            </span>
           </div>
         </div>
       </div>
