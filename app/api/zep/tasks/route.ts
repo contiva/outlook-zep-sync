@@ -19,7 +19,7 @@ export async function GET(request: Request) {
 
   if (!token) {
     return NextResponse.json(
-      { error: "ZEP_SOAP_TOKEN not configured" },
+      { error: "Server configuration error" },
       { status: 500 }
     );
   }
