@@ -6,10 +6,17 @@ import AppointmentRow from "./AppointmentRow";
 import SearchableSelect, { SelectOption } from "./SearchableSelect";
 import { formatZepStartTime, formatZepEndTime } from "@/lib/zep-api";
 
+// Zugeordnete Tätigkeit (zu Projekt oder Vorgang)
+interface AssignedActivity {
+  name: string;      // Tätigkeit-Kürzel
+  standard: boolean; // true wenn Standard-Tätigkeit
+}
+
 interface Project {
   id: number;
   name: string;
   description: string;
+  activities?: AssignedActivity[]; // Dem Projekt zugeordnete Tätigkeiten
 }
 
 interface Task {
@@ -17,6 +24,7 @@ interface Task {
   name: string;
   description: string | null;
   project_id: number;
+  activities?: AssignedActivity[]; // Dem Vorgang zugeordnete Tätigkeiten (leer = erbt vom Projekt)
 }
 
 interface Activity {
@@ -202,15 +210,47 @@ export default function SeriesGroup({
     }));
   }, [seriesProjectId, tasks]);
 
-  const activityOptions: SelectOption[] = useMemo(
-    () =>
-      activities.map((a) => ({
-        value: a.name,
-        label: a.name,
-        description: a.description,
-      })),
-    [activities]
-  );
+  // Konvertiere Activities zu SelectOptions - gefiltert nach Projekt/Vorgang
+  const activityOptions: SelectOption[] = useMemo(() => {
+    // Find the selected task and project
+    let selectedTask: Task | undefined;
+    if (seriesTaskId && seriesProjectId && tasks[seriesProjectId]) {
+      selectedTask = tasks[seriesProjectId].find(t => t.id === seriesTaskId);
+    }
+    const selectedProject = seriesProjectId
+      ? projects.find(p => p.id === seriesProjectId)
+      : undefined;
+
+    // Get assigned activities: Task activities take precedence over Project activities
+    let assignedActivities: AssignedActivity[] = [];
+    if (selectedTask?.activities && selectedTask.activities.length > 0) {
+      assignedActivities = selectedTask.activities;
+    } else if (selectedProject?.activities && selectedProject.activities.length > 0) {
+      assignedActivities = selectedProject.activities;
+    }
+
+    // If we have assigned activities, filter the global activities list
+    if (assignedActivities.length > 0) {
+      const assignedNames = new Set(assignedActivities.map(a => a.name));
+      const filteredActivities = activities.filter(a => assignedNames.has(a.name));
+      
+      return filteredActivities.map((a) => {
+        const assigned = assignedActivities.find(aa => aa.name === a.name);
+        return {
+          value: a.name,
+          label: assigned?.standard ? `${a.name} (Standard)` : a.name,
+          description: a.description,
+        };
+      });
+    }
+
+    // Fallback: show all global activities
+    return activities.map((a) => ({
+      value: a.name,
+      label: a.name,
+      description: a.description,
+    }));
+  }, [activities, projects, tasks, seriesProjectId, seriesTaskId]);
 
   const handleSeriesProjectChange = (projectId: number | null) => {
     if (linkedEdit) {
@@ -220,7 +260,25 @@ export default function SeriesGroup({
 
   const handleSeriesTaskChange = (taskId: number | null) => {
     if (linkedEdit && seriesProjectId) {
-      onApplyToSeries(seriesId, seriesProjectId, taskId, seriesActivityId);
+      // Find standard activity for the selected task
+      let newActivityId = seriesActivityId;
+      if (taskId) {
+        const projectTasks = tasks[seriesProjectId] || [];
+        const selectedTask = projectTasks.find((t) => t.id === taskId);
+        const project = projects.find((p) => p.id === seriesProjectId);
+        
+        // Check task activities first, then project activities
+        const taskActivities = selectedTask?.activities || [];
+        const projectActivities = project?.activities || [];
+        const relevantActivities = taskActivities.length > 0 ? taskActivities : projectActivities;
+        const standardActivity = relevantActivities.find((a) => a.standard);
+        
+        if (standardActivity) {
+          newActivityId = standardActivity.name;
+        }
+      }
+      
+      onApplyToSeries(seriesId, seriesProjectId, taskId, newActivityId);
     }
   };
 

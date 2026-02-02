@@ -11,10 +11,17 @@ import CalendarHeatmap from "@/components/CalendarHeatmap";
 import { saveSyncRecords, SyncRecord } from "@/lib/sync-history";
 import { checkAppointmentsForDuplicates, DuplicateCheckResult, ZepAttendance, formatZepStartTime, formatZepEndTime } from "@/lib/zep-api";
 
+// Zugeordnete Tätigkeit (zu Projekt oder Vorgang)
+interface AssignedActivity {
+  name: string;      // Tätigkeit-Kürzel
+  standard: boolean; // true wenn Standard-Tätigkeit
+}
+
 interface Project {
   id: number;
   name: string;
   description: string;
+  activities?: AssignedActivity[]; // Dem Projekt zugeordnete Tätigkeiten
 }
 
 interface Task {
@@ -22,6 +29,7 @@ interface Task {
   name: string;
   description: string | null;
   project_id: number;
+  activities?: AssignedActivity[]; // Dem Vorgang zugeordnete Tätigkeiten (leer = erbt vom Projekt)
 }
 
 interface Activity {
@@ -94,6 +102,29 @@ interface ZepEntry {
   project_task_id: number;
   activity_id: string;
   billable: boolean;
+  projektNr?: string;
+  vorgangNr?: string;
+}
+
+// Modified entry for rebooking synced entries
+export interface ModifiedEntry {
+  zepId: number;
+  outlookEventId: string;
+  originalProjectId: number;
+  originalTaskId: number;
+  originalActivityId: string;
+  newProjectId: number;
+  newTaskId: number;
+  newActivityId: string;
+  newProjektNr: string;
+  newVorgangNr: string;
+  // Original entry data needed for SOAP modify call
+  userId: string;
+  datum: string;
+  von: string;
+  bis: string;
+  bemerkung?: string;
+  istFakturierbar?: boolean;
 }
 
 // localStorage key for persisting work state
@@ -204,6 +235,10 @@ export default function Dashboard() {
   const [lastLoadedAt, setLastLoadedAt] = useState<Date | null>(
     initialState.appointments.length > 0 ? new Date(getStoredState()?.savedAt || Date.now()) : null
   );
+
+  // State for editing synced entries (rebooking)
+  const [editingAppointments, setEditingAppointments] = useState<Set<string>>(new Set());
+  const [modifiedEntries, setModifiedEntries] = useState<Map<string, ModifiedEntry>>(new Map());
 
   const employeeId = zepEmployee?.username ?? "";
 
@@ -394,14 +429,17 @@ export default function Dashboard() {
   }, [session?.user?.email]);
 
   // Load projects when employeeId or date range changes
+  // Uses today's date as reference for filtering bookable projects
   const loadProjects = useCallback(async () => {
     if (!employeeId) return;
 
     try {
+      // Use today as reference date for project filtering
+      // This ensures we only show projects that are currently bookable
+      const today = new Date().toISOString().split("T")[0];
       const params = new URLSearchParams({
         employeeId: employeeId,
-        startDate: startDate,
-        endDate: endDate,
+        date: today,
       });
       const res = await fetch(`/api/zep/employee-projects?${params}`);
       const data = await res.json();
@@ -411,7 +449,7 @@ export default function Dashboard() {
     } catch (error) {
       console.error("Failed to load projects:", error);
     }
-  }, [employeeId, startDate, endDate]);
+  }, [employeeId]);
 
   useEffect(() => {
     loadProjects();
@@ -419,12 +457,32 @@ export default function Dashboard() {
 
   // Note: Synced entries are loaded together with appointments in loadAppointments()
 
-  const loadTasksForProject = useCallback(async (projectId: number) => {
+  const loadTasksForProject = useCallback(async (projectId: number, options?: { skipFilter?: boolean }) => {
     if (tasks[projectId]) return;
 
     setLoadingTasks((prev) => new Set(prev).add(projectId));
     try {
-      const res = await fetch(`/api/zep/tasks?projectId=${projectId}`);
+      // Find projektNr from loaded projects (avoids extra SOAP call in backend)
+      const project = projects.find(p => p.id === projectId);
+      
+      // Build URL with optional filters
+      const params = new URLSearchParams();
+      
+      // Prefer projektNr over projectId (saves a SOAP call in the backend)
+      if (project?.name) {
+        params.set("projektNr", project.name);
+      } else {
+        params.set("projectId", projectId.toString());
+      }
+      
+      // Apply employee and date filters for new appointments (not for rebooking)
+      if (!options?.skipFilter && employeeId) {
+        params.set("userId", employeeId);
+        // Use today as reference date for filtering active tasks
+        params.set("date", new Date().toISOString().split("T")[0]);
+      }
+      
+      const res = await fetch(`/api/zep/tasks?${params.toString()}`);
       const data = await res.json();
       if (Array.isArray(data)) {
         setTasks((prev) => ({ ...prev, [projectId]: data }));
@@ -438,7 +496,7 @@ export default function Dashboard() {
         return next;
       });
     }
-  }, [tasks]);
+  }, [tasks, employeeId, projects]);
 
   const loadAppointments = async (overrideStartDate?: string, overrideEndDate?: string) => {
     const effectiveStartDate = overrideStartDate ?? startDate;
@@ -447,11 +505,20 @@ export default function Dashboard() {
     setLoading(true);
     setMessage(null);
     try {
-      // Load appointments and ZEP entries in parallel
-      const [appointmentsRes, zepRes] = await Promise.all([
+      // Build projects URL with today's date for filtering bookable projects
+      const today = new Date().toISOString().split("T")[0];
+      const projectsParams = employeeId 
+        ? new URLSearchParams({ employeeId: employeeId, date: today })
+        : null;
+
+      // Load appointments, ZEP entries, and projects in parallel
+      const [appointmentsRes, zepRes, projectsRes] = await Promise.all([
         fetch(`/api/calendar?startDate=${effectiveStartDate}&endDate=${effectiveEndDate}`),
         employeeId 
           ? fetch(`/api/zep/timeentries?employeeId=${employeeId}&startDate=${effectiveStartDate}&endDate=${effectiveEndDate}`)
+          : Promise.resolve(null),
+        projectsParams
+          ? fetch(`/api/zep/employee-projects?${projectsParams}`)
           : Promise.resolve(null),
       ]);
 
@@ -506,20 +573,22 @@ export default function Dashboard() {
           setSyncedEntries(zepData);
           
           // Load tasks for all synced projects so we can display task names
+          // Note: Skip filtering here since we need all tasks to display existing entries
           const syncedProjectIds = [...new Set(zepData.map((entry: ZepEntry) => entry.project_id))];
           syncedProjectIds.forEach((projectId) => {
             if (!tasks[projectId]) {
-              // Load tasks in background (don't await)
-              fetch(`/api/zep/tasks?projectId=${projectId}`)
-                .then((res) => res.json())
-                .then((data) => {
-                  if (Array.isArray(data)) {
-                    setTasks((prev) => ({ ...prev, [projectId]: data }));
-                  }
-                })
-                .catch((err) => console.error("Failed to load tasks for synced project:", err));
+              // Load tasks in background without filtering (skipFilter: true)
+              loadTasksForProject(projectId, { skipFilter: true });
             }
           });
+        }
+      }
+
+      // Load projects
+      if (projectsRes) {
+        const projectsData = await projectsRes.json();
+        if (Array.isArray(projectsData)) {
+          setProjects(projectsData);
         }
       }
       
@@ -573,6 +642,27 @@ export default function Dashboard() {
     );
   };
 
+  // Reset: Projekt/Task/Tätigkeit-Zuweisungen zurücksetzen (Auswahl bleibt erhalten)
+  const resetPendingSyncs = () => {
+    setAppointments((prev) =>
+      prev.map((apt) => {
+        // Bereits gesynced? Nicht ändern
+        if (isAppointmentSynced(apt, syncedEntries)) return apt;
+        // Nur Zuweisungen zurücksetzen, selected bleibt unverändert
+        return {
+          ...apt,
+          projectId: null,
+          taskId: null,
+          activityId: "be", // Default zurücksetzen
+        };
+      })
+    );
+    // Auch Editing-State zurücksetzen
+    setEditingAppointments(new Set());
+    setModifiedEntries(new Map());
+    setMessage(null);
+  };
+
   const changeProject = async (id: string, projectId: number | null) => {
     setAppointments((prev) =>
       prev.map((apt) =>
@@ -587,7 +677,31 @@ export default function Dashboard() {
 
   const changeTask = (id: string, taskId: number | null) => {
     setAppointments((prev) =>
-      prev.map((apt) => (apt.id === id ? { ...apt, taskId } : apt))
+      prev.map((apt) => {
+        if (apt.id !== id) return apt;
+        
+        // Find standard activity for the selected task
+        let newActivityId = apt.activityId;
+        if (taskId && apt.projectId) {
+          const projectTasks = tasks[apt.projectId] || [];
+          const selectedTask = projectTasks.find((t) => t.id === taskId);
+          
+          // Check task activities first, then project activities
+          const taskActivities = selectedTask?.activities || [];
+          const project = projects.find((p) => p.id === apt.projectId);
+          const projectActivities = project?.activities || [];
+          
+          // Use task activities if available, otherwise project activities
+          const relevantActivities = taskActivities.length > 0 ? taskActivities : projectActivities;
+          const standardActivity = relevantActivities.find((a) => a.standard);
+          
+          if (standardActivity) {
+            newActivityId = standardActivity.name;
+          }
+        }
+        
+        return { ...apt, taskId, activityId: newActivityId };
+      })
     );
   };
 
@@ -617,113 +731,333 @@ export default function Dashboard() {
     );
   };
 
-  const submitToZep = async (appointmentsToSync: Appointment[]) => {
-    // Use the appointments passed from the dialog (already filtered by user)
-    const syncReadyAppointments = appointmentsToSync;
-    
-    if (syncReadyAppointments.length === 0) {
-      setMessage({ text: "Keine Termine zum Synchronisieren vorhanden.", type: "error" });
-      return;
-    }
-    
-    const entries = syncReadyAppointments.map((apt) => {
-      const startDt = new Date(apt.start.dateTime);
-      const endDt = new Date(apt.end.dateTime);
+  // =========================================================================
+  // Functions for editing synced entries (rebooking)
+  // =========================================================================
 
-      // ZEP API requires date in YYYY-MM-DD format (not ISO timestamp)
-      const dateStr = startDt.toISOString().split("T")[0];
+  // Helper: Find the synced ZEP entry for an appointment
+  const findSyncedEntry = useCallback((apt: Appointment): ZepEntry | null => {
+    if (!syncedEntries || syncedEntries.length === 0) return null;
 
-      // ZEP requires times in 15-minute intervals
-      // Round start time DOWN, end time UP (maximizes booked time)
-      return {
-        date: dateStr,
-        from: formatZepStartTime(startDt),
-        to: formatZepEndTime(endDt),
-        employee_id: employeeId,
-        note: apt.subject,
-        billable: true,
-        activity_id: apt.activityId,
-        project_id: apt.projectId!,
-        project_task_id: apt.taskId!,
-      };
+    const aptDate = new Date(apt.start.dateTime);
+    const aptDateStr = aptDate.toISOString().split("T")[0];
+    const aptFromTime = aptDate.toTimeString().slice(0, 8);
+    const aptEndDate = new Date(apt.end.dateTime);
+    const aptToTime = aptEndDate.toTimeString().slice(0, 8);
+
+    return syncedEntries.find((entry) => {
+      const entryDate = entry.date.split("T")[0];
+      return (
+        entry.note === apt.subject &&
+        entryDate === aptDateStr &&
+        entry.from === aptFromTime &&
+        entry.to === aptToTime
+      );
+    }) || null;
+  }, [syncedEntries]);
+
+  // Start editing a synced appointment
+  const startEditingSyncedAppointment = useCallback((appointmentId: string) => {
+    setEditingAppointments((prev) => new Set(prev).add(appointmentId));
+  }, []);
+
+  // Cancel editing a synced appointment
+  const cancelEditingSyncedAppointment = useCallback((appointmentId: string) => {
+    setEditingAppointments((prev) => {
+      const next = new Set(prev);
+      next.delete(appointmentId);
+      return next;
     });
+    setModifiedEntries((prev) => {
+      const next = new Map(prev);
+      next.delete(appointmentId);
+      return next;
+    });
+  }, []);
 
-    setSubmitting(true);
-    try {
-      const res = await fetch("/api/zep/timeentries", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ entries }),
-      });
+  // Update a modified entry's project
+  const updateModifiedProject = useCallback(async (
+    appointmentId: string,
+    apt: Appointment,
+    syncedEntry: ZepEntry,
+    projectId: number
+  ) => {
+    // Load tasks for the new project
+    await loadTasksForProject(projectId);
 
-      const result = await res.json();
-      
-      // Build a better success/error message
-      if (result.succeeded > 0) {
-        const totalMinutes = syncReadyAppointments.reduce((acc, apt) => {
-          const start = new Date(apt.start.dateTime);
-          const end = new Date(apt.end.dateTime);
-          return acc + (end.getTime() - start.getTime()) / 1000 / 60;
-        }, 0);
-        const hours = Math.floor(totalMinutes / 60);
-        const mins = Math.round(totalMinutes % 60);
-        
-        setMessage({
-          text: `${result.succeeded} Termin${result.succeeded > 1 ? "e" : ""} an ZEP übertragen (${hours}h ${mins}min)`,
-          type: "success",
-          details: result.errors?.length > 0 ? result.errors : undefined,
+    // Find the project to get projektNr
+    const project = projects.find((p) => p.id === projectId);
+    if (!project) return;
+
+    setModifiedEntries((prev) => {
+      const next = new Map(prev);
+      const existing = next.get(appointmentId);
+
+      if (existing) {
+        // Update existing entry
+        next.set(appointmentId, {
+          ...existing,
+          newProjectId: projectId,
+          newTaskId: 0, // Reset task when project changes
+          newProjektNr: project.name, // project.name is projektNr in our mapping
+          newVorgangNr: "", // Will be set when task is selected
         });
       } else {
+        // Create new modified entry
+        next.set(appointmentId, {
+          zepId: syncedEntry.id,
+          outlookEventId: appointmentId,
+          originalProjectId: syncedEntry.project_id,
+          originalTaskId: syncedEntry.project_task_id,
+          originalActivityId: syncedEntry.activity_id,
+          newProjectId: projectId,
+          newTaskId: 0,
+          newActivityId: syncedEntry.activity_id,
+          newProjektNr: project.name,
+          newVorgangNr: "",
+          userId: syncedEntry.employee_id,
+          datum: syncedEntry.date.split("T")[0],
+          von: syncedEntry.from.slice(0, 5),
+          bis: syncedEntry.to.slice(0, 5),
+          bemerkung: syncedEntry.note || undefined,
+          istFakturierbar: syncedEntry.billable,
+        });
+      }
+      return next;
+    });
+  }, [projects, loadTasksForProject]);
+
+  // Update a modified entry's task
+  const updateModifiedTask = useCallback((
+    appointmentId: string,
+    taskId: number
+  ) => {
+    setModifiedEntries((prev) => {
+      const next = new Map(prev);
+      const existing = next.get(appointmentId);
+      if (!existing) return prev;
+
+      // Find the task to get vorgangNr
+      const projectTasks = tasks[existing.newProjectId] || [];
+      const task = projectTasks.find((t) => t.id === taskId);
+      if (!task) return prev;
+
+      next.set(appointmentId, {
+        ...existing,
+        newTaskId: taskId,
+        newVorgangNr: task.name, // task.name is vorgangNr in our mapping
+      });
+      return next;
+    });
+  }, [tasks]);
+
+  // Update a modified entry's activity
+  const updateModifiedActivity = useCallback((
+    appointmentId: string,
+    apt: Appointment,
+    syncedEntry: ZepEntry,
+    activityId: string
+  ) => {
+    setModifiedEntries((prev) => {
+      const next = new Map(prev);
+      const existing = next.get(appointmentId);
+
+      if (existing) {
+        next.set(appointmentId, {
+          ...existing,
+          newActivityId: activityId,
+        });
+      } else {
+        // Find current project/task info
+        const project = projects.find((p) => p.id === syncedEntry.project_id);
+        const projectTasks = tasks[syncedEntry.project_id] || [];
+        const task = projectTasks.find((t) => t.id === syncedEntry.project_task_id);
+
+        next.set(appointmentId, {
+          zepId: syncedEntry.id,
+          outlookEventId: appointmentId,
+          originalProjectId: syncedEntry.project_id,
+          originalTaskId: syncedEntry.project_task_id,
+          originalActivityId: syncedEntry.activity_id,
+          newProjectId: syncedEntry.project_id,
+          newTaskId: syncedEntry.project_task_id,
+          newActivityId: activityId,
+          newProjektNr: project?.name || syncedEntry.projektNr || "",
+          newVorgangNr: task?.name || syncedEntry.vorgangNr || "",
+          userId: syncedEntry.employee_id,
+          datum: syncedEntry.date.split("T")[0],
+          von: syncedEntry.from.slice(0, 5),
+          bis: syncedEntry.to.slice(0, 5),
+          bemerkung: syncedEntry.note || undefined,
+          istFakturierbar: syncedEntry.billable,
+        });
+      }
+      return next;
+    });
+  }, [projects, tasks]);
+
+  const submitToZep = async (appointmentsToSync: Appointment[], entriesToModify?: ModifiedEntry[]) => {
+    // Use the appointments passed from the dialog (already filtered by user)
+    const syncReadyAppointments = appointmentsToSync;
+    const modificationsToSubmit = entriesToModify || Array.from(modifiedEntries.values()).filter(
+      (e) => e.newProjektNr && e.newVorgangNr // Only submit complete modifications
+    );
+    
+    if (syncReadyAppointments.length === 0 && modificationsToSubmit.length === 0) {
+      setMessage({ text: "Keine Termine zum Synchronisieren oder Aktualisieren vorhanden.", type: "error" });
+      return;
+    }
+
+    setSubmitting(true);
+    
+    let createSucceeded = 0;
+    let createFailed = 0;
+    let modifySucceeded = 0;
+    let modifyFailed = 0;
+    const allErrors: string[] = [];
+
+    try {
+      // 1. Create new entries
+      if (syncReadyAppointments.length > 0) {
+        const entries = syncReadyAppointments.map((apt) => {
+          const startDt = new Date(apt.start.dateTime);
+          const endDt = new Date(apt.end.dateTime);
+          const dateStr = startDt.toISOString().split("T")[0];
+
+          return {
+            date: dateStr,
+            from: formatZepStartTime(startDt),
+            to: formatZepEndTime(endDt),
+            employee_id: employeeId,
+            note: apt.subject,
+            billable: true,
+            activity_id: apt.activityId,
+            project_id: apt.projectId!,
+            project_task_id: apt.taskId!,
+          };
+        });
+
+        const res = await fetch("/api/zep/timeentries", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ entries }),
+        });
+
+        const result = await res.json();
+        createSucceeded = result.succeeded || 0;
+        createFailed = result.failed || 0;
+        if (result.errors) allErrors.push(...result.errors);
+
+        if (result.succeeded > 0) {
+          // Save sync history with ZEP IDs
+          if (result.createdEntries && result.createdEntries.length > 0) {
+            const syncRecords: SyncRecord[] = result.createdEntries.map(
+              (entry: { index: number; zepId: number }) => {
+                const apt = syncReadyAppointments[entry.index];
+                return {
+                  outlookEventId: apt.id,
+                  zepAttendanceId: entry.zepId,
+                  subject: apt.subject,
+                  date: apt.start.dateTime.split("T")[0],
+                  syncedAt: new Date().toISOString(),
+                };
+              }
+            );
+            saveSyncRecords(syncRecords);
+          }
+          
+          // Track submitted IDs for heatmap
+          const submittedAppointmentIds = new Set(syncReadyAppointments.map((a) => a.id));
+          setSubmittedIds((prev) => new Set([...prev, ...submittedAppointmentIds]));
+          
+          // Deselect the submitted appointments
+          setAppointments((prev) => 
+            prev.map((a) => 
+              submittedAppointmentIds.has(a.id) 
+                ? { ...a, selected: false }
+                : a
+            )
+          );
+        }
+      }
+
+      // 2. Modify existing entries (rebooking)
+      if (modificationsToSubmit.length > 0) {
+        const modifyEntries = modificationsToSubmit.map((mod) => ({
+          id: String(mod.zepId),
+          projektNr: mod.newProjektNr,
+          vorgangNr: mod.newVorgangNr,
+          taetigkeit: mod.newActivityId,
+          userId: mod.userId,
+          datum: mod.datum,
+          von: mod.von,
+          bis: mod.bis,
+          bemerkung: mod.bemerkung,
+          istFakturierbar: mod.istFakturierbar,
+        }));
+
+        const modRes = await fetch("/api/zep/timeentries", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ entries: modifyEntries }),
+        });
+
+        const modResult = await modRes.json();
+        modifySucceeded = modResult.succeeded || 0;
+        modifyFailed = modResult.failed || 0;
+        if (modResult.errors) allErrors.push(...modResult.errors);
+
+        if (modResult.succeeded > 0) {
+          // Clear modified entries that were successfully updated
+          setModifiedEntries(new Map());
+          setEditingAppointments(new Set());
+        }
+      }
+
+      // Build success/error message
+      const totalSucceeded = createSucceeded + modifySucceeded;
+      const totalFailed = createFailed + modifyFailed;
+
+      if (totalSucceeded > 0) {
+        const parts: string[] = [];
+        if (createSucceeded > 0) {
+          const totalMinutes = syncReadyAppointments.reduce((acc, apt) => {
+            const start = new Date(apt.start.dateTime);
+            const end = new Date(apt.end.dateTime);
+            return acc + (end.getTime() - start.getTime()) / 1000 / 60;
+          }, 0);
+          const hours = Math.floor(totalMinutes / 60);
+          const mins = Math.round(totalMinutes % 60);
+          parts.push(`${createSucceeded} neu erstellt (${hours}h ${mins}min)`);
+        }
+        if (modifySucceeded > 0) {
+          parts.push(`${modifySucceeded} aktualisiert`);
+        }
+        
         setMessage({
-          text: result.message || "Fehler bei der Übertragung",
+          text: parts.join(", "),
+          type: "success",
+          details: allErrors.length > 0 ? allErrors : undefined,
+        });
+      } else if (totalFailed > 0) {
+        setMessage({
+          text: `${totalFailed} Fehler bei der Übertragung`,
           type: "error",
-          details: result.errors,
+          details: allErrors,
         });
       }
 
-      if (result.succeeded > 0) {
-        // Save sync history with ZEP IDs
-        if (result.createdEntries && result.createdEntries.length > 0) {
-          const syncRecords: SyncRecord[] = result.createdEntries.map(
-            (entry: { index: number; zepId: number }) => {
-              const apt = syncReadyAppointments[entry.index];
-              return {
-                outlookEventId: apt.id,
-                zepAttendanceId: entry.zepId,
-                subject: apt.subject,
-                date: apt.start.dateTime.split("T")[0],
-                syncedAt: new Date().toISOString(),
-              };
-            }
-          );
-          saveSyncRecords(syncRecords);
-        }
-        
-        // Track submitted IDs for heatmap
-        const submittedAppointmentIds = new Set(syncReadyAppointments.map((a) => a.id));
-        setSubmittedIds((prev) => new Set([...prev, ...submittedAppointmentIds]));
-        
-        // Reload synced entries to update status display
-        if (employeeId) {
-          try {
-            const res = await fetch(`/api/zep/timeentries?employeeId=${employeeId}&startDate=${startDate}&endDate=${endDate}`);
-            const data = await res.json();
-            if (Array.isArray(data)) {
-              setSyncedEntries(data);
-            }
-          } catch (e) {
-            console.error("Failed to reload synced entries:", e);
+      // Reload synced entries to update status display
+      if (employeeId && totalSucceeded > 0) {
+        try {
+          const res = await fetch(`/api/zep/timeentries?employeeId=${employeeId}&startDate=${startDate}&endDate=${endDate}`);
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            setSyncedEntries(data);
           }
+        } catch (e) {
+          console.error("Failed to reload synced entries:", e);
         }
-        
-        // Deselect the submitted appointments (they stay in list but show as synced)
-        setAppointments((prev) => 
-          prev.map((a) => 
-            submittedAppointmentIds.has(a.id) 
-              ? { ...a, selected: false }
-              : a
-          )
-        );
       }
     } catch (error) {
       console.error("Submit error:", error);
@@ -903,7 +1237,16 @@ export default function Dashboard() {
           onActivityChange={changeActivity}
           onApplyToSeries={applyToSeries}
           onSubmit={submitToZep}
+          onReset={resetPendingSyncs}
           submitting={submitting}
+          // Editing synced entries (rebooking)
+          editingAppointments={editingAppointments}
+          modifiedEntries={modifiedEntries}
+          onStartEditSynced={startEditingSyncedAppointment}
+          onCancelEditSynced={cancelEditingSyncedAppointment}
+          onModifyProject={updateModifiedProject}
+          onModifyTask={updateModifiedTask}
+          onModifyActivity={updateModifiedActivity}
         />
       </main>
     </div>

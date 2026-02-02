@@ -1,16 +1,15 @@
 import { NextResponse } from "next/server";
-import { getZepProjectsForEmployee } from "@/lib/zep-api";
+import { getBookableProjects, mapProjektToRestFormat } from "@/lib/zep-soap";
 
 export async function GET(request: Request) {
-  const token = process.env.ZEP_API_TOKEN;
+  const token = process.env.ZEP_SOAP_TOKEN;
   const { searchParams } = new URL(request.url);
   const employeeId = searchParams.get("employeeId");
-  const startDate = searchParams.get("startDate");
-  const endDate = searchParams.get("endDate");
+  const referenceDate = searchParams.get("date"); // Date for which to check bookability
 
   if (!token) {
     return NextResponse.json(
-      { error: "ZEP_API_TOKEN not configured" },
+      { error: "ZEP_SOAP_TOKEN not configured" },
       { status: 500 }
     );
   }
@@ -23,12 +22,12 @@ export async function GET(request: Request) {
   }
 
   try {
-    const projects = await getZepProjectsForEmployee(
+    const projekte = await getBookableProjects(
       token,
       employeeId,
-      startDate || undefined,
-      endDate || undefined
+      referenceDate || undefined
     );
+    const projects = projekte.map(mapProjektToRestFormat);
     return NextResponse.json(projects);
   } catch (error) {
     console.error("Failed to fetch employee projects:", error);

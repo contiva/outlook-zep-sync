@@ -3,15 +3,22 @@
 import { useMemo } from "react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
-import { Users, CheckCircle, CloudUpload, ExternalLink, AlertTriangle } from "lucide-react";
+import { Users, CheckCircle, CloudUpload, ExternalLink, AlertTriangle, Pencil, X } from "lucide-react";
 import { getZepIdForOutlookEvent, getZepAttendanceUrl } from "@/lib/sync-history";
 import SearchableSelect, { SelectOption } from "./SearchableSelect";
 import { DuplicateCheckResult } from "@/lib/zep-api";
+
+// Zugeordnete Tätigkeit (zu Projekt oder Vorgang)
+interface AssignedActivity {
+  name: string;      // Tätigkeit-Kürzel
+  standard: boolean; // true wenn Standard-Tätigkeit
+}
 
 interface Project {
   id: number;
   name: string;
   description: string;
+  activities?: AssignedActivity[]; // Dem Projekt zugeordnete Tätigkeiten
 }
 
 interface Task {
@@ -19,6 +26,7 @@ interface Task {
   name: string;
   description: string | null;
   project_id: number;
+  activities?: AssignedActivity[]; // Dem Vorgang zugeordnete Tätigkeiten (leer = erbt vom Projekt)
 }
 
 interface Activity {
@@ -27,11 +35,32 @@ interface Activity {
 }
 
 interface SyncedEntry {
-  id?: number;
+  id: number;
+  date: string;
+  from: string;
+  to: string;
+  note: string | null;
+  employee_id: string;
   project_id: number;
   project_task_id: number;
   activity_id: string;
   billable: boolean;
+  projektNr?: string;
+  vorgangNr?: string;
+}
+
+// Modified entry for rebooking
+interface ModifiedEntry {
+  zepId: number;
+  outlookEventId: string;
+  originalProjectId: number;
+  originalTaskId: number;
+  originalActivityId: string;
+  newProjectId: number;
+  newTaskId: number;
+  newActivityId: string;
+  newProjektNr: string;
+  newVorgangNr: string;
 }
 
 interface Attendee {
@@ -81,6 +110,14 @@ interface AppointmentRowProps {
   onProjectChange: (id: string, projectId: number | null) => void;
   onTaskChange: (id: string, taskId: number | null) => void;
   onActivityChange: (id: string, activityId: string) => void;
+  // Editing synced entries (rebooking)
+  isEditing?: boolean;
+  modifiedEntry?: ModifiedEntry;
+  onStartEditSynced?: (appointmentId: string) => void;
+  onCancelEditSynced?: (appointmentId: string) => void;
+  onModifyProject?: (appointmentId: string, apt: Appointment, syncedEntry: SyncedEntry, projectId: number) => void;
+  onModifyTask?: (appointmentId: string, taskId: number) => void;
+  onModifyActivity?: (appointmentId: string, apt: Appointment, syncedEntry: SyncedEntry, activityId: string) => void;
 }
 
 function getStatusColor(response: string): string {
@@ -128,6 +165,13 @@ export default function AppointmentRow({
   onProjectChange,
   onTaskChange,
   onActivityChange,
+  isEditing = false,
+  modifiedEntry,
+  onStartEditSynced,
+  onCancelEditSynced,
+  onModifyProject,
+  onModifyTask,
+  onModifyActivity,
 }: AppointmentRowProps) {
   const startDate = new Date(appointment.start.dateTime);
   const endDate = new Date(appointment.end.dateTime);
@@ -165,16 +209,73 @@ export default function AppointmentRow({
     [tasks]
   );
 
-  // Konvertiere Activities zu SelectOptions
-  const activityOptions: SelectOption[] = useMemo(
-    () =>
-      activities.map((a) => ({
-        value: a.name,
-        label: a.name,
-        description: a.description,
-      })),
-    [activities]
-  );
+  // Task options for editing mode (based on modified project or synced project)
+  const editingTaskOptions: SelectOption[] = useMemo(() => {
+    if (!isEditing || !allTasks) return [];
+    const projectId = modifiedEntry?.newProjectId || syncedEntry?.project_id;
+    if (!projectId) return [];
+    const projectTasks = allTasks[projectId] || [];
+    return projectTasks.map((t) => ({
+      value: t.id,
+      label: t.name,
+      description: t.description,
+    }));
+  }, [isEditing, allTasks, modifiedEntry?.newProjectId, syncedEntry?.project_id]);
+
+  // Konvertiere Activities zu SelectOptions - gefiltert nach Projekt/Vorgang
+  const activityOptions: SelectOption[] = useMemo(() => {
+    // Determine which project and task are currently selected
+    const selectedProjectId = isEditing
+      ? (modifiedEntry?.newProjectId || syncedEntry?.project_id)
+      : appointment.projectId;
+    const selectedTaskId = isEditing
+      ? (modifiedEntry?.newTaskId || syncedEntry?.project_task_id)
+      : appointment.taskId;
+
+    // Find the selected task and project
+    let selectedTask: Task | undefined;
+    if (selectedTaskId && selectedProjectId) {
+      // In editing mode, use allTasks; otherwise use tasks prop
+      if (isEditing && allTasks && allTasks[selectedProjectId]) {
+        selectedTask = allTasks[selectedProjectId].find(t => t.id === selectedTaskId);
+      } else {
+        selectedTask = tasks.find(t => t.id === selectedTaskId);
+      }
+    }
+    const selectedProject = selectedProjectId
+      ? projects.find(p => p.id === selectedProjectId)
+      : undefined;
+
+    // Get assigned activities: Task activities take precedence over Project activities
+    let assignedActivities: AssignedActivity[] = [];
+    if (selectedTask?.activities && selectedTask.activities.length > 0) {
+      assignedActivities = selectedTask.activities;
+    } else if (selectedProject?.activities && selectedProject.activities.length > 0) {
+      assignedActivities = selectedProject.activities;
+    }
+
+    // If we have assigned activities, filter the global activities list
+    if (assignedActivities.length > 0) {
+      const assignedNames = new Set(assignedActivities.map(a => a.name));
+      const filteredActivities = activities.filter(a => assignedNames.has(a.name));
+      
+      return filteredActivities.map((a) => {
+        const assigned = assignedActivities.find(aa => aa.name === a.name);
+        return {
+          value: a.name,
+          label: assigned?.standard ? `${a.name} (Standard)` : a.name,
+          description: a.description,
+        };
+      });
+    }
+
+    // Fallback: show all global activities
+    return activities.map((a) => ({
+      value: a.name,
+      label: a.name,
+      description: a.description,
+    }));
+  }, [activities, projects, tasks, allTasks, appointment.projectId, appointment.taskId, isEditing, modifiedEntry?.newProjectId, modifiedEntry?.newTaskId, syncedEntry?.project_id, syncedEntry?.project_task_id]);
 
   // Get ZEP link if this appointment was synced
   const zepLink = useMemo(() => {
@@ -184,6 +285,22 @@ export default function AppointmentRow({
     }
     return null;
   }, [appointment.id]);
+
+  // Check if this entry has been modified (for visual indicator)
+  const isModified = useMemo(() => {
+    if (!modifiedEntry || !syncedEntry) return false;
+    return (
+      modifiedEntry.newProjectId !== syncedEntry.project_id ||
+      modifiedEntry.newTaskId !== syncedEntry.project_task_id ||
+      modifiedEntry.newActivityId !== syncedEntry.activity_id
+    );
+  }, [modifiedEntry, syncedEntry]);
+
+  // Check if modification is complete (has project and task selected)
+  const isModificationComplete = useMemo(() => {
+    if (!modifiedEntry) return false;
+    return modifiedEntry.newProjectId > 0 && modifiedEntry.newTaskId > 0;
+  }, [modifiedEntry]);
 
   // Get synced project/task info for display
   const syncedInfo = useMemo(() => {
@@ -213,7 +330,7 @@ export default function AppointmentRow({
   return (
     <div
       className={`p-4 border-b border-gray-100 ${
-        appointment.selected || isSynced ? "bg-white" : "bg-gray-50 opacity-60"
+        appointment.selected || isSynced ? "bg-white" : "bg-gray-50"
       }`}
     >
       <div className="flex items-start gap-4">
@@ -405,12 +522,16 @@ export default function AppointmentRow({
           )}
 
           {/* Synced entry info: show project, task, activity */}
-          {isSynced && syncedInfo && (
+          {isSynced && syncedInfo && !isEditing && (
             <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-green-50 text-green-700 border border-green-200">
+              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded border ${
+                isModified 
+                  ? "bg-amber-50 text-amber-700 border-amber-300" 
+                  : "bg-green-50 text-green-700 border-green-200"
+              }`}>
                 <span className="font-medium">{syncedInfo.projectName}</span>
                 {syncedInfo.taskName && (
-                  <span className="text-green-600">/ {syncedInfo.taskName}</span>
+                  <span className={isModified ? "text-amber-600" : "text-green-600"}>/ {syncedInfo.taskName}</span>
                 )}
               </span>
               <span className="text-gray-400">•</span>
@@ -420,6 +541,96 @@ export default function AppointmentRow({
                   <span className="text-gray-400">•</span>
                   <span className="text-gray-500 text-xs">(nicht abrechenbar)</span>
                 </>
+              )}
+              {isModified && (
+                <>
+                  <span className="text-gray-400">•</span>
+                  <span className="text-amber-600 text-xs font-medium">Geändert</span>
+                </>
+              )}
+              {/* Edit button */}
+              {onStartEditSynced && (
+                <button
+                  onClick={() => onStartEditSynced(appointment.id)}
+                  className="ml-2 p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition"
+                  title="Projekt/Task ändern"
+                >
+                  <Pencil size={14} />
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Editing UI for synced entries */}
+          {isSynced && isEditing && syncedEntry && (
+            <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm font-medium text-blue-800">Eintrag bearbeiten</span>
+                {onCancelEditSynced && (
+                  <button
+                    onClick={() => onCancelEditSynced(appointment.id)}
+                    className="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition"
+                    title="Bearbeitung abbrechen"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-3">
+                {/* Projekt-Dropdown */}
+                <div className="flex flex-col">
+                  <label className="text-xs text-gray-500 mb-1">Projekt</label>
+                  <SearchableSelect
+                    options={projectOptions}
+                    value={modifiedEntry?.newProjectId || syncedEntry.project_id}
+                    onChange={(val) => {
+                      if (val !== null && onModifyProject && syncedEntry) {
+                        onModifyProject(appointment.id, appointment, syncedEntry, Number(val));
+                      }
+                    }}
+                    placeholder="-- Projekt wählen --"
+                    className="w-full sm:w-96"
+                  />
+                </div>
+
+                {/* Task-Dropdown */}
+                <div className="flex flex-col">
+                  <label className="text-xs text-gray-500 mb-1">Task</label>
+                  <SearchableSelect
+                    options={editingTaskOptions}
+                    value={modifiedEntry?.newTaskId || syncedEntry.project_task_id}
+                    onChange={(val) => {
+                      if (val !== null && onModifyTask) {
+                        onModifyTask(appointment.id, Number(val));
+                      }
+                    }}
+                    placeholder="-- Task wählen --"
+                    disabled={editingTaskOptions.length === 0}
+                    disabledMessage={editingTaskOptions.length === 0 ? "Laden..." : undefined}
+                    className="w-full sm:w-96"
+                  />
+                </div>
+
+                {/* Activity-Dropdown */}
+                <div className="flex flex-col">
+                  <label className="text-xs text-gray-500 mb-1">Tätigkeit</label>
+                  <SearchableSelect
+                    options={activityOptions}
+                    value={modifiedEntry?.newActivityId || syncedEntry.activity_id}
+                    onChange={(val) => {
+                      if (val !== null && onModifyActivity && syncedEntry) {
+                        onModifyActivity(appointment.id, appointment, syncedEntry, String(val));
+                      }
+                    }}
+                    placeholder="-- Tätigkeit wählen --"
+                    className="w-full sm:w-56"
+                  />
+                </div>
+              </div>
+              {isModificationComplete && isModified && (
+                <div className="mt-2 text-xs text-amber-700">
+                  Änderungen werden beim nächsten Sync übertragen.
+                </div>
               )}
             </div>
           )}

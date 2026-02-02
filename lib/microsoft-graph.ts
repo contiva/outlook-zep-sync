@@ -70,6 +70,9 @@ export async function getCalendarEvents(
       headers: {
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
+        // Request times in Europe/Berlin timezone
+        // This ensures start.dateTime and end.dateTime are in local German time
+        "Prefer": 'outlook.timezone="Europe/Berlin"',
       },
     });
 

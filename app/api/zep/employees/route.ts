@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
-import { getZepEmployees } from "@/lib/zep-api";
+import { readMitarbeiter, findEmployeeByEmail, mapMitarbeiterToRestFormat } from "@/lib/zep-soap";
 
 // GET /api/zep/employees?email=robert.fels@contiva.com
 // Returns matching ZEP employee or 404
 export async function GET(request: Request) {
-  const token = process.env.ZEP_API_TOKEN;
+  const token = process.env.ZEP_SOAP_TOKEN;
 
   if (!token) {
     return NextResponse.json(
-      { error: "ZEP_API_TOKEN not configured" },
+      { error: "ZEP_SOAP_TOKEN not configured" },
       { status: 500 }
     );
   }
@@ -24,26 +24,16 @@ export async function GET(request: Request) {
   }
 
   try {
-    const employees = await getZepEmployees(token);
-    
-    // Case-insensitive email match
-    const match = employees.find(
-      (emp) => emp.email?.toLowerCase() === email.toLowerCase()
-    );
+    const employee = await findEmployeeByEmail(token, email);
 
-    if (!match) {
+    if (!employee) {
       return NextResponse.json(
         { error: "No matching employee found for this email" },
         { status: 404 }
       );
     }
 
-    return NextResponse.json({
-      username: match.username,
-      firstname: match.firstname,
-      lastname: match.lastname,
-      email: match.email,
-    });
+    return NextResponse.json(mapMitarbeiterToRestFormat(employee));
   } catch (error) {
     console.error("Failed to fetch employees:", error);
     return NextResponse.json(

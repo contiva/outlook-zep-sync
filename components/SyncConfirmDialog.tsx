@@ -1,9 +1,29 @@
 "use client";
 
 import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
-import { X, CloudUpload, AlertTriangle } from "lucide-react";
+import { X, CloudUpload, AlertTriangle, RefreshCw } from "lucide-react";
 import { DuplicateCheckResult } from "@/lib/zep-api";
 import { useMemo, useState, useEffect } from "react";
+
+// Modified entry for rebooking synced entries
+interface ModifiedEntry {
+  zepId: number;
+  outlookEventId: string;
+  originalProjectId: number;
+  originalTaskId: number;
+  originalActivityId: string;
+  newProjectId: number;
+  newTaskId: number;
+  newActivityId: string;
+  newProjektNr: string;
+  newVorgangNr: string;
+  userId: string;
+  datum: string;
+  von: string;
+  bis: string;
+  bemerkung?: string;
+  istFakturierbar?: boolean;
+}
 
 interface Project {
   id: number;
@@ -24,11 +44,12 @@ interface Appointment {
 interface SyncConfirmDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (includedAppointments: Appointment[]) => void;
+  onConfirm: (includedAppointments: Appointment[], modifiedEntries?: ModifiedEntry[]) => void;
   appointments: Appointment[];
   projects: Project[];
   submitting: boolean;
   duplicateWarnings?: Map<string, DuplicateCheckResult>;
+  modifiedEntries?: Map<string, ModifiedEntry>;
 }
 
 export default function SyncConfirmDialog({
@@ -39,16 +60,46 @@ export default function SyncConfirmDialog({
   projects,
   submitting,
   duplicateWarnings,
+  modifiedEntries,
 }: SyncConfirmDialogProps) {
   // Track which appointments are excluded from sync
   const [excludedIds, setExcludedIds] = useState<Set<string>>(new Set());
+  // Track which modifications are excluded
+  const [excludedModificationIds, setExcludedModificationIds] = useState<Set<string>>(new Set());
   
   // Reset excluded when dialog opens
   useEffect(() => {
     if (isOpen) {
       setExcludedIds(new Set());
+      setExcludedModificationIds(new Set());
     }
   }, [isOpen]);
+
+  // Get complete modifications (have both project and task)
+  const completeModifications = useMemo(() => {
+    if (!modifiedEntries) return [];
+    return Array.from(modifiedEntries.values()).filter(
+      (mod) => mod.newProjectId > 0 && mod.newTaskId > 0
+    );
+  }, [modifiedEntries]);
+
+  // Filter to only included modifications
+  const includedModifications = useMemo(() => {
+    return completeModifications.filter(mod => !excludedModificationIds.has(mod.outlookEventId));
+  }, [completeModifications, excludedModificationIds]);
+
+  // Toggle modification exclude/include
+  const toggleModificationExclude = (id: string) => {
+    setExcludedModificationIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
   
   // Filter to only included appointments
   const includedAppointments = useMemo(() => {
@@ -218,13 +269,59 @@ export default function SyncConfirmDialog({
               ))}
             </div>
 
-            {/* Total duration */}
-            <div className="mt-3 text-sm text-gray-600">
-              Gesamt:{" "}
-              <span className="font-medium text-gray-900">
-                {hours}h {minutes}min
-              </span>
-            </div>
+            {/* Total duration for new entries */}
+            {includedAppointments.length > 0 && (
+              <div className="mt-3 text-sm text-gray-600">
+                Gesamt:{" "}
+                <span className="font-medium text-gray-900">
+                  {hours}h {minutes}min
+                </span>
+              </div>
+            )}
+
+            {/* Modified entries section */}
+            {completeModifications.length > 0 && (
+              <div className="mt-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <RefreshCw className="h-4 w-4 text-amber-500" />
+                  <span className="text-sm font-medium text-gray-700">
+                    Einträge aktualisieren ({includedModifications.length})
+                  </span>
+                </div>
+                <div className="max-h-48 overflow-y-auto border border-amber-200 rounded-lg divide-y divide-amber-100 bg-amber-50/50">
+                  {completeModifications.map((mod) => {
+                    const isExcluded = excludedModificationIds.has(mod.outlookEventId);
+                    return (
+                      <div
+                        key={mod.outlookEventId}
+                        className={`px-3 py-2 flex items-center gap-2 text-sm ${
+                          isExcluded ? "bg-gray-100 opacity-60" : ""
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={!isExcluded}
+                          onChange={() => toggleModificationExclude(mod.outlookEventId)}
+                          className="w-4 h-4 text-amber-600 rounded border-gray-300 focus:ring-amber-500 flex-shrink-0"
+                          aria-label={isExcluded ? "Änderung einschließen" : "Änderung ausschließen"}
+                        />
+                        <div className="flex flex-col min-w-0 flex-1">
+                          <span className={`truncate ${isExcluded ? "text-gray-400 line-through" : "text-gray-700"}`}>
+                            {mod.bemerkung || `Eintrag vom ${mod.datum}`}
+                          </span>
+                          <span className={`text-xs ${isExcluded ? "text-gray-400" : "text-amber-700"}`}>
+                            → {mod.newProjektNr} / {mod.newVorgangNr}
+                          </span>
+                        </div>
+                        <span className={`text-xs whitespace-nowrap ${isExcluded ? "text-gray-400" : "text-gray-500"}`}>
+                          {mod.von} - {mod.bis}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Footer */}
@@ -237,8 +334,8 @@ export default function SyncConfirmDialog({
               Abbrechen
             </button>
             <button
-              onClick={() => onConfirm(includedAppointments)}
-              disabled={submitting || includedAppointments.length === 0}
+              onClick={() => onConfirm(includedAppointments, includedModifications.length > 0 ? includedModifications : undefined)}
+              disabled={submitting || (includedAppointments.length === 0 && includedModifications.length === 0)}
               className="px-4 py-2 text-sm font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition flex items-center gap-2"
             >
               {submitting ? (
@@ -268,7 +365,12 @@ export default function SyncConfirmDialog({
               ) : (
                 <>
                   <CloudUpload className="h-4 w-4" />
-                  Übertragen
+                  {includedAppointments.length > 0 && includedModifications.length > 0 
+                    ? `Übertragen (${includedAppointments.length} neu, ${includedModifications.length} ändern)`
+                    : includedModifications.length > 0 
+                      ? `${includedModifications.length} Änderung(en) übertragen`
+                      : "Übertragen"
+                  }
                 </>
               )}
             </button>

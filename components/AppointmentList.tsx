@@ -61,6 +61,28 @@ interface ZepEntry {
   project_task_id: number;
   activity_id: string;
   billable: boolean;
+  projektNr?: string;
+  vorgangNr?: string;
+}
+
+// Modified entry for rebooking synced entries
+interface ModifiedEntry {
+  zepId: number;
+  outlookEventId: string;
+  originalProjectId: number;
+  originalTaskId: number;
+  originalActivityId: string;
+  newProjectId: number;
+  newTaskId: number;
+  newActivityId: string;
+  newProjektNr: string;
+  newVorgangNr: string;
+  userId: string;
+  datum: string;
+  von: string;
+  bis: string;
+  bemerkung?: string;
+  istFakturierbar?: boolean;
 }
 
 interface AppointmentListProps {
@@ -83,8 +105,17 @@ interface AppointmentListProps {
     taskId: number | null,
     activityId: string
   ) => void;
-  onSubmit: (appointmentsToSync: Appointment[]) => void;
+  onSubmit: (appointmentsToSync: Appointment[], modifiedEntries?: ModifiedEntry[]) => void;
+  onReset: () => void;
   submitting: boolean;
+  // Editing synced entries (rebooking)
+  editingAppointments?: Set<string>;
+  modifiedEntries?: Map<string, ModifiedEntry>;
+  onStartEditSynced?: (appointmentId: string) => void;
+  onCancelEditSynced?: (appointmentId: string) => void;
+  onModifyProject?: (appointmentId: string, apt: Appointment, syncedEntry: ZepEntry, projectId: number) => void;
+  onModifyTask?: (appointmentId: string, taskId: number) => void;
+  onModifyActivity?: (appointmentId: string, apt: Appointment, syncedEntry: ZepEntry, activityId: string) => void;
 }
 
 interface GroupedItem {
@@ -149,9 +180,25 @@ export default function AppointmentList({
   onActivityChange,
   onApplyToSeries,
   onSubmit,
+  onReset,
   submitting,
+  editingAppointments,
+  modifiedEntries,
+  onStartEditSynced,
+  onCancelEditSynced,
+  onModifyProject,
+  onModifyTask,
+  onModifyActivity,
 }: AppointmentListProps) {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+
+  // Count complete modifications (have project and task)
+  const completeModificationsCount = useMemo(() => {
+    if (!modifiedEntries) return 0;
+    return Array.from(modifiedEntries.values()).filter(
+      (mod) => mod.newProjectId > 0 && mod.newTaskId > 0
+    ).length;
+  }, [modifiedEntries]);
 
   // Termine die auswählbar sind (nicht bereits gesynced)
   const selectableAppointments = useMemo(() => {
@@ -230,10 +277,10 @@ export default function AppointmentList({
     (a) => a.projectId && a.taskId && a.activityId
   );
 
-  // Handle confirm from dialog with filtered appointments
-  const handleConfirmSync = (includedAppointments: Appointment[]) => {
+  // Handle confirm from dialog with filtered appointments and modifications
+  const handleConfirmSync = (includedAppointments: Appointment[], modifications?: ModifiedEntry[]) => {
     setShowConfirmDialog(false);
-    onSubmit(includedAppointments);
+    onSubmit(includedAppointments, modifications);
   };
 
   // Zähle Serien
@@ -326,6 +373,14 @@ export default function AppointmentList({
                 onProjectChange={onProjectChange}
                 onTaskChange={onTaskChange}
                 onActivityChange={onActivityChange}
+                // Editing synced entries props
+                isEditing={editingAppointments?.has(item.appointments[0].id) || false}
+                modifiedEntry={modifiedEntries?.get(item.appointments[0].id)}
+                onStartEditSynced={onStartEditSynced}
+                onCancelEditSynced={onCancelEditSynced}
+                onModifyProject={onModifyProject}
+                onModifyTask={onModifyTask}
+                onModifyActivity={onModifyActivity}
               />
             )
           )
@@ -343,17 +398,41 @@ export default function AppointmentList({
                   ({syncReadyAppointments.length} bereit zum Sync)
                 </span>
               )}
+              {completeModificationsCount > 0 && (
+                <span className="ml-2 text-blue-600">
+                  ({completeModificationsCount} zu aktualisieren)
+                </span>
+              )}
             </div>
-            <button
-              onClick={() => setShowConfirmDialog(true)}
-              disabled={
-                submitting ||
-                syncReadyAppointments.length === 0
-              }
-              className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition"
-            >
-              {submitting ? "Wird übertragen..." : `An ZEP übertragen (${syncReadyAppointments.length})`}
-            </button>
+            <div className="flex items-center gap-2">
+              {(selectedAppointments.length > 0 || completeModificationsCount > 0) && (
+                <button
+                  onClick={onReset}
+                  disabled={submitting}
+                  className="px-4 py-2 text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                  title="Alle ausstehenden Syncs zurücksetzen"
+                >
+                  Zurücksetzen
+                </button>
+              )}
+              <button
+                onClick={() => setShowConfirmDialog(true)}
+                disabled={
+                  submitting ||
+                  (syncReadyAppointments.length === 0 && completeModificationsCount === 0)
+                }
+                className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition"
+              >
+                {submitting 
+                  ? "Wird übertragen..." 
+                  : syncReadyAppointments.length > 0 && completeModificationsCount > 0
+                    ? `An ZEP übertragen (${syncReadyAppointments.length} neu, ${completeModificationsCount} ändern)`
+                    : completeModificationsCount > 0 
+                      ? `${completeModificationsCount} Änderung(en) übertragen`
+                      : `An ZEP übertragen (${syncReadyAppointments.length})`
+                }
+              </button>
+            </div>
           </div>
           {selectedAppointments.length > 0 && !allComplete && syncReadyAppointments.length < selectedAppointments.length && (
             <p className="text-sm text-gray-500 mt-2">
@@ -372,6 +451,7 @@ export default function AppointmentList({
         projects={projects}
         submitting={submitting}
         duplicateWarnings={duplicateWarnings}
+        modifiedEntries={modifiedEntries}
       />
     </div>
   );

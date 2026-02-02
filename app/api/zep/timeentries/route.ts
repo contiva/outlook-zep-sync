@@ -1,13 +1,23 @@
 import { NextResponse } from "next/server";
-import { createZepAttendance, getZepAttendances } from "@/lib/zep-api";
+import { 
+  readProjektzeiten, 
+  createProjektzeit,
+  updateProjektzeit,
+  mapProjektzeitToRestFormat,
+  readProjekte,
+  readVorgang,
+  formatSoapDate,
+  formatSoapStartTime,
+  formatSoapEndTime
+} from "@/lib/zep-soap";
 
 // GET: Fetch existing time entries for employee in date range
 export async function GET(request: Request) {
-  const token = process.env.ZEP_API_TOKEN;
+  const token = process.env.ZEP_SOAP_TOKEN;
 
   if (!token) {
     return NextResponse.json(
-      { error: "ZEP_API_TOKEN not configured" },
+      { error: "ZEP_SOAP_TOKEN not configured" },
       { status: 500 }
     );
   }
@@ -25,7 +35,12 @@ export async function GET(request: Request) {
   }
 
   try {
-    const attendances = await getZepAttendances(token, employeeId, startDate, endDate);
+    const projektzeiten = await readProjektzeiten(token, {
+      von: startDate,
+      bis: endDate,
+      userIdListe: { userId: [employeeId] },
+    });
+    const attendances = projektzeiten.map(mapProjektzeitToRestFormat);
     return NextResponse.json(attendances);
   } catch (error) {
     console.error("Failed to fetch attendances:", error);
@@ -46,18 +61,25 @@ interface AttendanceInput {
   activity_id: string;
   project_id: number;
   project_task_id: number;
+  // SOAP-specific fields (optional, will be looked up if not provided)
+  projektNr?: string;
+  vorgangNr?: string;
 }
 
 interface RequestBody {
   entries: AttendanceInput[];
 }
 
+// Cache for projekt lookups during batch creation
+const projektCache = new Map<number, string>();
+const vorgangCache = new Map<number, string>();
+
 export async function POST(request: Request) {
-  const token = process.env.ZEP_API_TOKEN;
+  const token = process.env.ZEP_SOAP_TOKEN;
 
   if (!token) {
     return NextResponse.json(
-      { error: "ZEP_API_TOKEN not configured" },
+      { error: "ZEP_SOAP_TOKEN not configured" },
       { status: 500 }
     );
   }
@@ -73,8 +95,61 @@ export async function POST(request: Request) {
   }
 
   try {
+    // Pre-fetch projekt and vorgang info for entries that don't have projektNr/vorgangNr
+    for (const entry of entries) {
+      if (!entry.projektNr && entry.project_id) {
+        if (!projektCache.has(entry.project_id)) {
+          const projekte = await readProjekte(token, { id: entry.project_id });
+          if (projekte.length > 0) {
+            projektCache.set(entry.project_id, projekte[0].projektNr);
+          }
+        }
+        entry.projektNr = projektCache.get(entry.project_id);
+      }
+      
+      if (!entry.vorgangNr && entry.project_task_id) {
+        if (!vorgangCache.has(entry.project_task_id)) {
+          const vorgaenge = await readVorgang(token, { id: entry.project_task_id });
+          if (vorgaenge.length > 0) {
+            vorgangCache.set(entry.project_task_id, vorgaenge[0].vorgangNr);
+          }
+        }
+        entry.vorgangNr = vorgangCache.get(entry.project_task_id);
+      }
+    }
+
     const results = await Promise.allSettled(
-      entries.map((entry) => createZepAttendance(token, entry))
+      entries.map(async (entry) => {
+        if (!entry.projektNr || !entry.vorgangNr) {
+          throw new Error(`Missing projektNr or vorgangNr for project_id ${entry.project_id}`);
+        }
+
+        // Parse date and times
+        const entryDate = new Date(entry.date);
+        const [fromHours, fromMinutes] = entry.from.split(":").map(Number);
+        const [toHours, toMinutes] = entry.to.split(":").map(Number);
+        
+        const fromDate = new Date(entryDate);
+        fromDate.setHours(fromHours, fromMinutes, 0, 0);
+        
+        const toDate = new Date(entryDate);
+        toDate.setHours(toHours, toMinutes, 0, 0);
+
+        const soapEntry = {
+          userId: entry.employee_id,
+          datum: formatSoapDate(entryDate),
+          von: formatSoapStartTime(fromDate),
+          bis: formatSoapEndTime(toDate),
+          projektNr: entry.projektNr,
+          vorgangNr: entry.vorgangNr,
+          taetigkeit: entry.activity_id,
+          bemerkung: entry.note || undefined,
+          istFakturierbar: entry.billable,
+        };
+
+        const id = await createProjektzeit(token, soapEntry);
+        return { id };
+      })
     );
 
     const succeeded = results.filter((r) => r.status === "fulfilled").length;
@@ -88,14 +163,13 @@ export async function POST(request: Request) {
     }).filter(Boolean);
 
     // Extract created ZEP IDs from fulfilled results
-    const createdEntries: { index: number; zepId: number }[] = [];
+    const createdEntries: { index: number; zepId: string }[] = [];
 
     results.forEach((result, index) => {
       if (result.status === "fulfilled") {
-        // The ZEP API returns the attendance directly with id field
-        const attendance = result.value;
-        if (attendance?.id) {
-          createdEntries.push({ index, zepId: attendance.id });
+        const { id } = result.value;
+        if (id) {
+          createdEntries.push({ index, zepId: id });
         }
       }
     });
@@ -111,6 +185,95 @@ export async function POST(request: Request) {
     console.error("ZEP attendance creation error:", error);
     return NextResponse.json(
       { error: "Failed to create attendances" },
+      { status: 500 }
+    );
+  }
+}
+
+// PATCH: Modify existing time entries (rebooking to different project/task)
+interface ModifyEntryInput {
+  id: string;                 // ZEP Projektzeit ID
+  projektNr: string;          // New project number
+  vorgangNr: string;          // New task number
+  taetigkeit: string;         // New activity
+  // These are needed for the SOAP call
+  userId: string;
+  datum: string;
+  von: string;
+  bis: string;
+  bemerkung?: string;
+  istFakturierbar?: boolean;
+}
+
+interface ModifyRequestBody {
+  entries: ModifyEntryInput[];
+}
+
+export async function PATCH(request: Request) {
+  const token = process.env.ZEP_SOAP_TOKEN;
+
+  if (!token) {
+    return NextResponse.json(
+      { error: "ZEP_SOAP_TOKEN not configured" },
+      { status: 500 }
+    );
+  }
+
+  const body: ModifyRequestBody = await request.json();
+  const { entries } = body;
+
+  if (!entries?.length) {
+    return NextResponse.json(
+      { error: "entries required" },
+      { status: 400 }
+    );
+  }
+
+  try {
+    const results = await Promise.allSettled(
+      entries.map(async (entry) => {
+        if (!entry.id || !entry.projektNr || !entry.vorgangNr) {
+          throw new Error(`Missing required fields: id, projektNr, or vorgangNr`);
+        }
+
+        const soapEntry = {
+          id: entry.id,
+          userId: entry.userId,
+          datum: entry.datum,
+          von: entry.von,
+          bis: entry.bis,
+          projektNr: entry.projektNr,
+          vorgangNr: entry.vorgangNr,
+          taetigkeit: entry.taetigkeit,
+          bemerkung: entry.bemerkung,
+          istFakturierbar: entry.istFakturierbar,
+        };
+
+        await updateProjektzeit(token, soapEntry);
+        return { id: entry.id };
+      })
+    );
+
+    const succeeded = results.filter((r) => r.status === "fulfilled").length;
+    const failed = results.filter((r) => r.status === "rejected");
+    
+    const errors = failed.map((r) => {
+      if (r.status === "rejected") {
+        return r.reason?.message || "Unknown error";
+      }
+      return null;
+    }).filter(Boolean);
+
+    return NextResponse.json({
+      message: `${succeeded} Eintraege aktualisiert, ${failed.length} fehlgeschlagen`,
+      succeeded,
+      failed: failed.length,
+      errors,
+    });
+  } catch (error) {
+    console.error("ZEP attendance modification error:", error);
+    return NextResponse.json(
+      { error: "Failed to modify attendances" },
       { status: 500 }
     );
   }
