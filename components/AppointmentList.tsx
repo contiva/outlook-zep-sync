@@ -116,6 +116,9 @@ interface AppointmentListProps {
   onModifyProject?: (appointmentId: string, apt: Appointment, syncedEntry: ZepEntry, projectId: number) => void;
   onModifyTask?: (appointmentId: string, taskId: number) => void;
   onModifyActivity?: (appointmentId: string, apt: Appointment, syncedEntry: ZepEntry, activityId: string) => void;
+  // Rescheduled appointment time correction
+  onCorrectTime?: (appointmentId: string, duplicateWarning: DuplicateCheckResult) => void;
+  correctingTimeIds?: Set<string>;
 }
 
 interface GroupedItem {
@@ -189,6 +192,8 @@ export default function AppointmentList({
   onModifyProject,
   onModifyTask,
   onModifyActivity,
+  onCorrectTime,
+  correctingTimeIds,
 }: AppointmentListProps) {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
@@ -381,6 +386,9 @@ export default function AppointmentList({
                 onModifyProject={onModifyProject}
                 onModifyTask={onModifyTask}
                 onModifyActivity={onModifyActivity}
+                // Rescheduled time correction
+                onCorrectTime={onCorrectTime}
+                isCorrectingTime={correctingTimeIds?.has(item.appointments[0].id) || false}
               />
             )
           )

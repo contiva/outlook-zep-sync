@@ -3,7 +3,7 @@
 import { useMemo, useState, useRef, useEffect } from "react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
-import { Users, CheckCircle, CloudUpload, ExternalLink, AlertTriangle, Pencil, X, Check, HelpCircle, XCircle, Clock } from "lucide-react";
+import { Users, CheckCircle, CloudUpload, ExternalLink, AlertTriangle, Pencil, X, Check, HelpCircle, XCircle, Clock, RefreshCw } from "lucide-react";
 import { getZepIdForOutlookEvent, getZepAttendanceUrl } from "@/lib/sync-history";
 import SearchableSelect, { SelectOption } from "./SearchableSelect";
 import { DuplicateCheckResult } from "@/lib/zep-api";
@@ -118,6 +118,9 @@ interface AppointmentRowProps {
   onModifyProject?: (appointmentId: string, apt: Appointment, syncedEntry: SyncedEntry, projectId: number) => void;
   onModifyTask?: (appointmentId: string, taskId: number) => void;
   onModifyActivity?: (appointmentId: string, apt: Appointment, syncedEntry: SyncedEntry, activityId: string) => void;
+  // Rescheduled appointment correction
+  onCorrectTime?: (appointmentId: string, duplicateWarning: DuplicateCheckResult) => void;
+  isCorrectingTime?: boolean;
 }
 
 function getStatusColor(response: string): string {
@@ -369,6 +372,8 @@ export default function AppointmentRow({
   onModifyProject,
   onModifyTask,
   onModifyActivity,
+  onCorrectTime,
+  isCorrectingTime = false,
 }: AppointmentRowProps) {
   const startDate = new Date(appointment.start.dateTime);
   const endDate = new Date(appointment.end.dateTime);
@@ -669,10 +674,22 @@ export default function AppointmentRow({
               </span>
             )
           )}
-          {duplicateWarning?.hasDuplicate && !isSynced && (
+          {duplicateWarning?.hasDuplicate && !isSynced && duplicateWarning.type !== 'rescheduled' && (
             <span className="px-2 py-0.5 text-xs font-medium text-amber-700 bg-amber-50 rounded" title={duplicateWarning.message}>
               {duplicateWarning.type === 'exact' ? 'Duplikat' : duplicateWarning.type === 'timeOverlap' ? 'Konflikt' : 'Ähnlich'}
             </span>
+          )}
+          {/* Rescheduled appointment - show correction button */}
+          {duplicateWarning?.type === 'rescheduled' && !isSynced && onCorrectTime && (
+            <button
+              onClick={() => onCorrectTime(appointment.id, duplicateWarning)}
+              disabled={isCorrectingTime}
+              className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium text-blue-700 bg-blue-50 rounded hover:bg-blue-100 transition disabled:opacity-50"
+              title={duplicateWarning.message}
+            >
+              <RefreshCw size={10} className={isCorrectingTime ? "animate-spin" : ""} />
+              Zeiten korrigieren
+            </button>
           )}
           
           {/* Edit button for synced */}
@@ -702,6 +719,24 @@ export default function AppointmentRow({
           <span>{syncedInfo.activityName}</span>
           {!syncedInfo.billable && <span className="text-gray-400">(intern)</span>}
           {isModified && <span className="text-amber-600 font-medium">Geändert</span>}
+        </div>
+      )}
+
+      {/* Rescheduled appointment info - show time change details */}
+      {duplicateWarning?.type === 'rescheduled' && !isSynced && duplicateWarning.originalTime && duplicateWarning.newTime && (
+        <div className="mt-1 ml-8 text-xs space-y-0.5">
+          <div className="flex items-center gap-2">
+            <span className="text-gray-500 w-14">In ZEP:</span>
+            <span className="text-red-500 line-through">
+              {duplicateWarning.originalTime.date} {duplicateWarning.originalTime.from.slice(0, 5)}–{duplicateWarning.originalTime.to.slice(0, 5)}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-gray-500 w-14">Outlook:</span>
+            <span className="text-green-600 font-medium">
+              {duplicateWarning.newTime.date} {duplicateWarning.newTime.from.slice(0, 5)}–{duplicateWarning.newTime.to.slice(0, 5)}
+            </span>
+          </div>
         </div>
       )}
 

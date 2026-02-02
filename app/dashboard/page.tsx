@@ -284,6 +284,9 @@ export default function Dashboard() {
   // State for editing synced entries (rebooking)
   const [editingAppointments, setEditingAppointments] = useState<Set<string>>(new Set());
   const [modifiedEntries, setModifiedEntries] = useState<Map<string, ModifiedEntry>>(new Map());
+  
+  // State for correcting rescheduled appointment times
+  const [correctingTimeIds, setCorrectingTimeIds] = useState<Set<string>>(new Set());
 
   const employeeId = zepEmployee?.username ?? "";
 
@@ -474,17 +477,17 @@ export default function Dashboard() {
   }, [session?.user?.email]);
 
   // Load projects when employeeId or date range changes
-  // Uses today's date as reference for filtering bookable projects
+  // Uses the selected start date as reference for filtering bookable projects
   const loadProjects = useCallback(async () => {
     if (!employeeId) return;
 
     try {
-      // Use today as reference date for project filtering
-      // This ensures we only show projects that are currently bookable
-      const today = new Date().toISOString().split("T")[0];
+      // Use startDate as reference date for project filtering
+      // This ensures we show projects that were bookable in the selected date range
+      // (not just projects bookable today)
       const params = new URLSearchParams({
         employeeId: employeeId,
-        date: today,
+        date: startDate,
       });
       const res = await fetch(`/api/zep/employee-projects?${params}`);
       const data = await res.json();
@@ -494,7 +497,7 @@ export default function Dashboard() {
     } catch (error) {
       console.error("Failed to load projects:", error);
     }
-  }, [employeeId]);
+  }, [employeeId, startDate]);
 
   useEffect(() => {
     loadProjects();
@@ -941,6 +944,89 @@ export default function Dashboard() {
     });
   }, [projects, tasks]);
 
+  // Reload synced entries from ZEP
+  const loadSyncedEntries = useCallback(async () => {
+    if (!employeeId) return;
+    try {
+      const res = await fetch(`/api/zep/timeentries?employeeId=${employeeId}&startDate=${startDate}&endDate=${endDate}`);
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setSyncedEntries(data);
+      }
+    } catch (e) {
+      console.error("Failed to reload synced entries:", e);
+    }
+  }, [employeeId, startDate, endDate]);
+
+  // Correct time for a rescheduled appointment
+  const correctRescheduledTime = useCallback(async (
+    appointmentId: string,
+    duplicateWarning: DuplicateCheckResult
+  ) => {
+    if (!duplicateWarning.zepEntryId || !duplicateWarning.existingEntry || !duplicateWarning.newTime) {
+      setMessage({ text: "Fehlende Daten für Zeit-Korrektur", type: "error" });
+      return;
+    }
+
+    const entry = duplicateWarning.existingEntry;
+    
+    setCorrectingTimeIds((prev) => new Set(prev).add(appointmentId));
+
+    try {
+      const response = await fetch("/api/zep/timeentries", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          entries: [{
+            id: String(duplicateWarning.zepEntryId),
+            projektNr: entry.projektNr,
+            vorgangNr: entry.vorgangNr,
+            taetigkeit: entry.activity_id,
+            userId: entry.employee_id,
+            datum: duplicateWarning.newTime.date,
+            von: duplicateWarning.newTime.from.slice(0, 5),
+            bis: duplicateWarning.newTime.to.slice(0, 5),
+            bemerkung: entry.note || undefined,
+            istFakturierbar: entry.billable,
+          }],
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Fehler beim Aktualisieren");
+      }
+
+      // Reload synced entries to reflect the change
+      await loadSyncedEntries();
+      
+      // Remove the duplicate warning for this appointment
+      setDuplicateWarnings((prev) => {
+        const next = new Map(prev);
+        next.delete(appointmentId);
+        return next;
+      });
+
+      setMessage({ 
+        text: `Zeit-Korrektur erfolgreich: ${duplicateWarning.newTime.from.slice(0, 5)}-${duplicateWarning.newTime.to.slice(0, 5)}`, 
+        type: "success" 
+      });
+    } catch (error) {
+      console.error("Time correction error:", error);
+      setMessage({ 
+        text: `Fehler bei Zeit-Korrektur: ${error instanceof Error ? error.message : "Unbekannter Fehler"}`, 
+        type: "error" 
+      });
+    } finally {
+      setCorrectingTimeIds((prev) => {
+        const next = new Set(prev);
+        next.delete(appointmentId);
+        return next;
+      });
+    }
+  }, [loadSyncedEntries]);
+
   const submitToZep = async (appointmentsToSync: Appointment[], entriesToModify?: ModifiedEntry[]) => {
     // Use the appointments passed from the dialog (already filtered by user)
     const syncReadyAppointments = appointmentsToSync;
@@ -1339,6 +1425,9 @@ export default function Dashboard() {
           onModifyProject={updateModifiedProject}
           onModifyTask={updateModifiedTask}
           onModifyActivity={updateModifiedActivity}
+          // Correcting rescheduled appointment times
+          onCorrectTime={correctRescheduledTime}
+          correctingTimeIds={correctingTimeIds}
         />
       </main>
     </div>

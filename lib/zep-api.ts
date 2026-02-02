@@ -72,9 +72,13 @@ export function formatZepEndTime(date: Date): string {
 // Duplicate Detection Types
 export interface DuplicateCheckResult {
   hasDuplicate: boolean;
-  type: 'exact' | 'timeOverlap' | 'similarSubject' | null;
+  type: 'exact' | 'timeOverlap' | 'similarSubject' | 'rescheduled' | null;
   existingEntry?: ZepAttendance;
   message?: string;
+  // For rescheduled appointments: the ZEP entry that needs time correction
+  zepEntryId?: number;
+  originalTime?: { from: string; to: string; date: string };
+  newTime?: { from: string; to: string; date: string };
 }
 
 // Levenshtein distance for fuzzy string matching
@@ -131,6 +135,62 @@ function timeRangesOverlap(
   return s1 < e2 && s2 < e1;
 }
 
+// Check if an appointment was rescheduled (same subject, different time)
+// Returns the ZEP entry if found, null otherwise
+export function findRescheduledEntry(
+  appointment: {
+    subject: string;
+    startDateTime: string;
+    endDateTime: string;
+  },
+  syncedEntries: ZepAttendance[],
+  lookbackDays: number = 14 // Look back 2 weeks for rescheduled meetings
+): { entry: ZepAttendance; isTimeChanged: boolean; isDateChanged: boolean } | null {
+  if (!syncedEntries || syncedEntries.length === 0) {
+    return null;
+  }
+
+  const aptDate = new Date(appointment.startDateTime);
+  const aptDateStr = aptDate.toISOString().split("T")[0];
+  const aptEndDate = new Date(appointment.endDateTime);
+  const aptFromTime = formatZepStartTime(aptDate);
+  const aptToTime = formatZepEndTime(aptEndDate);
+  const aptSubject = appointment.subject.toLowerCase().trim();
+
+  if (!aptSubject) return null;
+
+  // Calculate date range to search
+  const searchStartDate = new Date(aptDate);
+  searchStartDate.setDate(searchStartDate.getDate() - lookbackDays);
+  const searchEndDate = new Date(aptDate);
+  searchEndDate.setDate(searchEndDate.getDate() + lookbackDays);
+
+  // Find entries with exact same subject (case-insensitive)
+  for (const entry of syncedEntries) {
+    const entrySubject = (entry.note || "").toLowerCase().trim();
+    const entryDateStr = entry.date.split("T")[0];
+    const entryDate = new Date(entryDateStr);
+
+    // Check if entry is within search range
+    if (entryDate < searchStartDate || entryDate > searchEndDate) {
+      continue;
+    }
+
+    // Check for exact subject match
+    if (entrySubject === aptSubject) {
+      const isDateChanged = entryDateStr !== aptDateStr;
+      const isTimeChanged = entry.from !== aptFromTime || entry.to !== aptToTime;
+
+      // If subject matches but date or time is different, it's rescheduled
+      if (isDateChanged || isTimeChanged) {
+        return { entry, isTimeChanged, isDateChanged };
+      }
+    }
+  }
+
+  return null;
+}
+
 // Check for potential duplicates in ZEP
 export function checkForDuplicate(
   appointment: {
@@ -138,7 +198,8 @@ export function checkForDuplicate(
     startDateTime: string; // ISO datetime
     endDateTime: string;   // ISO datetime
   },
-  syncedEntries: ZepAttendance[]
+  syncedEntries: ZepAttendance[],
+  checkRescheduled: boolean = true // New option to check for rescheduled meetings
 ): DuplicateCheckResult {
   if (!syncedEntries || syncedEntries.length === 0) {
     return { hasDuplicate: false, type: null };
@@ -160,11 +221,7 @@ export function checkForDuplicate(
     return entryDate === aptDateStr;
   });
   
-  if (sameDayEntries.length === 0) {
-    return { hasDuplicate: false, type: null };
-  }
-  
-  // Check for exact match
+  // Check for exact match first (same day)
   for (const entry of sameDayEntries) {
     const entrySubject = (entry.note || "").toLowerCase().trim();
     
@@ -182,7 +239,44 @@ export function checkForDuplicate(
     }
   }
   
-  // Check for time overlap
+  // Check for rescheduled meeting (same subject, different time/date)
+  // This takes priority over generic time overlap
+  if (checkRescheduled && aptSubject) {
+    const rescheduled = findRescheduledEntry(appointment, syncedEntries);
+    if (rescheduled) {
+      const { entry, isDateChanged, isTimeChanged } = rescheduled;
+      const entryDateStr = entry.date.split("T")[0];
+      
+      let changeDescription = '';
+      if (isDateChanged && isTimeChanged) {
+        changeDescription = `verschoben von ${entryDateStr} ${entry.from.slice(0, 5)}-${entry.to.slice(0, 5)}`;
+      } else if (isDateChanged) {
+        changeDescription = `verschoben von ${entryDateStr}`;
+      } else {
+        changeDescription = `Zeit geändert von ${entry.from.slice(0, 5)}-${entry.to.slice(0, 5)}`;
+      }
+      
+      return {
+        hasDuplicate: true,
+        type: 'rescheduled',
+        existingEntry: entry,
+        message: `Termin wurde ${changeDescription}`,
+        zepEntryId: entry.id,
+        originalTime: {
+          from: entry.from,
+          to: entry.to,
+          date: entryDateStr,
+        },
+        newTime: {
+          from: aptFromTime,
+          to: aptToTime,
+          date: aptDateStr,
+        },
+      };
+    }
+  }
+  
+  // Check for time overlap (only if no rescheduled match found)
   for (const entry of sameDayEntries) {
     if (timeRangesOverlap(aptFromTime, aptToTime, entry.from, entry.to)) {
       return {
