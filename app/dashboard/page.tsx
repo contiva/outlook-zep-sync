@@ -13,14 +13,18 @@ import { checkAppointmentsForDuplicates, DuplicateCheckResult, ZepAttendance, fo
 
 // Helper: Determine billable status from project/task settings
 // Values: 0=inherited(task only), 1=billable+editable, 2=billable+locked, 3=not billable+editable, 4=not billable+locked
-function determineBillable(projektFakt?: number, vorgangFakt?: number): boolean {
+// Note: ZEP SOAP API returns these as strings, so we convert to number
+function determineBillable(projektFakt?: number | string, vorgangFakt?: number | string): boolean {
+  const pFakt = projektFakt !== undefined ? Number(projektFakt) : undefined;
+  const vFakt = vorgangFakt !== undefined ? Number(vorgangFakt) : undefined;
+  
   // Task has own setting (not 0 = "inherited")
-  if (vorgangFakt !== undefined && vorgangFakt !== 0) {
-    return vorgangFakt === 1 || vorgangFakt === 2;
+  if (vFakt !== undefined && vFakt !== 0) {
+    return vFakt === 1 || vFakt === 2;
   }
   // Fallback to project setting
-  if (projektFakt !== undefined) {
-    return projektFakt === 1 || projektFakt === 2;
+  if (pFakt !== undefined) {
+    return pFakt === 1 || pFakt === 2;
   }
   // Default: billable
   return true;
@@ -28,14 +32,18 @@ function determineBillable(projektFakt?: number, vorgangFakt?: number): boolean 
 
 // Helper: Determine if user can change billable status
 // Values 1 and 3 are editable, values 2 and 4 are locked
-function canChangeBillable(projektFakt?: number, vorgangFakt?: number): boolean {
+// Note: ZEP SOAP API returns these as strings, so we convert to number
+function canChangeBillable(projektFakt?: number | string, vorgangFakt?: number | string): boolean {
+  const pFakt = projektFakt !== undefined ? Number(projektFakt) : undefined;
+  const vFakt = vorgangFakt !== undefined ? Number(vorgangFakt) : undefined;
+  
   // Task has own setting (not 0 = "inherited")
-  if (vorgangFakt !== undefined && vorgangFakt !== 0) {
-    return vorgangFakt === 1 || vorgangFakt === 3;
+  if (vFakt !== undefined && vFakt !== 0) {
+    return vFakt === 1 || vFakt === 3;
   }
   // Fallback to project setting
-  if (projektFakt !== undefined) {
-    return projektFakt === 1 || projektFakt === 3;
+  if (pFakt !== undefined) {
+    return pFakt === 1 || pFakt === 3;
   }
   // Default: editable
   return true;

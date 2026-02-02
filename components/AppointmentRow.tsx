@@ -10,14 +10,18 @@ import { DuplicateCheckResult } from "@/lib/zep-api";
 
 // Helper: Determine if user can change billable status
 // Values 1 and 3 are editable, values 2 and 4 are locked
-function canChangeBillableForTask(projektFakt?: number, vorgangFakt?: number): boolean {
+// Note: ZEP SOAP API returns these as strings, so we convert to number
+function canChangeBillableForTask(projektFakt?: number | string, vorgangFakt?: number | string): boolean {
+  const pFakt = projektFakt !== undefined ? Number(projektFakt) : undefined;
+  const vFakt = vorgangFakt !== undefined ? Number(vorgangFakt) : undefined;
+  
   // Task has own setting (not 0 = "inherited")
-  if (vorgangFakt !== undefined && vorgangFakt !== 0) {
-    return vorgangFakt === 1 || vorgangFakt === 3;
+  if (vFakt !== undefined && vFakt !== 0) {
+    return vFakt === 1 || vFakt === 3;
   }
   // Fallback to project setting
-  if (projektFakt !== undefined) {
-    return projektFakt === 1 || projektFakt === 3;
+  if (pFakt !== undefined) {
+    return pFakt === 1 || pFakt === 3;
   }
   // Default: editable
   return true;
@@ -763,7 +767,7 @@ export default function AppointmentRow({
           <span title={syncedInfo.billable ? "Fakturierbar" : "Nicht fakturierbar (intern)"}>
             <Banknote 
               size={14} 
-              className={syncedInfo.billable ? "text-green-600" : "text-gray-400"} 
+              className={syncedInfo.billable ? "text-amber-500" : "text-gray-400"} 
             />
           </span>
           {isModified && <span className="text-amber-600 font-medium">Geändert</span>}
