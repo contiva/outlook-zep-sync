@@ -622,16 +622,21 @@ export default function Dashboard() {
   }, [tasks, employeeId, projects]);
 
   // Load tasks for projects that were restored from localStorage
-  // This runs after projects are loaded and appointments exist from localStorage
+  // This runs after projects are loaded and appointments/syncedEntries exist from localStorage
   useEffect(() => {
-    if (projects.length === 0 || appointments.length === 0) return;
+    if (projects.length === 0) return;
+    if (appointments.length === 0 && syncedEntries.length === 0) return;
     
-    // Find unique project IDs from appointments that don't have tasks loaded yet
-    const projectIdsToLoad = [...new Set(
-      appointments
-        .filter(apt => apt.projectId && !tasks[apt.projectId])
-        .map(apt => apt.projectId!)
-    )];
+    // Find unique project IDs from appointments and syncedEntries that don't have tasks loaded yet
+    const appointmentProjectIds = appointments
+      .filter(apt => apt.projectId && !tasks[apt.projectId])
+      .map(apt => apt.projectId!);
+    
+    const syncedProjectIds = syncedEntries
+      .filter(entry => entry.project_id && !tasks[entry.project_id])
+      .map(entry => entry.project_id);
+    
+    const projectIdsToLoad = [...new Set([...appointmentProjectIds, ...syncedProjectIds])];
     
     if (projectIdsToLoad.length === 0) return;
     
@@ -640,7 +645,7 @@ export default function Dashboard() {
       loadTasksForProject(projectId);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projects.length]); // Only run when projects are loaded, not on every appointment change
+  }, [projects.length]); // Only run when projects are loaded, not on every appointment/syncedEntry change
 
   const loadAppointments = async (overrideStartDate?: string, overrideEndDate?: string) => {
     const effectiveStartDate = overrideStartDate ?? startDate;
