@@ -7,7 +7,7 @@ import { format, startOfMonth, endOfMonth, subMonths, isWeekend, addDays } from 
 import { LogOut, X, Keyboard } from "lucide-react";
 import DateRangePicker from "@/components/DateRangePicker";
 import AppointmentList from "@/components/AppointmentList";
-import CalendarHeatmap from "@/components/CalendarHeatmap";
+import CalendarHeatmap, { CalendarHeatmapLegend, HeatmapStats } from "@/components/CalendarHeatmap";
 import { saveSyncRecords, SyncRecord } from "@/lib/sync-history";
 import { checkAppointmentsForDuplicates, DuplicateCheckResult, ZepAttendance, formatZepStartTime, formatZepEndTime } from "@/lib/zep-api";
 
@@ -573,6 +573,7 @@ export default function Dashboard() {
   const [filterDate, setFilterDate] = useState<string | null>(initialState.filterDate);
   const [hideSoloMeetings, setHideSoloMeetings] = useState(initialState.hideSoloMeetings);
   const [seriesFilterActive, setSeriesFilterActive] = useState(false);
+  const [heatmapStats, setHeatmapStats] = useState<HeatmapStats>({ synced: 0, edited: 0, unprocessed: 0 });
   const [searchQuery, setSearchQuery] = useState("");
   const [zepEmployee, setZepEmployee] = useState<{ username: string; firstname: string; lastname: string; email: string } | null>(null);
   const [employeeLoading, setEmployeeLoading] = useState(false);
@@ -582,6 +583,9 @@ export default function Dashboard() {
   const [lastLoadedAt, setLastLoadedAt] = useState<Date | null>(
     initialState.appointments.length > 0 ? new Date(getStoredState()?.savedAt || Date.now()) : null
   );
+
+  // State for single row sync
+  const [syncingSingleId, setSyncingSingleId] = useState<string | null>(null);
 
   // State for editing synced entries (rebooking)
   const [editingAppointments, setEditingAppointments] = useState<Set<string>>(new Set());
@@ -1490,6 +1494,79 @@ export default function Dashboard() {
     }
   }, [loadSyncedEntries]);
 
+  // Sync a single appointment directly
+  const syncSingleAppointment = async (appointment: Appointment) => {
+    if (!appointment.projectId || !appointment.taskId || !employeeId) {
+      setMessage({ text: "Projekt und Task müssen ausgewählt sein.", type: "error" });
+      return;
+    }
+
+    setSyncingSingleId(appointment.id);
+
+    try {
+      const startDt = new Date(appointment.start.dateTime);
+      const endDt = new Date(appointment.end.dateTime);
+      const dateStr = startDt.toISOString().split("T")[0];
+
+      const entry = {
+        date: dateStr,
+        from: formatZepStartTime(startDt),
+        to: formatZepEndTime(endDt),
+        employee_id: employeeId,
+        note: appointment.subject,
+        billable: appointment.billable,
+        activity_id: appointment.activityId,
+        project_id: appointment.projectId,
+        project_task_id: appointment.taskId,
+      };
+
+      const res = await fetch("/api/zep/timeentries", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ entries: [entry] }),
+      });
+
+      const result = await res.json();
+
+      if (result.succeeded > 0) {
+        // Save sync history
+        if (result.createdEntries && result.createdEntries.length > 0) {
+          const syncRecords: SyncRecord[] = [{
+            outlookEventId: appointment.id,
+            zepAttendanceId: result.createdEntries[0].zepId,
+            subject: appointment.subject,
+            date: dateStr,
+            syncedAt: new Date().toISOString(),
+          }];
+          saveSyncRecords(syncRecords);
+        }
+
+        // Track submitted ID for heatmap
+        setSubmittedIds((prev) => new Set([...prev, appointment.id]));
+
+        // Deselect the appointment
+        setAppointments((prev) =>
+          prev.map((a) =>
+            a.id === appointment.id ? { ...a, selected: false } : a
+          )
+        );
+
+        setMessage({ text: "Termin erfolgreich synchronisiert", type: "success" });
+
+        // Reload synced entries
+        await loadSyncedEntries();
+      } else {
+        const errorMsg = result.errors?.[0] ? parseErrorMessage(result.errors[0]) : "Unbekannter Fehler";
+        setMessage({ text: `Fehler: ${errorMsg}`, type: "error" });
+      }
+    } catch (error) {
+      console.error("Single sync error:", error);
+      setMessage({ text: "Fehler bei der Synchronisierung", type: "error" });
+    } finally {
+      setSyncingSingleId(null);
+    }
+  };
+
   const submitToZep = async (appointmentsToSync: Appointment[], entriesToModify?: ModifiedEntry[]) => {
     // Use the appointments passed from the dialog (already filtered by user)
     const syncReadyAppointments = appointmentsToSync;
@@ -1709,34 +1786,42 @@ export default function Dashboard() {
         </div>
       )}
 
-      <main className="max-w-6xl mx-auto px-4 py-8 space-y-6">
-        <DateRangePicker
-          startDate={startDate}
-          endDate={endDate}
-          filterDate={filterDate}
-          onLoad={() => loadAppointments(undefined, undefined, true)}
-          onDateRangeChange={handleDateRangeChange}
-          onFilterDateChange={setFilterDate}
-          loading={loading}
-          lastLoadedAt={lastLoadedAt}
-        />
+      <main className="max-w-6xl mx-auto px-4 py-8 space-y-4">
+        {/* Combined Date Picker and Calendar Heatmap with Legend */}
+        <div>
+          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <DateRangePicker
+              startDate={startDate}
+              endDate={endDate}
+              filterDate={filterDate}
+              onLoad={() => loadAppointments(undefined, undefined, true)}
+              onDateRangeChange={handleDateRangeChange}
+              onFilterDateChange={setFilterDate}
+              loading={loading}
+              lastLoadedAt={lastLoadedAt}
+            />
 
-        <CalendarHeatmap
-          startDate={startDate}
-          endDate={endDate}
-          appointments={appointments}
-          syncedEntries={syncedEntries}
-          submittedIds={submittedIds}
-          selectedDate={filterDate}
-          hideSoloMeetings={hideSoloMeetings}
-          userEmail={session?.user?.email || undefined}
-          onDayClick={(date) => {
-            setFilterDate(date);
-            if (date) setSeriesFilterActive(false); // Clear series filter when selecting a date
-          }}
-          onSeriesClick={setSeriesFilterActive}
-          seriesFilterActive={seriesFilterActive}
-        />
+            <CalendarHeatmap
+              startDate={startDate}
+              endDate={endDate}
+              appointments={appointments}
+              syncedEntries={syncedEntries}
+              submittedIds={submittedIds}
+              selectedDate={filterDate}
+              hideSoloMeetings={hideSoloMeetings}
+              userEmail={session?.user?.email || undefined}
+              onDayClick={(date) => {
+                setFilterDate(date);
+                if (date) setSeriesFilterActive(false); // Clear series filter when selecting a date
+              }}
+              onSeriesClick={setSeriesFilterActive}
+              seriesFilterActive={seriesFilterActive}
+              onStatsChange={setHeatmapStats}
+            />
+          </div>
+          {/* Legend directly below */}
+          <CalendarHeatmapLegend stats={heatmapStats} />
+        </div>
 
         {message && (
           <div
@@ -1783,6 +1868,8 @@ export default function Dashboard() {
           onBillableChange={changeBillable}
           onApplyToSeries={applyToSeries}
           onSubmit={submitToZep}
+          onSyncSingle={syncSingleAppointment}
+          syncingSingleId={syncingSingleId}
           onReset={resetPendingSyncs}
           submitting={submitting}
           // Editing synced entries (rebooking)

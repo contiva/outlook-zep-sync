@@ -3,7 +3,7 @@
 import { useMemo, useState, useRef, useEffect } from "react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
-import { Users, CheckCircle, CloudUpload, ExternalLink, AlertTriangle, Pencil, X, Check, HelpCircle, XCircle, Clock, RefreshCw, Ban, Banknote } from "lucide-react";
+import { Users, CheckCircle, CloudUpload, ExternalLink, AlertTriangle, Pencil, X, Check, HelpCircle, XCircle, Clock, RefreshCw, Ban, Banknote, Upload, Loader2 } from "lucide-react";
 import { getZepIdForOutlookEvent, getZepAttendanceUrl } from "@/lib/sync-history";
 import SearchableSelect, { SelectOption } from "./SearchableSelect";
 import { DuplicateCheckResult } from "@/lib/zep-api";
@@ -140,6 +140,9 @@ interface AppointmentRowProps {
   onTaskChange: (id: string, taskId: number | null) => void;
   onActivityChange: (id: string, activityId: string) => void;
   onBillableChange: (id: string, billable: boolean) => void;
+  // Single row sync
+  onSyncSingle?: (appointment: Appointment) => void;
+  isSyncingSingle?: boolean;
   // Editing synced entries (rebooking)
   isEditing?: boolean;
   modifiedEntry?: ModifiedEntry;
@@ -358,6 +361,8 @@ export default function AppointmentRow({
   onTaskChange,
   onActivityChange,
   onBillableChange,
+  onSyncSingle,
+  isSyncingSingle = false,
   isEditing = false,
   modifiedEntry,
   onStartEditSynced,
@@ -1001,6 +1006,38 @@ export default function AppointmentRow({
               <Banknote size={18} className={!appointment.taskId || !appointment.billable ? "opacity-50" : ""} />
             </button>
           </div>
+
+          {/* Single Sync Button */}
+          {onSyncSingle && (
+            <div className="flex flex-col">
+              <label className="text-xs text-gray-500 mb-1">Sync</label>
+              <button
+                type="button"
+                onClick={() => isSyncReady && onSyncSingle(appointment)}
+                disabled={!isSyncReady || isSyncingSingle}
+                className={`flex items-center justify-center w-10 h-9.5 rounded-lg border transition-colors ${
+                  isSyncingSingle
+                    ? "bg-blue-50 border-blue-300 text-blue-500 cursor-wait"
+                    : !isSyncReady
+                      ? "bg-gray-100 border-gray-200 text-gray-300 cursor-not-allowed"
+                      : "bg-green-50 border-green-300 text-green-600 hover:bg-green-100"
+                }`}
+                title={
+                  isSyncingSingle
+                    ? "Wird synchronisiert..."
+                    : !isSyncReady
+                      ? "Erst Projekt und Task wählen"
+                      : "Jetzt zu ZEP synchronisieren"
+                }
+              >
+                {isSyncingSingle ? (
+                  <Loader2 size={18} className="animate-spin" />
+                ) : (
+                  <Upload size={18} className={!isSyncReady ? "opacity-50" : ""} />
+                )}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

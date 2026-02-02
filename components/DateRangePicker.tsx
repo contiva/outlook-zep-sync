@@ -111,8 +111,7 @@ export default function DateRangePicker({
   };
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200">
-      <div className="flex items-center">
+    <div className="flex items-center border-b border-gray-200">
         {/* Month presets */}
         {presets.map((preset, index) => {
           const isActive = isPresetActive(preset);
@@ -185,7 +184,7 @@ export default function DateRangePicker({
         <button
           onClick={onLoad}
           disabled={loading}
-          className="relative flex items-center gap-2 px-4 py-3 text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:cursor-wait transition overflow-hidden rounded-r-lg"
+          className="relative flex items-center gap-2 px-4 py-3 text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:cursor-wait transition overflow-hidden"
         >
           {/* Progress bar background animation */}
           {loading && (
@@ -209,7 +208,6 @@ export default function DateRangePicker({
             <span className="hidden sm:inline">Termine laden</span>
           </span>
         </button>
-      </div>
     </div>
   );
 }

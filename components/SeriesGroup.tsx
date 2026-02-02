@@ -102,6 +102,9 @@ interface SeriesGroupProps {
     taskId: number | null,
     activityId: string
   ) => void;
+  // Single sync
+  onSyncSingle?: (appointment: Appointment) => void;
+  syncingSingleId?: string | null;
   // Rescheduled appointment time correction
   onCorrectTime?: (appointmentId: string, duplicateWarning: DuplicateCheckResult) => void;
   correctingTimeIds?: Set<string>;
@@ -166,6 +169,8 @@ export default function SeriesGroup({
   onActivityChange,
   onBillableChange,
   onApplyToSeries,
+  onSyncSingle,
+  syncingSingleId,
   onCorrectTime,
   correctingTimeIds,
 }: SeriesGroupProps) {
@@ -565,6 +570,9 @@ export default function SeriesGroup({
               onTaskChange={onTaskChange}
               onActivityChange={onActivityChange}
               onBillableChange={onBillableChange}
+              // Single sync
+              onSyncSingle={onSyncSingle}
+              isSyncingSingle={syncingSingleId === appointment.id}
               // Rescheduled time correction
               onCorrectTime={onCorrectTime}
               isCorrectingTime={correctingTimeIds?.has(appointment.id) || false}

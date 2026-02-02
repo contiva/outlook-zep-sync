@@ -111,6 +111,8 @@ interface AppointmentListProps {
     activityId: string
   ) => void;
   onSubmit: (appointmentsToSync: Appointment[], modifiedEntries?: ModifiedEntry[]) => void;
+  onSyncSingle?: (appointment: Appointment) => void;
+  syncingSingleId?: string | null;
   onReset: () => void;
   submitting: boolean;
   // Editing synced entries (rebooking)
@@ -205,6 +207,8 @@ export default function AppointmentList({
   onBillableChange,
   onApplyToSeries,
   onSubmit,
+  onSyncSingle,
+  syncingSingleId,
   onReset,
   submitting,
   editingAppointments,
@@ -575,6 +579,9 @@ export default function AppointmentList({
                 onActivityChange={onActivityChange}
                 onBillableChange={onBillableChange}
                 onApplyToSeries={onApplyToSeries}
+                // Single sync
+                onSyncSingle={onSyncSingle}
+                syncingSingleId={syncingSingleId}
                 // Rescheduled time correction
                 onCorrectTime={onCorrectTime}
                 correctingTimeIds={correctingTimeIds}
@@ -601,6 +608,9 @@ export default function AppointmentList({
                 onTaskChange={onTaskChange}
                 onActivityChange={onActivityChange}
                 onBillableChange={onBillableChange}
+                // Single sync
+                onSyncSingle={onSyncSingle}
+                isSyncingSingle={syncingSingleId === item.appointments[0].id}
                 // Editing synced entries props
                 isEditing={editingAppointments?.has(item.appointments[0].id) || false}
                 modifiedEntry={modifiedEntries?.get(item.appointments[0].id)}

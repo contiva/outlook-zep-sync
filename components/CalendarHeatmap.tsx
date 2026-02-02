@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import { format, eachDayOfInterval, parseISO, isWeekend } from "date-fns";
 import { de } from "date-fns/locale";
 import { formatZepStartTime, formatZepEndTime } from "@/lib/zep-api";
@@ -32,6 +32,12 @@ interface ZepAttendance {
   note: string | null;
 }
 
+export interface HeatmapStats {
+  synced: number;
+  edited: number;
+  unprocessed: number;
+}
+
 interface CalendarHeatmapProps {
   startDate: string;
   endDate: string;
@@ -44,6 +50,7 @@ interface CalendarHeatmapProps {
   seriesFilterActive: boolean;
   hideSoloMeetings?: boolean;
   userEmail?: string;
+  onStatsChange?: (stats: HeatmapStats) => void;
 }
 
 type DayStatus = "empty" | "unprocessed" | "edited" | "synced" | "weekend";
@@ -61,6 +68,7 @@ export default function CalendarHeatmap({
   seriesFilterActive,
   hideSoloMeetings = false,
   userEmail,
+  onStatsChange,
 }: CalendarHeatmapProps) {
   // Helper: Check if an appointment is a solo meeting (only user as attendee)
   const isSoloMeeting = (apt: Appointment): boolean => {
@@ -346,39 +354,17 @@ export default function CalendarHeatmap({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [days, appointmentsByDate, syncedByDate, submittedIds]);
 
+  // Notify parent of stats changes
+  useEffect(() => {
+    onStatsChange?.(stats);
+  }, [stats, onStatsChange]);
+
   if (days.length === 0) {
     return null;
   }
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-4">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-medium text-gray-700">Sync-Status</h3>
-        <div className="flex items-center gap-3 text-xs">
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-sm bg-green-500" />
-            <span className="text-gray-600">Synchronisiert</span>
-            <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 text-xs font-medium bg-gray-100 text-gray-600 rounded-full">
-              {stats.synced}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-sm bg-yellow-500" />
-            <span className="text-gray-600">Bearbeitet</span>
-            <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 text-xs font-medium bg-gray-100 text-gray-600 rounded-full">
-              {stats.edited}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-sm bg-red-400" />
-            <span className="text-gray-600">Unbearbeitet</span>
-            <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 text-xs font-medium bg-gray-100 text-gray-600 rounded-full">
-              {stats.unprocessed}
-            </span>
-          </div>
-        </div>
-      </div>
-
+    <div className="p-4">
       {/* Horizontal row - series tile + divider + all days as boxes */}
       <div 
         className="grid gap-1 items-end"
@@ -499,6 +485,30 @@ export default function CalendarHeatmap({
             </div>
           );
         })}
+      </div>
+      
+    </div>
+  );
+}
+
+// Legend component exported separately to be placed outside the container
+export function CalendarHeatmapLegend({ stats }: { stats: { synced: number; edited: number; unprocessed: number } }) {
+  return (
+    <div className="flex items-center justify-end gap-3 text-[10px] px-1 mt-1">
+      <div className="flex items-center gap-1">
+        <div className="w-2 h-2 rounded-sm bg-green-500/60" />
+        <span className="text-gray-400">Synchronisiert</span>
+        <span className="text-gray-400">{stats.synced}</span>
+      </div>
+      <div className="flex items-center gap-1">
+        <div className="w-2 h-2 rounded-sm bg-yellow-500/60" />
+        <span className="text-gray-400">Bearbeitet</span>
+        <span className="text-gray-400">{stats.edited}</span>
+      </div>
+      <div className="flex items-center gap-1">
+        <div className="w-2 h-2 rounded-sm bg-red-400/60" />
+        <span className="text-gray-400">Unbearbeitet</span>
+        <span className="text-gray-400">{stats.unprocessed}</span>
       </div>
     </div>
   );
