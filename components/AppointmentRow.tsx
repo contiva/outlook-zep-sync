@@ -657,14 +657,23 @@ export default function AppointmentRow({
                 )}
               </span>
             )}
-            {/* Internal meeting indicator (Contiva logo) */}
-            {isInternalOnly && (
-              <img 
-                src="/contiva.png" 
-                alt="Internes Meeting" 
-                className="h-3 object-contain relative -top-0.4"
-                title="Internes Contiva-Meeting"
-              />
+            {/* Internal/External meeting badge */}
+            {attendeeCount > 0 && (
+              isInternalOnly ? (
+                <span 
+                  className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-blue-100 text-blue-700"
+                  title="Internes Meeting - nur Contiva-Teilnehmer"
+                >
+                  Intern
+                </span>
+              ) : (
+                <span 
+                  className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-100 text-amber-700"
+                  title="Externes Meeting - externe Teilnehmer"
+                >
+                  Extern
+                </span>
+              )
             )}
           </div>
           
