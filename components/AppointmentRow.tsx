@@ -559,27 +559,27 @@ export default function AppointmentRow({
 
   return (
     <div
-      className={`px-3 py-2 border-x border-b border-t ${
+      className={`px-4 py-3.5 rounded-xl mb-1.5 transition-all border ${
         isSynced 
-          ? "border-green-200 bg-linear-to-r from-green-50 via-emerald-50/50 to-white" 
+          ? "border-success/20 bg-gradient-to-r from-success/5 via-transparent to-transparent" 
           : isSyncReady
-            ? "border-amber-200 bg-linear-to-r from-amber-50 via-yellow-50/50 to-white"
+            ? "border-warning/20 bg-gradient-to-r from-warning/5 via-transparent to-transparent"
             : appointment.selected 
-              ? "border-gray-200 bg-white" 
-              : "border-gray-200 bg-gray-50/50"
+              ? "border-border/60 bg-card shadow-sm" 
+              : "border-transparent bg-muted-foreground/[0.03]"
       }`}
     >
       <div className="flex items-start gap-3">
         {/* Status icons: Synced (green) or Checkbox + SyncReady indicator (amber) */}
-        <div className="flex flex-col items-center gap-0.5 shrink-0 pt-0.5">
+        <div className="flex flex-col items-center gap-1 shrink-0 pt-0.5">
           {isSynced ? (
             <div 
-              className="h-5 w-5 flex items-center justify-center" 
+              className="h-5 w-5 flex items-center justify-center rounded-full bg-success/10" 
               title="Bereits in ZEP synchronisiert"
               role="img"
               aria-label="Bereits in ZEP synchronisiert"
             >
-              <CheckCircle className="h-4 w-4 text-green-600" aria-hidden="true" />
+              <CheckCircle className="h-3.5 w-3.5 text-success" aria-hidden="true" />
             </div>
           ) : (
             <>
@@ -587,7 +587,7 @@ export default function AppointmentRow({
                 type="checkbox"
                 checked={appointment.selected}
                 onChange={() => onToggle(appointment.id)}
-                className="h-4 w-4 text-blue-600 rounded"
+                className="h-4 w-4 text-primary rounded-md border-border/60 focus:ring-primary transition-colors"
                 aria-label={`Termin auswählen: ${appointment.subject}`}
               />
               {isSyncReady && (
@@ -597,7 +597,7 @@ export default function AppointmentRow({
                   role="img"
                   aria-label="Bereit zum Synchronisieren"
                 >
-                  <CloudUpload className="h-3.5 w-3.5 text-amber-500" aria-hidden="true" />
+                  <CloudUpload className="h-3.5 w-3.5 text-warning" aria-hidden="true" />
                 </div>
               )}
               {duplicateWarning?.hasDuplicate && !isSynced && (
@@ -607,7 +607,7 @@ export default function AppointmentRow({
                   role="img"
                   aria-label={duplicateWarning.message || "Mögliches Duplikat erkannt"}
                 >
-                  <AlertTriangle className="h-3.5 w-3.5 text-amber-500" aria-hidden="true" />
+                  <AlertTriangle className="h-3.5 w-3.5 text-warning" aria-hidden="true" />
                 </div>
               )}
             </>
@@ -617,7 +617,7 @@ export default function AppointmentRow({
         {/* Main content - Title on top, details below */}
         <div className="flex-1 min-w-0">
           {/* Title row with duration */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
             {appointment.isOnlineMeeting && appointment.onlineMeetingProvider === "teamsForBusiness" && (
               <svg
                 className={`w-3.5 h-3.5 shrink-0 ${isMuted ? "opacity-40" : ""}`}
@@ -637,18 +637,18 @@ export default function AppointmentRow({
               </svg>
             )}
             {appointment.subject ? (
-              <span className={`font-medium text-sm truncate ${isMuted ? "text-gray-400" : "text-gray-900"}`}>{appointment.subject}</span>
+              <span className={`font-medium text-sm truncate ${isMuted ? "text-muted-foreground" : "text-foreground"}`}>{appointment.subject}</span>
             ) : (
-              <span className="font-medium text-gray-400 text-sm italic">Kein Titel definiert</span>
+              <span className="font-medium text-muted-foreground/50 text-sm italic">Kein Titel definiert</span>
             )}
             {/* Duration badge - small, right of title */}
-            <span className={`text-[10px] px-1.5 py-0.5 rounded ${isMuted ? "bg-gray-100 text-gray-400" : "bg-gray-100 text-gray-500"}`}>
+            <span className={`text-[10px] px-2 py-0.5 rounded-md font-medium ${isMuted ? "bg-muted-foreground/5 text-muted-foreground/50" : "bg-muted-foreground/5 text-muted-foreground"}`}>
               {durationHours > 0 ? `${durationHours}h${durationMins > 0 ? durationMins : ''}` : `${durationMins}min`}
             </span>
             {/* Cancelled badge */}
             {appointment.isCancelled && (
               <span 
-                className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-medium cursor-help"
+                className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md bg-error/10 text-error font-medium cursor-help"
                 title={appointment.lastModifiedDateTime 
                   ? `Abgesagt am ${format(new Date(appointment.lastModifiedDateTime), "dd.MM.yyyy 'um' HH:mm", { locale: de })}` 
                   : "Abgesagt"}
@@ -656,7 +656,7 @@ export default function AppointmentRow({
                 <Ban size={10} />
                 Abgesagt
                 {appointment.lastModifiedDateTime && (
-                  <span className="text-red-500">
+                  <span className="opacity-70">
                     ({format(new Date(appointment.lastModifiedDateTime), "dd.MM.", { locale: de })})
                   </span>
                 )}
@@ -666,14 +666,14 @@ export default function AppointmentRow({
             {attendeeCount > 0 && (
               isInternalOnly ? (
                 <span 
-                  className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-blue-100 text-blue-700"
+                  className="px-2 py-0.5 text-[10px] font-medium rounded-md bg-primary/10 text-primary"
                   title="Internes Meeting - nur Contiva-Teilnehmer"
                 >
                   Intern
                 </span>
               ) : (
                 <span 
-                  className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-100 text-amber-700"
+                  className="px-2 py-0.5 text-[10px] font-medium rounded-md bg-warning/10 text-warning"
                   title="Externes Meeting - externe Teilnehmer"
                 >
                   Extern
@@ -683,7 +683,7 @@ export default function AppointmentRow({
           </div>
           
           {/* Details row - Date/Time, Organizer, Attendee Domains */}
-          <div className={`flex items-center gap-2 text-xs mt-0.5 ${isMuted ? "text-gray-400" : "text-gray-500"}`}>
+          <div className={`flex items-center gap-2 text-xs mt-1 ${isMuted ? "text-muted-foreground/50" : "text-muted-foreground"}`}>
             {/* Date and Time */}
             <span>
               <span className={`font-medium ${isMuted ? "text-gray-400" : "text-gray-600"}`}>{dayLabel}</span>

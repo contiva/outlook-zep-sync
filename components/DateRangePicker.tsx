@@ -111,7 +111,7 @@ export default function DateRangePicker({
   };
 
   return (
-    <div className="flex items-center border-b border-gray-200">
+    <div className="flex items-center border-b border-border/60 bg-card">
         {/* Month presets */}
         {presets.map((preset, index) => {
           const isActive = isPresetActive(preset);
@@ -124,44 +124,53 @@ export default function DateRangePicker({
                 // Clear the filter date when clicking month directly
                 setTimeout(() => onFilterDateChange(null), 100);
               }}
-              className={`px-4 py-3 text-sm whitespace-nowrap transition ${
+              className={`relative px-5 py-3.5 text-sm font-medium whitespace-nowrap transition-colors ${
                 isActive && !isRelated
-                  ? "text-blue-600 bg-blue-50"
+                  ? "text-primary"
                   : isRelated
-                  ? "text-gray-700 bg-gray-100"
-                  : "text-gray-600 hover:bg-gray-50"
+                  ? "text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
               {preset.label}
+              {isActive && !isRelated && (
+                <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-primary rounded-full" />
+              )}
             </button>
           );
         })}
         
-        <div className="h-8 w-px bg-gray-200" />
+        <div className="h-6 w-px bg-border/60" />
         
         {/* Quick jump buttons */}
         <button
           onClick={jumpToYesterday}
-          className={`px-4 py-3 text-sm whitespace-nowrap transition ${
+          className={`relative px-4 py-3.5 text-sm font-medium whitespace-nowrap transition-colors ${
             isYesterdayActive
-              ? "text-blue-600 bg-blue-50"
-              : "text-gray-600 hover:bg-gray-50"
+              ? "text-primary"
+              : "text-muted-foreground hover:text-foreground"
           }`}
         >
           Gestern
+          {isYesterdayActive && (
+            <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-6 h-0.5 bg-primary rounded-full" />
+          )}
         </button>
         
-        <div className="h-8 w-px bg-gray-200" />
+        <div className="h-6 w-px bg-border/60" />
         
         <button
           onClick={jumpToToday}
-          className={`px-4 py-3 text-sm whitespace-nowrap transition ${
+          className={`relative px-4 py-3.5 text-sm font-medium whitespace-nowrap transition-colors ${
             isTodayActive
-              ? "text-blue-600 bg-blue-50"
-              : "text-gray-600 hover:bg-gray-50"
+              ? "text-primary"
+              : "text-muted-foreground hover:text-foreground"
           }`}
         >
           Heute
+          {isTodayActive && (
+            <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-5 h-0.5 bg-primary rounded-full" />
+          )}
         </button>
         
         {/* Spacer */}
@@ -171,12 +180,12 @@ export default function DateRangePicker({
         {lastLoadedAt && !loading && (
           <>
             <span 
-              className="px-3 text-xs text-gray-400 hidden sm:inline" 
+              className="px-3 text-xs text-muted-foreground/70 hidden sm:inline" 
               title={format(lastLoadedAt, "PPpp", { locale: de })}
             >
               {formatDistanceToNow(lastLoadedAt, { addSuffix: true, locale: de })}
             </span>
-            <div className="h-8 w-px bg-gray-200" />
+            <div className="h-6 w-px bg-border/60" />
           </>
         )}
         
@@ -184,28 +193,20 @@ export default function DateRangePicker({
         <button
           onClick={onLoad}
           disabled={loading}
-          className="relative flex items-center gap-2 px-4 py-3 text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:cursor-wait transition overflow-hidden"
+          className="relative flex items-center gap-2 px-5 py-3.5 text-sm font-medium bg-primary text-white hover:bg-primary-hover disabled:cursor-wait transition-all overflow-hidden rounded-none"
         >
           {/* Progress bar background animation */}
           {loading && (
-            <>
-              <style>{`
-                @keyframes progress-sweep {
-                  0% { transform: translateX(-100%); }
-                  100% { transform: translateX(100%); }
-                }
-              `}</style>
-              <div 
-                className="absolute inset-0 bg-blue-400 opacity-60"
-                style={{
-                  animation: "progress-sweep 1.5s ease-in-out infinite",
-                }}
-              />
-            </>
+            <div 
+              className="absolute inset-0 bg-white/20"
+              style={{
+                animation: "progress-sweep 1.5s ease-in-out infinite",
+              }}
+            />
           )}
           <span className="relative z-10 flex items-center gap-2">
             <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-            <span className="hidden sm:inline">Termine laden</span>
+            <span className="hidden sm:inline">Laden</span>
           </span>
         </button>
     </div>
