@@ -587,6 +587,17 @@ export default function Dashboard() {
     loadProjects();
   }, [loadProjects]);
 
+  // Auto-load appointments when page opens (after employee is loaded)
+  const hasAutoLoaded = useRef(false);
+  useEffect(() => {
+    if (hasAutoLoaded.current) return;
+    if (!zepEmployee) return; // Wait for employee to load
+    
+    hasAutoLoaded.current = true;
+    loadAppointments();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zepEmployee]); // Only depend on zepEmployee, loadAppointments is stable via ref
+
   // Note: Synced entries are loaded together with appointments in loadAppointments()
 
   const loadTasksForProject = useCallback(async (projectId: number, options?: { skipFilter?: boolean }): Promise<Task[]> => {
