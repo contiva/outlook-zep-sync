@@ -12,9 +12,11 @@ interface ModifiedEntry {
   originalProjectId: number;
   originalTaskId: number;
   originalActivityId: string;
+  originalBillable: boolean;
   newProjectId: number;
   newTaskId: number;
   newActivityId: string;
+  newBillable: boolean;
   newProjektNr: string;
   newVorgangNr: string;
   userId: string;
@@ -22,7 +24,6 @@ interface ModifiedEntry {
   von: string;
   bis: string;
   bemerkung?: string;
-  istFakturierbar?: boolean;
 }
 
 interface Project {
@@ -39,6 +40,7 @@ interface Appointment {
   projectId: number | null;
   taskId: number | null;
   activityId: string;
+  billable: boolean;
 }
 
 interface SyncConfirmDialogProps {

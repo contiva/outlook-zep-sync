@@ -11,6 +11,21 @@ import CalendarHeatmap from "@/components/CalendarHeatmap";
 import { saveSyncRecords, SyncRecord } from "@/lib/sync-history";
 import { checkAppointmentsForDuplicates, DuplicateCheckResult, ZepAttendance, formatZepStartTime, formatZepEndTime } from "@/lib/zep-api";
 
+// Helper: Determine billable status from project/task settings
+// Values: 0=inherited(task only), 1=billable+editable, 2=billable+locked, 3=not billable+editable, 4=not billable+locked
+function determineBillable(projektFakt?: number, vorgangFakt?: number): boolean {
+  // Task has own setting (not 0 = "inherited")
+  if (vorgangFakt !== undefined && vorgangFakt !== 0) {
+    return vorgangFakt === 1 || vorgangFakt === 2;
+  }
+  // Fallback to project setting
+  if (projektFakt !== undefined) {
+    return projektFakt === 1 || projektFakt === 2;
+  }
+  // Default: billable
+  return true;
+}
+
 // Zugeordnete Tätigkeit (zu Projekt oder Vorgang)
 interface AssignedActivity {
   name: string;      // Tätigkeit-Kürzel
@@ -22,6 +37,8 @@ interface Project {
   name: string;
   description: string;
   activities?: AssignedActivity[]; // Dem Projekt zugeordnete Tätigkeiten
+  voreinstFakturierbarkeit?: number; // 1-4: Projekt-Level Fakturierbarkeit
+  defaultFakt?: number; // 1-4: Projekt-Level Fakturierbarkeit (alternative)
 }
 
 interface Task {
@@ -30,6 +47,7 @@ interface Task {
   description: string | null;
   project_id: number;
   activities?: AssignedActivity[]; // Dem Vorgang zugeordnete Tätigkeiten (leer = erbt vom Projekt)
+  defaultFakt?: number; // 0=vom Projekt geerbt, 1-4=eigene Einstellung
 }
 
 interface Activity {
@@ -65,6 +83,8 @@ interface CalendarEvent {
   type?: string;
   isOnlineMeeting?: boolean;
   onlineMeetingProvider?: string;
+  isCancelled?: boolean;
+  lastModifiedDateTime?: string;
 }
 
 interface Appointment {
@@ -76,6 +96,7 @@ interface Appointment {
   projectId: number | null;
   taskId: number | null;
   activityId: string;
+  billable: boolean;
   attendees?: Attendee[];
   organizer?: {
     emailAddress: {
@@ -89,6 +110,8 @@ interface Appointment {
   synced?: boolean; // true if already exists in ZEP
   isOnlineMeeting?: boolean;
   onlineMeetingProvider?: string;
+  isCancelled?: boolean;
+  lastModifiedDateTime?: string;
 }
 
 interface ZepEntry {
@@ -113,9 +136,11 @@ export interface ModifiedEntry {
   originalProjectId: number;
   originalTaskId: number;
   originalActivityId: string;
+  originalBillable: boolean;
   newProjectId: number;
   newTaskId: number;
   newActivityId: string;
+  newBillable: boolean;
   newProjektNr: string;
   newVorgangNr: string;
   // Original entry data needed for SOAP modify call
@@ -124,7 +149,6 @@ export interface ModifiedEntry {
   von: string;
   bis: string;
   bemerkung?: string;
-  istFakturierbar?: boolean;
 }
 
 // localStorage key for persisting work state
@@ -621,6 +645,7 @@ export default function Dashboard() {
                 projectId: saved.projectId,
                 taskId: saved.taskId,
                 activityId: saved.activityId,
+                billable: saved.billable ?? true, // Default true for old saved data
               };
             }
             
@@ -630,12 +655,26 @@ export default function Dashboard() {
             );
             const hasMeetingAttendees = otherAttendees.length > 0;
             
+            // Check if cancelled more than 24h before the meeting
+            let shouldBeSelected = hasMeetingAttendees;
+            if (event.isCancelled && event.lastModifiedDateTime) {
+              const cancelledAt = new Date(event.lastModifiedDateTime);
+              const meetingStart = new Date(event.start.dateTime);
+              const hoursBeforeMeeting = (meetingStart.getTime() - cancelledAt.getTime()) / (1000 * 60 * 60);
+              
+              // If cancelled more than 24h before meeting, don't pre-select
+              if (hoursBeforeMeeting > 24) {
+                shouldBeSelected = false;
+              }
+            }
+            
             return {
               ...event,
-              selected: hasMeetingAttendees, // Only pre-select meetings with other attendees
+              selected: shouldBeSelected,
               projectId: null,
               taskId: null,
               activityId: "be", // Default: Beratung
+              billable: true, // Default: fakturierbar
             };
           })
         );
@@ -732,6 +771,7 @@ export default function Dashboard() {
           projectId: null,
           taskId: null,
           activityId: "be", // Default zurücksetzen
+          billable: true, // Default zurücksetzen
         };
       })
     );
@@ -794,13 +834,15 @@ export default function Dashboard() {
         
         // Find standard activity for the selected task
         let newActivityId = apt.activityId;
+        let newBillable = apt.billable;
+        
         if (taskId && apt.projectId) {
           const projectTasks = tasks[apt.projectId] || [];
           const selectedTask = projectTasks.find((t) => t.id === taskId);
+          const project = projects.find((p) => p.id === apt.projectId);
           
           // Check task activities first, then project activities
           const taskActivities = selectedTask?.activities || [];
-          const project = projects.find((p) => p.id === apt.projectId);
           const projectActivities = project?.activities || [];
           
           // Use task activities if available, otherwise project activities
@@ -810,9 +852,14 @@ export default function Dashboard() {
           if (standardActivity) {
             newActivityId = standardActivity.name;
           }
+          
+          // Determine billable status from task/project settings
+          const projektFakt = project?.voreinstFakturierbarkeit ?? project?.defaultFakt;
+          const vorgangFakt = selectedTask?.defaultFakt;
+          newBillable = determineBillable(projektFakt, vorgangFakt);
         }
         
-        return { ...apt, taskId, activityId: newActivityId };
+        return { ...apt, taskId, activityId: newActivityId, billable: newBillable };
       })
     );
   };
@@ -820,6 +867,12 @@ export default function Dashboard() {
   const changeActivity = (id: string, activityId: string) => {
     setAppointments((prev) =>
       prev.map((apt) => (apt.id === id ? { ...apt, activityId } : apt))
+    );
+  };
+
+  const changeBillable = (id: string, billable: boolean) => {
+    setAppointments((prev) =>
+      prev.map((apt) => (apt.id === id ? { ...apt, billable } : apt))
     );
   };
 
@@ -848,9 +901,24 @@ export default function Dashboard() {
   // =========================================================================
 
   // Start editing a synced appointment
-  const startEditingSyncedAppointment = useCallback((appointmentId: string) => {
+  const startEditingSyncedAppointment = useCallback(async (appointmentId: string) => {
+    // Find the synced entry to get the project ID
+    const apt = appointments.find(a => a.id === appointmentId);
+    if (apt) {
+      const syncedEntry = syncedEntries.find(entry => {
+        const entryDate = entry.date.split("T")[0];
+        const aptDate = apt.start.dateTime.split("T")[0];
+        return entryDate === aptDate && (entry.note?.trim() || "") === (apt.subject?.trim() || "");
+      });
+      
+      if (syncedEntry) {
+        // Load tasks for the project before enabling edit mode
+        await loadTasksForProject(syncedEntry.project_id);
+      }
+    }
+    
     setEditingAppointments((prev) => new Set(prev).add(appointmentId));
-  }, []);
+  }, [appointments, syncedEntries, loadTasksForProject]);
 
   // Cancel editing a synced appointment
   const cancelEditingSyncedAppointment = useCallback((appointmentId: string) => {
@@ -901,9 +969,11 @@ export default function Dashboard() {
           originalProjectId: syncedEntry.project_id,
           originalTaskId: syncedEntry.project_task_id,
           originalActivityId: syncedEntry.activity_id,
+          originalBillable: syncedEntry.billable,
           newProjectId: projectId,
           newTaskId: 0,
           newActivityId: syncedEntry.activity_id,
+          newBillable: syncedEntry.billable,
           newProjektNr: project.name,
           newVorgangNr: "",
           userId: syncedEntry.employee_id,
@@ -911,7 +981,6 @@ export default function Dashboard() {
           von: syncedEntry.from.slice(0, 5),
           bis: syncedEntry.to.slice(0, 5),
           bemerkung: syncedEntry.note || undefined,
-          istFakturierbar: syncedEntry.billable,
         });
       }
       return next;
@@ -970,9 +1039,11 @@ export default function Dashboard() {
           originalProjectId: syncedEntry.project_id,
           originalTaskId: syncedEntry.project_task_id,
           originalActivityId: syncedEntry.activity_id,
+          originalBillable: syncedEntry.billable,
           newProjectId: syncedEntry.project_id,
           newTaskId: syncedEntry.project_task_id,
           newActivityId: activityId,
+          newBillable: syncedEntry.billable,
           newProjektNr: project?.name || syncedEntry.projektNr || "",
           newVorgangNr: task?.name || syncedEntry.vorgangNr || "",
           userId: syncedEntry.employee_id,
@@ -980,12 +1051,29 @@ export default function Dashboard() {
           von: syncedEntry.from.slice(0, 5),
           bis: syncedEntry.to.slice(0, 5),
           bemerkung: syncedEntry.note || undefined,
-          istFakturierbar: syncedEntry.billable,
         });
       }
       return next;
     });
   }, [projects, tasks]);
+
+  // Update a modified entry's billable status
+  const updateModifiedBillable = useCallback((
+    appointmentId: string,
+    billable: boolean
+  ) => {
+    setModifiedEntries((prev) => {
+      const next = new Map(prev);
+      const existing = next.get(appointmentId);
+      if (!existing) return prev;
+
+      next.set(appointmentId, {
+        ...existing,
+        newBillable: billable,
+      });
+      return next;
+    });
+  }, []);
 
   // Reload synced entries from ZEP
   const loadSyncedEntries = useCallback(async () => {
@@ -1104,7 +1192,7 @@ export default function Dashboard() {
             to: formatZepEndTime(endDt),
             employee_id: employeeId,
             note: apt.subject,
-            billable: true,
+            billable: apt.billable,
             activity_id: apt.activityId,
             project_id: apt.projectId!,
             project_task_id: apt.taskId!,
@@ -1167,7 +1255,7 @@ export default function Dashboard() {
           von: mod.von,
           bis: mod.bis,
           bemerkung: mod.bemerkung,
-          istFakturierbar: mod.istFakturierbar,
+          istFakturierbar: mod.newBillable,
         }));
 
         const modRes = await fetch("/api/zep/timeentries", {
@@ -1456,6 +1544,7 @@ export default function Dashboard() {
           onProjectChange={changeProject}
           onTaskChange={changeTask}
           onActivityChange={changeActivity}
+          onBillableChange={changeBillable}
           onApplyToSeries={applyToSeries}
           onSubmit={submitToZep}
           onReset={resetPendingSyncs}
@@ -1468,6 +1557,7 @@ export default function Dashboard() {
           onModifyProject={updateModifiedProject}
           onModifyTask={updateModifiedTask}
           onModifyActivity={updateModifiedActivity}
+          onModifyBillable={updateModifiedBillable}
           // Correcting rescheduled appointment times
           onCorrectTime={correctRescheduledTime}
           correctingTimeIds={correctingTimeIds}

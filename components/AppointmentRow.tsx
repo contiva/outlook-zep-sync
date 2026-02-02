@@ -3,7 +3,7 @@
 import { useMemo, useState, useRef, useEffect } from "react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
-import { Users, CheckCircle, CloudUpload, ExternalLink, AlertTriangle, Pencil, X, Check, HelpCircle, XCircle, Clock, RefreshCw } from "lucide-react";
+import { Users, CheckCircle, CloudUpload, ExternalLink, AlertTriangle, Pencil, X, Check, HelpCircle, XCircle, Clock, RefreshCw, Ban, Banknote } from "lucide-react";
 import { getZepIdForOutlookEvent, getZepAttendanceUrl } from "@/lib/sync-history";
 import SearchableSelect, { SelectOption } from "./SearchableSelect";
 import { DuplicateCheckResult } from "@/lib/zep-api";
@@ -56,9 +56,11 @@ interface ModifiedEntry {
   originalProjectId: number;
   originalTaskId: number;
   originalActivityId: string;
+  originalBillable: boolean;
   newProjectId: number;
   newTaskId: number;
   newActivityId: string;
+  newBillable: boolean;
   newProjektNr: string;
   newVorgangNr: string;
 }
@@ -83,6 +85,7 @@ interface Appointment {
   projectId: number | null;
   taskId: number | null;
   activityId: string;
+  billable: boolean;
   attendees?: Attendee[];
   organizer?: {
     emailAddress: {
@@ -93,6 +96,9 @@ interface Appointment {
   isOrganizer?: boolean;
   isOnlineMeeting?: boolean;
   onlineMeetingProvider?: string;
+  // Abgesagte Termine
+  isCancelled?: boolean;
+  lastModifiedDateTime?: string;
 }
 
 interface AppointmentRowProps {
@@ -110,6 +116,7 @@ interface AppointmentRowProps {
   onProjectChange: (id: string, projectId: number | null) => void;
   onTaskChange: (id: string, taskId: number | null) => void;
   onActivityChange: (id: string, activityId: string) => void;
+  onBillableChange: (id: string, billable: boolean) => void;
   // Editing synced entries (rebooking)
   isEditing?: boolean;
   modifiedEntry?: ModifiedEntry;
@@ -118,6 +125,7 @@ interface AppointmentRowProps {
   onModifyProject?: (appointmentId: string, apt: Appointment, syncedEntry: SyncedEntry, projectId: number) => void;
   onModifyTask?: (appointmentId: string, taskId: number) => void;
   onModifyActivity?: (appointmentId: string, apt: Appointment, syncedEntry: SyncedEntry, activityId: string) => void;
+  onModifyBillable?: (appointmentId: string, billable: boolean) => void;
   // Rescheduled appointment correction
   onCorrectTime?: (appointmentId: string, duplicateWarning: DuplicateCheckResult) => void;
   isCorrectingTime?: boolean;
@@ -176,7 +184,12 @@ function AttendeePopover({ attendees, organizer, isOrganizer }: AttendeePopoverP
   }, [isOpen]);
 
   const attendeeCount = attendees.length;
-  const domains = [...new Set(attendees.map(a => a.emailAddress.address.split('@')[1]).filter(Boolean))];
+  const allDomains = [...new Set(attendees.map(a => a.emailAddress.address.split('@')[1]).filter(Boolean))];
+  // Filter out contiva.com from displayed domains
+  const domains = allDomains.filter(d => d !== "contiva.com");
+  
+  // Check if all attendees are from contiva.com
+  const isInternalOnly = attendeeCount > 0 && allDomains.length === 1 && allDomains[0] === "contiva.com";
   
   // Group attendees by status
   const accepted = attendees.filter(a => a.status.response === "accepted");
@@ -194,9 +207,11 @@ function AttendeePopover({ attendees, organizer, isOrganizer }: AttendeePopoverP
       >
         <Users size={11} />
         <span>{attendeeCount}</span>
-        <span className="text-gray-400">
-          ({domains.join(', ')})
-        </span>
+        {!isInternalOnly && domains.length > 0 && (
+          <span className="text-gray-400">
+            ({domains.join(', ')})
+          </span>
+        )}
       </button>
 
       {isOpen && (
@@ -276,10 +291,12 @@ function AttendeePopover({ attendees, organizer, isOrganizer }: AttendeePopoverP
             )}
           </div>
 
-          {/* Domain summary */}
-          <div className="mt-2 pt-2 border-t border-gray-100 text-[10px] text-gray-500">
-            Domains: {domains.join(', ')}
-          </div>
+          {/* Domain summary - only show if there are external domains */}
+          {domains.length > 0 && (
+            <div className="mt-2 pt-2 border-t border-gray-100 text-[10px] text-gray-500">
+              Externe Domains: {domains.join(', ')}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -317,6 +334,7 @@ export default function AppointmentRow({
   onProjectChange,
   onTaskChange,
   onActivityChange,
+  onBillableChange,
   isEditing = false,
   modifiedEntry,
   onStartEditSynced,
@@ -324,6 +342,7 @@ export default function AppointmentRow({
   onModifyProject,
   onModifyTask,
   onModifyActivity,
+  onModifyBillable,
   onCorrectTime,
   isCorrectingTime = false,
 }: AppointmentRowProps) {
@@ -340,6 +359,10 @@ export default function AppointmentRow({
 
   const attendees = appointment.attendees || [];
   const attendeeCount = attendees.length;
+  
+  // Check if all attendees are from contiva.com (internal meeting)
+  const attendeeDomains = [...new Set(attendees.map(a => a.emailAddress.address.split('@')[1]).filter(Boolean))];
+  const isInternalOnly = attendeeCount > 0 && attendeeDomains.length === 1 && attendeeDomains[0] === "contiva.com";
 
   // Konvertiere Projekte zu SelectOptions
   const projectOptions: SelectOption[] = useMemo(
@@ -572,6 +595,32 @@ export default function AppointmentRow({
             <span className={`text-[10px] px-1.5 py-0.5 rounded ${isMuted ? "bg-gray-100 text-gray-400" : "bg-gray-100 text-gray-500"}`}>
               {durationHours > 0 ? `${durationHours}h${durationMins > 0 ? durationMins : ''}` : `${durationMins}min`}
             </span>
+            {/* Cancelled badge */}
+            {appointment.isCancelled && (
+              <span 
+                className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-medium cursor-help"
+                title={appointment.lastModifiedDateTime 
+                  ? `Abgesagt am ${format(new Date(appointment.lastModifiedDateTime), "dd.MM.yyyy 'um' HH:mm", { locale: de })}` 
+                  : "Abgesagt"}
+              >
+                <Ban size={10} />
+                Abgesagt
+                {appointment.lastModifiedDateTime && (
+                  <span className="text-red-500">
+                    ({format(new Date(appointment.lastModifiedDateTime), "dd.MM.", { locale: de })})
+                  </span>
+                )}
+              </span>
+            )}
+            {/* Internal meeting indicator (Contiva logo) */}
+            {isInternalOnly && (
+              <img 
+                src="/contiva.png" 
+                alt="Internes Meeting" 
+                className="h-3 object-contain relative -top-0.4"
+                title="Internes Contiva-Meeting"
+              />
+            )}
           </div>
           
           {/* Details row - Date/Time, Organizer, Attendee Domains */}
@@ -669,7 +718,13 @@ export default function AppointmentRow({
           )}
           <span className="text-gray-300">•</span>
           <span>{syncedInfo.activityName}</span>
-          {!syncedInfo.billable && <span className="text-gray-400">(intern)</span>}
+          <span className="text-gray-300">•</span>
+          <span title={syncedInfo.billable ? "Fakturierbar" : "Nicht fakturierbar (intern)"}>
+            <Banknote 
+              size={14} 
+              className={syncedInfo.billable ? "text-green-600" : "text-gray-400"} 
+            />
+          </span>
           {isModified && <span className="text-amber-600 font-medium">Geändert</span>}
         </div>
       )}
@@ -707,9 +762,9 @@ export default function AppointmentRow({
               </button>
             )}
           </div>
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap items-end gap-3">
             {/* Projekt-Dropdown */}
-            <div className="flex flex-col">
+            <div className="flex flex-col min-w-0">
               <label className="text-xs text-gray-500 mb-1">Projekt</label>
               <SearchableSelect
                 options={projectOptions}
@@ -720,12 +775,12 @@ export default function AppointmentRow({
                   }
                 }}
                 placeholder="-- Projekt wählen --"
-                className="w-full sm:w-96"
+                className="w-64 sm:w-72"
               />
             </div>
 
             {/* Task-Dropdown */}
-            <div className="flex flex-col">
+            <div className="flex flex-col min-w-0">
               <label className="text-xs text-gray-500 mb-1">Task</label>
               <SearchableSelect
                 options={editingTaskOptions}
@@ -738,12 +793,12 @@ export default function AppointmentRow({
                 placeholder="-- Task wählen --"
                 disabled={editingTaskOptions.length === 0}
                 disabledMessage={editingTaskOptions.length === 0 ? "Laden..." : undefined}
-                className="w-full sm:w-96"
+                className="w-64 sm:w-72"
               />
             </div>
 
             {/* Activity-Dropdown */}
-            <div className="flex flex-col">
+            <div className="flex flex-col min-w-0">
               <label className="text-xs text-gray-500 mb-1">Tätigkeit</label>
               <SearchableSelect
                 options={activityOptions}
@@ -754,8 +809,35 @@ export default function AppointmentRow({
                   }
                 }}
                 placeholder="-- Tätigkeit wählen --"
-                className="w-full sm:w-56"
+                disabled={!(modifiedEntry?.newTaskId || syncedEntry.project_task_id)}
+                disabledMessage={!(modifiedEntry?.newProjectId || syncedEntry.project_id) ? "Erst Projekt wählen" : "Erst Task wählen"}
+                className="w-40 sm:w-48"
               />
+            </div>
+
+            {/* Billable Toggle */}
+            <div className="flex flex-col">
+              <label className="text-xs text-gray-500 mb-1">Fakt.</label>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onModifyBillable && (modifiedEntry?.newTaskId || syncedEntry.project_task_id)) {
+                    const currentBillable = modifiedEntry?.newBillable ?? syncedEntry.billable;
+                    onModifyBillable(appointment.id, !currentBillable);
+                  }
+                }}
+                disabled={!(modifiedEntry?.newTaskId || syncedEntry.project_task_id)}
+                className={`flex items-center justify-center w-10 h-[34px] rounded-md border transition-colors ${
+                  !(modifiedEntry?.newTaskId || syncedEntry.project_task_id)
+                    ? "bg-gray-100 border-gray-200 text-gray-300 cursor-not-allowed"
+                    : (modifiedEntry?.newBillable ?? syncedEntry.billable)
+                      ? "bg-green-50 border-green-300 text-green-600 hover:bg-green-100"
+                      : "bg-gray-50 border-gray-300 text-gray-400 hover:bg-gray-100"
+                }`}
+                title={!(modifiedEntry?.newTaskId || syncedEntry.project_task_id) ? "Erst Task wählen" : (modifiedEntry?.newBillable ?? syncedEntry.billable) ? "Fakturierbar - klicken zum Ändern" : "Nicht fakturierbar (intern) - klicken zum Ändern"}
+              >
+                <Banknote size={18} className={!(modifiedEntry?.newTaskId || syncedEntry.project_task_id) || !(modifiedEntry?.newBillable ?? syncedEntry.billable) ? "opacity-50" : ""} />
+              </button>
             </div>
           </div>
           {isModificationComplete && isModified && (
@@ -768,9 +850,9 @@ export default function AppointmentRow({
 
       {/* Dropdowns for selected unsynchronized appointments */}
       {appointment.selected && !isSynced && (
-        <div className="mt-3 ml-8 flex flex-wrap gap-3">
+        <div className="mt-3 ml-8 flex flex-wrap items-end gap-3">
           {/* Projekt-Dropdown */}
-          <div className="flex flex-col">
+          <div className="flex flex-col min-w-0">
             <label className="text-xs text-gray-500 mb-1">Projekt</label>
             <SearchableSelect
               options={projectOptions}
@@ -782,12 +864,12 @@ export default function AppointmentRow({
                 )
               }
               placeholder="-- Projekt wählen --"
-              className="w-full sm:w-96"
+              className="w-64 sm:w-72"
             />
           </div>
 
           {/* Task-Dropdown */}
-          <div className="flex flex-col">
+          <div className="flex flex-col min-w-0">
             <label className="text-xs text-gray-500 mb-1">Task</label>
             <SearchableSelect
               options={taskOptions}
@@ -808,12 +890,12 @@ export default function AppointmentRow({
                     : "Keine Tasks vorhanden"
               }
               loading={loadingTasks}
-              className="w-full sm:w-96"
+              className="w-64 sm:w-72"
             />
           </div>
 
           {/* Activity-Dropdown */}
-          <div className="flex flex-col">
+          <div className="flex flex-col min-w-0">
             <label className="text-xs text-gray-500 mb-1">Tätigkeit</label>
             <SearchableSelect
               options={activityOptions}
@@ -822,8 +904,30 @@ export default function AppointmentRow({
                 onActivityChange(appointment.id, String(val ?? "be"))
               }
               placeholder="-- Tätigkeit wählen --"
-              className="w-full sm:w-56"
+              disabled={!appointment.taskId}
+              disabledMessage={!appointment.projectId ? "Erst Projekt wählen" : "Erst Task wählen"}
+              className="w-40 sm:w-48"
             />
+          </div>
+
+          {/* Billable Toggle */}
+          <div className="flex flex-col">
+            <label className="text-xs text-gray-500 mb-1">Fakt.</label>
+            <button
+              type="button"
+              onClick={() => appointment.taskId && onBillableChange(appointment.id, !appointment.billable)}
+              disabled={!appointment.taskId}
+              className={`flex items-center justify-center w-10 h-[34px] rounded-md border transition-colors ${
+                !appointment.taskId
+                  ? "bg-gray-100 border-gray-200 text-gray-300 cursor-not-allowed"
+                  : appointment.billable
+                    ? "bg-green-50 border-green-300 text-green-600 hover:bg-green-100"
+                    : "bg-gray-50 border-gray-300 text-gray-400 hover:bg-gray-100"
+              }`}
+              title={!appointment.taskId ? "Erst Task wählen" : appointment.billable ? "Fakturierbar - klicken zum Ändern" : "Nicht fakturierbar (intern) - klicken zum Ändern"}
+            >
+              <Banknote size={18} className={!appointment.taskId || !appointment.billable ? "opacity-50" : ""} />
+            </button>
           </div>
         </div>
       )}

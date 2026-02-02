@@ -44,6 +44,7 @@ interface Appointment {
   projectId: number | null;
   taskId: number | null;
   activityId: string;
+  billable: boolean;
   attendees?: Attendee[];
   isOrganizer?: boolean;
   seriesMasterId?: string;
@@ -72,9 +73,11 @@ interface ModifiedEntry {
   originalProjectId: number;
   originalTaskId: number;
   originalActivityId: string;
+  originalBillable: boolean;
   newProjectId: number;
   newTaskId: number;
   newActivityId: string;
+  newBillable: boolean;
   newProjektNr: string;
   newVorgangNr: string;
   userId: string;
@@ -82,7 +85,6 @@ interface ModifiedEntry {
   von: string;
   bis: string;
   bemerkung?: string;
-  istFakturierbar?: boolean;
 }
 
 interface AppointmentListProps {
@@ -99,6 +101,7 @@ interface AppointmentListProps {
   onProjectChange: (id: string, projectId: number | null) => void;
   onTaskChange: (id: string, taskId: number | null) => void;
   onActivityChange: (id: string, activityId: string) => void;
+  onBillableChange: (id: string, billable: boolean) => void;
   onApplyToSeries: (
     seriesId: string,
     projectId: number | null,
@@ -116,6 +119,7 @@ interface AppointmentListProps {
   onModifyProject?: (appointmentId: string, apt: Appointment, syncedEntry: ZepEntry, projectId: number) => void;
   onModifyTask?: (appointmentId: string, taskId: number) => void;
   onModifyActivity?: (appointmentId: string, apt: Appointment, syncedEntry: ZepEntry, activityId: string) => void;
+  onModifyBillable?: (appointmentId: string, billable: boolean) => void;
   // Rescheduled appointment time correction
   onCorrectTime?: (appointmentId: string, duplicateWarning: DuplicateCheckResult) => void;
   correctingTimeIds?: Set<string>;
@@ -186,6 +190,7 @@ export default function AppointmentList({
   onProjectChange,
   onTaskChange,
   onActivityChange,
+  onBillableChange,
   onApplyToSeries,
   onSubmit,
   onReset,
@@ -197,6 +202,7 @@ export default function AppointmentList({
   onModifyProject,
   onModifyTask,
   onModifyActivity,
+  onModifyBillable,
   onCorrectTime,
   correctingTimeIds,
 }: AppointmentListProps) {
@@ -361,6 +367,7 @@ export default function AppointmentList({
                 onProjectChange={onProjectChange}
                 onTaskChange={onTaskChange}
                 onActivityChange={onActivityChange}
+                onBillableChange={onBillableChange}
                 onApplyToSeries={onApplyToSeries}
                 // Rescheduled time correction
                 onCorrectTime={onCorrectTime}
@@ -387,6 +394,7 @@ export default function AppointmentList({
                 onProjectChange={onProjectChange}
                 onTaskChange={onTaskChange}
                 onActivityChange={onActivityChange}
+                onBillableChange={onBillableChange}
                 // Editing synced entries props
                 isEditing={editingAppointments?.has(item.appointments[0].id) || false}
                 modifiedEntry={modifiedEntries?.get(item.appointments[0].id)}
@@ -395,6 +403,7 @@ export default function AppointmentList({
                 onModifyProject={onModifyProject}
                 onModifyTask={onModifyTask}
                 onModifyActivity={onModifyActivity}
+                onModifyBillable={onModifyBillable}
                 // Rescheduled time correction
                 onCorrectTime={onCorrectTime}
                 isCorrectingTime={correctingTimeIds?.has(item.appointments[0].id) || false}

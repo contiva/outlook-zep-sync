@@ -65,6 +65,7 @@ interface Appointment {
   projectId: number | null;
   taskId: number | null;
   activityId: string;
+  billable: boolean;
   attendees?: Attendee[];
   organizer?: {
     emailAddress: {
@@ -93,6 +94,7 @@ interface SeriesGroupProps {
   onProjectChange: (id: string, projectId: number | null) => void;
   onTaskChange: (id: string, taskId: number | null) => void;
   onActivityChange: (id: string, activityId: string) => void;
+  onBillableChange: (id: string, billable: boolean) => void;
   onApplyToSeries: (
     seriesId: string,
     projectId: number | null,
@@ -161,6 +163,7 @@ export default function SeriesGroup({
   onProjectChange,
   onTaskChange,
   onActivityChange,
+  onBillableChange,
   onApplyToSeries,
   onCorrectTime,
   correctingTimeIds,
@@ -560,6 +563,7 @@ export default function SeriesGroup({
               onProjectChange={onProjectChange}
               onTaskChange={onTaskChange}
               onActivityChange={onActivityChange}
+              onBillableChange={onBillableChange}
               // Rescheduled time correction
               onCorrectTime={onCorrectTime}
               isCorrectingTime={correctingTimeIds?.has(appointment.id) || false}

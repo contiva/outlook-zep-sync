@@ -60,7 +60,7 @@ export default function SearchableSelect({
         <ListboxButton
           className={`w-full rounded-lg border border-gray-300 py-2 pl-3 pr-10 text-sm leading-5 text-left focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none ${
             disabled ? "bg-gray-100 cursor-not-allowed text-gray-500" : "bg-white cursor-pointer"
-          } ${!selectedOption ? "text-gray-500" : "text-gray-900"}`}
+          } ${disabled ? "" : (!selectedOption ? "text-gray-500" : "text-gray-900")}`}
         >
           <span className="block truncate">{displayText}</span>
           <span className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
