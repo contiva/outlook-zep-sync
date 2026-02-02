@@ -125,7 +125,7 @@ interface AppointmentRowProps {
   onModifyProject?: (appointmentId: string, apt: Appointment, syncedEntry: SyncedEntry, projectId: number) => void;
   onModifyTask?: (appointmentId: string, taskId: number) => void;
   onModifyActivity?: (appointmentId: string, apt: Appointment, syncedEntry: SyncedEntry, activityId: string) => void;
-  onModifyBillable?: (appointmentId: string, billable: boolean) => void;
+  onModifyBillable?: (appointmentId: string, apt: Appointment, syncedEntry: SyncedEntry, billable: boolean) => void;
   // Rescheduled appointment correction
   onCorrectTime?: (appointmentId: string, duplicateWarning: DuplicateCheckResult) => void;
   isCorrectingTime?: boolean;
@@ -821,9 +821,9 @@ export default function AppointmentRow({
               <button
                 type="button"
                 onClick={() => {
-                  if (onModifyBillable && (modifiedEntry?.newTaskId || syncedEntry.project_task_id)) {
+                  if (onModifyBillable && syncedEntry && (modifiedEntry?.newTaskId || syncedEntry.project_task_id)) {
                     const currentBillable = modifiedEntry?.newBillable ?? syncedEntry.billable;
-                    onModifyBillable(appointment.id, !currentBillable);
+                    onModifyBillable(appointment.id, appointment, syncedEntry, !currentBillable);
                   }
                 }}
                 disabled={!(modifiedEntry?.newTaskId || syncedEntry.project_task_id)}

@@ -1060,20 +1060,48 @@ export default function Dashboard() {
   // Update a modified entry's billable status
   const updateModifiedBillable = useCallback((
     appointmentId: string,
+    apt: Appointment,
+    syncedEntry: ZepEntry,
     billable: boolean
   ) => {
     setModifiedEntries((prev) => {
       const next = new Map(prev);
       const existing = next.get(appointmentId);
-      if (!existing) return prev;
 
-      next.set(appointmentId, {
-        ...existing,
-        newBillable: billable,
-      });
+      if (existing) {
+        next.set(appointmentId, {
+          ...existing,
+          newBillable: billable,
+        });
+      } else {
+        // Find current project/task info
+        const project = projects.find((p) => p.id === syncedEntry.project_id);
+        const projectTasks = tasks[syncedEntry.project_id] || [];
+        const task = projectTasks.find((t) => t.id === syncedEntry.project_task_id);
+
+        next.set(appointmentId, {
+          zepId: syncedEntry.id,
+          outlookEventId: appointmentId,
+          originalProjectId: syncedEntry.project_id,
+          originalTaskId: syncedEntry.project_task_id,
+          originalActivityId: syncedEntry.activity_id,
+          originalBillable: syncedEntry.billable,
+          newProjectId: syncedEntry.project_id,
+          newTaskId: syncedEntry.project_task_id,
+          newActivityId: syncedEntry.activity_id,
+          newBillable: billable,
+          newProjektNr: project?.name || syncedEntry.projektNr || "",
+          newVorgangNr: task?.name || syncedEntry.vorgangNr || "",
+          userId: syncedEntry.employee_id,
+          datum: syncedEntry.date.split("T")[0],
+          von: syncedEntry.from.slice(0, 5),
+          bis: syncedEntry.to.slice(0, 5),
+          bemerkung: syncedEntry.note || undefined,
+        });
+      }
       return next;
     });
-  }, []);
+  }, [projects, tasks]);
 
   // Reload synced entries from ZEP
   const loadSyncedEntries = useCallback(async () => {

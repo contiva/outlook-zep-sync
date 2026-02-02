@@ -119,7 +119,7 @@ interface AppointmentListProps {
   onModifyProject?: (appointmentId: string, apt: Appointment, syncedEntry: ZepEntry, projectId: number) => void;
   onModifyTask?: (appointmentId: string, taskId: number) => void;
   onModifyActivity?: (appointmentId: string, apt: Appointment, syncedEntry: ZepEntry, activityId: string) => void;
-  onModifyBillable?: (appointmentId: string, billable: boolean) => void;
+  onModifyBillable?: (appointmentId: string, apt: Appointment, syncedEntry: ZepEntry, billable: boolean) => void;
   // Rescheduled appointment time correction
   onCorrectTime?: (appointmentId: string, duplicateWarning: DuplicateCheckResult) => void;
   correctingTimeIds?: Set<string>;
