@@ -1487,6 +1487,7 @@ export default function Dashboard() {
           onEndDateChange={setEndDate}
           onLoad={() => loadAppointments()}
           onDateRangeChange={handleDateRangeChange}
+          onFilterDateChange={setFilterDate}
           loading={loading}
           lastLoadedAt={lastLoadedAt}
         />

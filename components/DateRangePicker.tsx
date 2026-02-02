@@ -1,7 +1,7 @@
 "use client";
 
 import { Calendar, RefreshCw } from "lucide-react";
-import { startOfMonth, endOfMonth, subMonths, format, formatDistanceToNow } from "date-fns";
+import { startOfMonth, endOfMonth, subMonths, subDays, format, formatDistanceToNow } from "date-fns";
 import { de } from "date-fns/locale";
 
 interface DateRangePickerProps {
@@ -11,6 +11,7 @@ interface DateRangePickerProps {
   onEndDateChange: (date: string) => void;
   onLoad: () => void;
   onDateRangeChange?: (startDate: string, endDate: string) => void;
+  onFilterDateChange?: (date: string | null) => void;
   loading: boolean;
   lastLoadedAt?: Date | null;
 }
@@ -50,10 +51,13 @@ export default function DateRangePicker({
   onEndDateChange,
   onLoad,
   onDateRangeChange,
+  onFilterDateChange,
   loading,
   lastLoadedAt,
 }: DateRangePickerProps) {
   const presets = getPresets();
+  const today = new Date();
+  const yesterday = subDays(today, 1);
   
   // Check if a preset matches the current date range
   const isPresetActive = (preset: Preset): boolean => {
@@ -63,7 +67,7 @@ export default function DateRangePicker({
     return startDate === presetStart && endDate === presetEnd;
   };
   
-  const applyPreset = (preset: Preset) => {
+  const applyPreset = (preset: Preset, filterDate?: string) => {
     const { start, end } = preset.getRange();
     const startStr = format(start, "yyyy-MM-dd");
     const endStr = format(end, "yyyy-MM-dd");
@@ -76,12 +80,52 @@ export default function DateRangePicker({
       onStartDateChange(startStr);
       onEndDateChange(endStr);
     }
+    
+    // Set filter date if provided
+    if (filterDate && onFilterDateChange) {
+      // Small delay to ensure data is loaded first
+      setTimeout(() => onFilterDateChange(filterDate), 100);
+    }
+  };
+  
+  // Jump to today: load current month and filter to today
+  const jumpToToday = () => {
+    const todayStr = format(today, "yyyy-MM-dd");
+    const currentMonthPreset = presets[1]; // Current month is second preset
+    applyPreset(currentMonthPreset, todayStr);
+  };
+  
+  // Jump to yesterday: load appropriate month and filter to yesterday
+  const jumpToYesterday = () => {
+    const yesterdayStr = format(yesterday, "yyyy-MM-dd");
+    // Check if yesterday is in the previous month
+    const isInPreviousMonth = yesterday.getMonth() !== today.getMonth();
+    const targetPreset = isInPreviousMonth ? presets[0] : presets[1];
+    applyPreset(targetPreset, yesterdayStr);
   };
 
   return (
     <div className="p-4 bg-white rounded-lg shadow space-y-3">
       {/* Preset buttons */}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        {/* Quick jump buttons */}
+        <button
+          onClick={jumpToYesterday}
+          className="px-3 py-1 text-sm rounded-md transition bg-gray-100 text-gray-700 hover:bg-gray-200"
+        >
+          Gestern
+        </button>
+        <button
+          onClick={jumpToToday}
+          className="px-3 py-1 text-sm rounded-md transition bg-gray-100 text-gray-700 hover:bg-gray-200"
+        >
+          Heute
+        </button>
+        
+        {/* Divider */}
+        <div className="h-5 w-px bg-gray-300 mx-1" />
+        
+        {/* Month presets */}
         {presets.map((preset, index) => {
           const isActive = isPresetActive(preset);
           return (
