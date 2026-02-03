@@ -3,8 +3,7 @@
 import { useMemo, useState, useRef, useEffect } from "react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
-import { Users, CheckCircle, CloudUpload, ExternalLink, AlertTriangle, Pencil, X, Check, HelpCircle, XCircle, Clock, RefreshCw, Ban, Banknote, Upload, Loader2 } from "lucide-react";
-import { getZepIdForOutlookEvent, getZepAttendanceUrl } from "@/lib/sync-history";
+import { Users, CheckCircle, CloudUpload, AlertTriangle, Pencil, X, Check, HelpCircle, XCircle, Clock, RefreshCw, Ban, Banknote, Upload, Loader2 } from "lucide-react";
 import SearchableSelect, { SelectOption } from "./SearchableSelect";
 import { DuplicateCheckResult } from "@/lib/zep-api";
 import { ActualDuration } from "@/lib/teams-utils";
@@ -205,9 +204,10 @@ interface AttendeePopoverProps {
     };
   };
   isOrganizer?: boolean;
+  isMuted?: boolean;
 }
 
-function AttendeePopover({ attendees, organizer, isOrganizer }: AttendeePopoverProps) {
+function AttendeePopover({ attendees, organizer, isOrganizer, isMuted }: AttendeePopoverProps) {
   const [isOpen, setIsOpen] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -216,7 +216,7 @@ function AttendeePopover({ attendees, organizer, isOrganizer }: AttendeePopoverP
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (
-        popoverRef.current && 
+        popoverRef.current &&
         !popoverRef.current.contains(event.target as Node) &&
         triggerRef.current &&
         !triggerRef.current.contains(event.target as Node)
@@ -235,23 +235,29 @@ function AttendeePopover({ attendees, organizer, isOrganizer }: AttendeePopoverP
   const allDomains = [...new Set(attendees.map(a => a.emailAddress.address.split('@')[1]).filter(Boolean))];
   // Filter out contiva.com from displayed domains
   const domains = allDomains.filter(d => d !== "contiva.com");
-  
+
   // Check if all attendees are from contiva.com
   const isInternalOnly = attendeeCount > 0 && allDomains.length === 1 && allDomains[0] === "contiva.com";
-  
+
   // Group attendees by status
   const accepted = attendees.filter(a => a.status.response === "accepted");
   const tentative = attendees.filter(a => a.status.response === "tentativelyAccepted");
   const declined = attendees.filter(a => a.status.response === "declined");
   const noResponse = attendees.filter(a => !["accepted", "tentativelyAccepted", "declined", "organizer"].includes(a.status.response));
 
+  // Only show trigger if there are attendees
+  if (attendeeCount === 0) {
+    return null;
+  }
+
   return (
-    <div className="relative inline-flex">
-      <span className="text-gray-300">•</span>
+    <div className="relative inline-flex items-center">
+      <span className={isMuted ? "text-gray-200" : "text-gray-300"}>•</span>
       <button
         ref={triggerRef}
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-1 ml-2 hover:text-gray-700 transition-colors"
+        className="flex items-center gap-1.5 ml-2 hover:text-gray-700 transition-colors"
+        title="Teilnehmer anzeigen"
       >
         <Users size={11} />
         <span>{attendeeCount}</span>
@@ -364,6 +370,106 @@ function AttendeeItem({ attendee }: { attendee: Attendee }) {
         <div className="truncate text-gray-400 text-[10px]">{email}</div>
       </div>
     </div>
+  );
+}
+
+// Time Deviation Popover Component
+interface TimeDeviationPopoverProps {
+  outlookStart: string;  // Original Outlook start time (HH:mm)
+  outlookEnd: string;    // Original Outlook end time (HH:mm)
+  zepStart: string;      // ZEP start time (HH:mm) - rounded or actual
+  zepEnd: string;        // ZEP end time (HH:mm) - rounded or actual
+  reason: 'rounded' | 'actual' | 'both';  // Why times differ
+  actualStart?: string;  // Actual meeting start (HH:mm) if available
+  actualEnd?: string;    // Actual meeting end (HH:mm) if available
+  children: React.ReactNode;  // The date/time content to wrap
+}
+
+function TimeDeviationPopover({
+  outlookStart,
+  outlookEnd,
+  zepStart,
+  zepEnd,
+  reason,
+  actualStart,
+  actualEnd,
+  children
+}: TimeDeviationPopoverProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  // Close popover when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        popoverRef.current &&
+        !popoverRef.current.contains(event.target as Node) &&
+        triggerRef.current &&
+        !triggerRef.current.contains(event.target as Node)
+      ) {
+        setIsOpen(false);
+      }
+    }
+
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [isOpen]);
+
+  return (
+    <span className="relative inline-flex items-center">
+      <button
+        ref={triggerRef}
+        onClick={() => setIsOpen(!isOpen)}
+        className="hover:text-gray-700 transition-colors cursor-pointer"
+        title="Zeitabweichung - klicken für Details"
+      >
+        {children}
+        <sup className="ml-0.5 text-[8px] text-amber-500">✱</sup>
+      </button>
+
+      {isOpen && (
+        <div
+          ref={popoverRef}
+          className="absolute left-0 top-full mt-1 z-50 bg-white rounded-lg shadow-lg border border-gray-200 p-3 min-w-48"
+        >
+          <div className="text-xs font-medium text-gray-700 mb-2">
+            Zeitabweichung
+          </div>
+
+          <div className="space-y-1.5 text-xs">
+            {/* Original Outlook time */}
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-gray-500">Outlook:</span>
+              <span className="font-mono text-gray-700">{outlookStart}–{outlookEnd}</span>
+            </div>
+
+            {/* Actual time if available and different */}
+            {actualStart && actualEnd && (actualStart !== outlookStart || actualEnd !== outlookEnd) && (
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-gray-500">Tatsächlich:</span>
+                <span className="font-mono text-gray-700">{actualStart}–{actualEnd}</span>
+              </div>
+            )}
+
+            {/* ZEP time */}
+            <div className="flex items-center justify-between gap-4 pt-1 border-t border-gray-100">
+              <span className="text-gray-500 font-medium">Für ZEP:</span>
+              <span className="font-mono text-amber-600 font-medium">{zepStart}–{zepEnd}</span>
+            </div>
+          </div>
+
+          {/* Reason explanation */}
+          <div className="mt-2 pt-2 border-t border-gray-100 text-[10px] text-gray-400">
+            {reason === 'rounded' && "Auf 15-Minuten-Raster gerundet"}
+            {reason === 'actual' && "Tatsächliche Meeting-Dauer verwendet"}
+            {reason === 'both' && "Tatsächliche Dauer + Rundung auf 15min"}
+          </div>
+        </div>
+      )}
+    </span>
   );
 }
 
@@ -490,6 +596,58 @@ export default function AppointmentRow({
     return 'other';
   }, [zepBookedDuration, plannedDurationRounded, actualDurationInfo]);
 
+  // Check if there's a time deviation between Outlook and ZEP times
+  const timeDeviation = useMemo(() => {
+    // Get the ZEP time that will be/was used
+    let zepStart: string;
+    let zepEnd: string;
+
+    if (isSynced && zepBookedDuration) {
+      // Already synced - use booked time
+      zepStart = zepBookedDuration.from;
+      zepEnd = zepBookedDuration.to;
+    } else if (appointment.useActualTime && actualDurationInfo) {
+      // Will use actual time
+      zepStart = actualDurationInfo.startRounded;
+      zepEnd = actualDurationInfo.endRounded;
+    } else {
+      // Will use planned time (rounded)
+      zepStart = plannedDurationRounded.startFormatted;
+      zepEnd = plannedDurationRounded.endFormatted;
+    }
+
+    // Compare with original Outlook time
+    const hasDeviation = zepStart !== startTime || zepEnd !== endTime;
+    if (!hasDeviation) return null;
+
+    // Determine reason for deviation
+    const usesActual = appointment.useActualTime && actualDurationInfo;
+    const plannedDiffers = plannedDurationRounded.startFormatted !== startTime ||
+                          plannedDurationRounded.endFormatted !== endTime;
+
+    let reason: 'rounded' | 'actual' | 'both';
+    if (usesActual && plannedDiffers) {
+      reason = 'both';
+    } else if (usesActual) {
+      reason = 'actual';
+    } else {
+      reason = 'rounded';
+    }
+
+    return {
+      outlookStart: startTime,
+      outlookEnd: endTime,
+      zepStart,
+      zepEnd,
+      reason,
+      actualStart: actualDurationInfo?.startRounded,
+      actualEnd: actualDurationInfo?.endRounded,
+    };
+  }, [
+    isSynced, zepBookedDuration, appointment.useActualTime, actualDurationInfo,
+    plannedDurationRounded, startTime, endTime
+  ]);
+
   const attendees = appointment.attendees || [];
   const attendeeCount = attendees.length;
   
@@ -609,15 +767,6 @@ export default function AppointmentRow({
     return canChangeBillableForTask(projektFakt, vorgangFakt);
   }, [isEditing, allTasks, projects, modifiedEntry?.newProjectId, modifiedEntry?.newTaskId, syncedEntry?.project_id, syncedEntry?.project_task_id]);
 
-  // Get ZEP link if this appointment was synced
-  const zepLink = useMemo(() => {
-    const zepId = getZepIdForOutlookEvent(appointment.id);
-    if (zepId) {
-      return getZepAttendanceUrl(zepId);
-    }
-    return null;
-  }, [appointment.id]);
-
   // Check if this entry has been modified (for visual indicator)
   const isModified = useMemo(() => {
     if (!modifiedEntry || !syncedEntry) return false;
@@ -660,6 +809,7 @@ export default function AppointmentRow({
     return {
       projectName: project?.name || `Projekt #${syncedEntry.project_id}`,
       taskName: taskName,
+      activityId: syncedEntry.activity_id, // Short form like "be", "vw"
       activityName: activity?.description || syncedEntry.activity_id,
       billable: syncedEntry.billable,
     };
@@ -712,8 +862,8 @@ export default function AppointmentRow({
                 </div>
               )}
               {duplicateWarning?.hasDuplicate && !isSynced && (
-                <div 
-                  className="h-4 w-4 flex items-center justify-center" 
+                <div
+                  className="h-4 w-4 flex items-center justify-center"
                   title={duplicateWarning.message || "Mögliches Duplikat erkannt"}
                   role="img"
                   aria-label={duplicateWarning.message || "Mögliches Duplikat erkannt"}
@@ -723,34 +873,44 @@ export default function AppointmentRow({
               )}
             </>
           )}
+          {/* Teams Meeting Icon */}
+          {appointment.isOnlineMeeting && appointment.onlineMeetingProvider === "teamsForBusiness" && (
+            <svg
+              className={`w-3.5 h-3.5 ${isMuted ? "opacity-40" : ""}`}
+              viewBox="0 0 2228.833 2073.333"
+              xmlns="http://www.w3.org/2000/svg"
+              aria-label="Teams Meeting"
+            >
+              <path fill="#5059C9" d="M1554.637 777.5h575.713c54.391 0 98.483 44.092 98.483 98.483v524.398c0 199.901-162.051 361.952-361.952 361.952h-1.711c-199.901.028-361.975-162.023-362.004-361.924V828.971c.001-28.427 23.045-51.471 51.471-51.471z"/>
+              <circle fill="#5059C9" cx="1943.75" cy="440.583" r="233.25"/>
+              <circle fill="#7B83EB" cx="1218.083" cy="336.917" r="336.917"/>
+              <path fill="#7B83EB" d="M1667.323 777.5H717.01c-53.743 1.33-96.257 45.931-95.01 99.676v598.105c-7.505 322.519 247.657 590.16 570.167 598.053 322.51-7.893 577.671-275.534 570.167-598.053V877.176c1.245-53.745-41.268-98.346-95.011-99.676z"/>
+              <linearGradient id="a" gradientUnits="userSpaceOnUse" x1="198.099" y1="1683.0726" x2="942.2344" y2="394.2607" gradientTransform="matrix(1 0 0 -1 0 2075.3333)">
+                <stop offset="0" stopColor="#5a62c3"/><stop offset=".5" stopColor="#4d55bd"/><stop offset="1" stopColor="#3940ab"/>
+              </linearGradient>
+              <path fill="url(#a)" d="M95.01 466.5h950.312c52.473 0 95.01 42.538 95.01 95.01v950.312c0 52.473-42.538 95.01-95.01 95.01H95.01c-52.473 0-95.01-42.538-95.01-95.01V561.51c0-52.472 42.538-95.01 95.01-95.01z"/>
+              <path fill="#FFF" d="M820.211 828.193H630.241v517.297H509.211V828.193H320.123V727.844h500.088v100.349z"/>
+            </svg>
+          )}
         </div>
 
         {/* Main content - Title on top, details below */}
         <div className="flex-1 min-w-0">
           {/* Title row with duration */}
           <div className="flex items-center gap-1.5">
-            {appointment.isOnlineMeeting && appointment.onlineMeetingProvider === "teamsForBusiness" && (
-              <svg
-                className={`w-3.5 h-3.5 shrink-0 ${isMuted ? "opacity-40" : ""}`}
-                viewBox="0 0 2228.833 2073.333"
-                xmlns="http://www.w3.org/2000/svg"
-                aria-label="Teams Meeting"
-              >
-                <path fill="#5059C9" d="M1554.637 777.5h575.713c54.391 0 98.483 44.092 98.483 98.483v524.398c0 199.901-162.051 361.952-361.952 361.952h-1.711c-199.901.028-361.975-162.023-362.004-361.924V828.971c.001-28.427 23.045-51.471 51.471-51.471z"/>
-                <circle fill="#5059C9" cx="1943.75" cy="440.583" r="233.25"/>
-                <circle fill="#7B83EB" cx="1218.083" cy="336.917" r="336.917"/>
-                <path fill="#7B83EB" d="M1667.323 777.5H717.01c-53.743 1.33-96.257 45.931-95.01 99.676v598.105c-7.505 322.519 247.657 590.16 570.167 598.053 322.51-7.893 577.671-275.534 570.167-598.053V877.176c1.245-53.745-41.268-98.346-95.011-99.676z"/>
-                <linearGradient id="a" gradientUnits="userSpaceOnUse" x1="198.099" y1="1683.0726" x2="942.2344" y2="394.2607" gradientTransform="matrix(1 0 0 -1 0 2075.3333)">
-                  <stop offset="0" stopColor="#5a62c3"/><stop offset=".5" stopColor="#4d55bd"/><stop offset="1" stopColor="#3940ab"/>
-                </linearGradient>
-                <path fill="url(#a)" d="M95.01 466.5h950.312c52.473 0 95.01 42.538 95.01 95.01v950.312c0 52.473-42.538 95.01-95.01 95.01H95.01c-52.473 0-95.01-42.538-95.01-95.01V561.51c0-52.472 42.538-95.01 95.01-95.01z"/>
-                <path fill="#FFF" d="M820.211 828.193H630.241v517.297H509.211V828.193H320.123V727.844h500.088v100.349z"/>
-              </svg>
-            )}
             {appointment.subject ? (
-              <span className={`font-medium text-sm truncate ${isMuted ? "text-gray-400" : "text-gray-900"}`}>{appointment.subject}</span>
+              <span className={`font-semibold text-sm truncate ${isMuted ? "text-gray-400" : "text-gray-900"}`}>{appointment.subject}</span>
             ) : (
               <span className="font-medium text-gray-400 text-sm italic">Kein Titel definiert</span>
+            )}
+            {/* Organizer - inline after title */}
+            {appointment.organizer && (
+              <span
+                className={`text-xs font-light shrink-0 ${isMuted ? "text-gray-300" : "text-gray-400"}`}
+                title={appointment.organizer.emailAddress.address}
+              >
+                {appointment.isOrganizer ? "von Dir" : `von ${appointment.organizer.emailAddress.name || appointment.organizer.emailAddress.address}`}
+              </span>
             )}
             {/* Duration badge - shows both times for synced entries with checkmark on synced one */}
             {isSynced && !isEditing && zepBookedDuration ? (
@@ -878,7 +1038,7 @@ export default function AppointmentRow({
             {attendeeCount > 0 && (
               isInternalOnly ? (
                 <span
-                  className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-blue-100 text-blue-700"
+                  className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-gray-100 text-gray-600"
                   title="Internes Meeting - nur Contiva-Teilnehmer"
                 >
                   Intern
@@ -924,54 +1084,52 @@ export default function AppointmentRow({
           {/* Details row - Date/Time, Organizer, Attendee Domains */}
           <div className={`flex items-center gap-2 text-xs mt-0.5 ${isMuted ? "text-gray-400" : "text-gray-500"}`}>
             {/* Date and Time - show ZEP booked time for synced (not editing), rounded times otherwise */}
-            <span>
-              <span className={`font-medium ${isMuted ? "text-gray-400" : "text-gray-600"}`}>{dayLabel}</span>
-              {isSynced && !isEditing && zepBookedDuration ? (
-                // Synced (not editing): Show ZEP booked time
-                <span className="ml-1" title={`In ZEP gebucht: ${zepBookedDuration.from}–${zepBookedDuration.to}`}>
-                  {zepBookedDuration.from}–{zepBookedDuration.to}
-                </span>
-              ) : actualDurationInfo ? (
-                // Show selected time (planned or actual, rounded for ZEP)
-                <span className="ml-1">
-                  {appointment.useActualTime ? (
-                    <span title={`Tatsächliche Zeit: ${actualDurationInfo.startRounded}–${actualDurationInfo.endRounded}`}>
-                      {actualDurationInfo.startRounded}–{actualDurationInfo.endRounded}
+            {(() => {
+              // Build the time display content
+              const timeContent = (
+                <>
+                  {isSynced && !isEditing && zepBookedDuration ? (
+                    <span className={`font-semibold ${isMuted ? "text-gray-400" : "text-gray-700"}`}>{zepBookedDuration.from}–{zepBookedDuration.to}</span>
+                  ) : actualDurationInfo ? (
+                    <span className={`font-semibold ${isMuted ? "text-gray-400" : "text-gray-700"}`}>
+                      {appointment.useActualTime
+                        ? `${actualDurationInfo.startRounded}–${actualDurationInfo.endRounded}`
+                        : `${plannedDurationRounded.startFormatted}–${plannedDurationRounded.endFormatted}`
+                      }
                     </span>
                   ) : (
-                    <span title={`Geplante Zeit: ${plannedDurationRounded.startFormatted}–${plannedDurationRounded.endFormatted}`}>
-                      {plannedDurationRounded.startFormatted}–{plannedDurationRounded.endFormatted}
-                    </span>
+                    <span className={`font-semibold ${isMuted ? "text-gray-400" : "text-gray-700"}`}>{plannedDurationRounded.startFormatted}–{plannedDurationRounded.endFormatted}</span>
                   )}
-                </span>
-              ) : (
-                // No actual duration available - show planned time
-                <span className="ml-1" title={`Original: ${startTime}–${endTime}`}>
-                  {plannedDurationRounded.startFormatted}–{plannedDurationRounded.endFormatted}
-                </span>
-              )}
-            </span>
-            
-            {/* Organizer */}
-            {appointment.organizer && (
-              <>
-                <span className={isMuted ? "text-gray-200" : "text-gray-300"}>•</span>
-                <span 
-                  className="cursor-help"
-                  title={appointment.organizer.emailAddress.address}
+                  <span className={`ml-1 font-medium ${isMuted ? "text-gray-400" : "text-gray-500"}`}>{dayLabel}</span>
+                </>
+              );
+
+              // Wrap in popover if there's a deviation, otherwise just show the content
+              return timeDeviation ? (
+                <TimeDeviationPopover
+                  outlookStart={timeDeviation.outlookStart}
+                  outlookEnd={timeDeviation.outlookEnd}
+                  zepStart={timeDeviation.zepStart}
+                  zepEnd={timeDeviation.zepEnd}
+                  reason={timeDeviation.reason}
+                  actualStart={timeDeviation.actualStart}
+                  actualEnd={timeDeviation.actualEnd}
                 >
-                  {appointment.isOrganizer ? (
-                    <span className={`font-medium ${isMuted ? "text-blue-400" : "text-blue-600"}`}>Du (Organisator)</span>
-                  ) : (
-                    <span>von {appointment.organizer.emailAddress.name || appointment.organizer.emailAddress.address}</span>
-                  )}
-                </span>
-              </>
-            )}
+                  {timeContent}
+                </TimeDeviationPopover>
+              ) : (
+                <span>{timeContent}</span>
+              );
+            })()}
             
-            {/* Attendee Domains with Popover */}
+            {/* Attendees with Popover */}
             {attendeeCount > 0 && (
-              <AttendeePopover attendees={attendees} organizer={appointment.organizer} isOrganizer={appointment.isOrganizer} />
+              <AttendeePopover
+                attendees={attendees}
+                organizer={appointment.organizer}
+                isOrganizer={appointment.isOrganizer}
+                isMuted={isMuted}
+              />
             )}
           </div>
         </div>
@@ -985,22 +1143,9 @@ export default function AppointmentRow({
             </span>
           )}
           {isSynced && (
-            zepLink ? (
-              <a
-                href={zepLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium text-green-700 bg-green-50 rounded hover:bg-green-100 transition"
-                title="In ZEP öffnen"
-              >
-                ZEP
-                <ExternalLink size={10} />
-              </a>
-            ) : (
-              <span className="px-2 py-0.5 text-xs font-medium text-green-700 bg-green-50 rounded">
-                ZEP
-              </span>
-            )
+            <span className="px-2 py-0.5 text-xs font-medium text-green-700 bg-green-50 rounded">
+              ZEP
+            </span>
           )}
           {duplicateWarning?.hasDuplicate && !isSynced && duplicateWarning.type !== 'rescheduled' && (
             <span className="px-2 py-0.5 text-xs font-medium text-amber-700 bg-amber-50 rounded" title={duplicateWarning.message}>
@@ -1047,16 +1192,16 @@ export default function AppointmentRow({
           {syncedInfo.taskName && (
             <>
               <span className="text-gray-300">/</span>
-              <span>{syncedInfo.taskName}</span>
+              <span title={syncedInfo.activityName}>
+                {syncedInfo.taskName} <span className="text-gray-400">({syncedInfo.activityId})</span>
+              </span>
             </>
           )}
           <span className="text-gray-300">•</span>
-          <span>{syncedInfo.activityName}</span>
-          <span className="text-gray-300">•</span>
           <span title={syncedInfo.billable ? "Fakturierbar" : "Nicht fakturierbar (intern)"}>
-            <Banknote 
-              size={14} 
-              className={syncedInfo.billable ? "text-amber-500" : "text-gray-400"} 
+            <Banknote
+              size={14}
+              className={syncedInfo.billable ? "text-amber-500" : "text-gray-400"}
             />
           </span>
           {isModified && <span className="text-amber-600 font-medium">Geändert</span>}
@@ -1149,11 +1294,15 @@ export default function AppointmentRow({
               }}
               disabled={!(modifiedEntry?.newTaskId || syncedEntry.project_task_id) || !canEditBillableInEditMode}
               className={`flex items-center justify-center w-10 h-9.5 rounded-lg border transition-colors ${
-                !(modifiedEntry?.newTaskId || syncedEntry.project_task_id) || !canEditBillableInEditMode
+                !(modifiedEntry?.newTaskId || syncedEntry.project_task_id)
                   ? "bg-gray-100 border-gray-200 text-gray-300 cursor-not-allowed"
-                  : (modifiedEntry?.newBillable ?? syncedEntry.billable)
-                    ? "bg-green-50 border-green-300 text-green-600 hover:bg-green-100"
-                    : "bg-gray-50 border-gray-300 text-gray-400 hover:bg-gray-100"
+                  : !canEditBillableInEditMode
+                    ? (modifiedEntry?.newBillable ?? syncedEntry.billable)
+                      ? "bg-green-50 border-green-300 text-green-600 cursor-not-allowed opacity-70"
+                      : "bg-gray-50 border-gray-300 text-gray-400 cursor-not-allowed opacity-70"
+                    : (modifiedEntry?.newBillable ?? syncedEntry.billable)
+                      ? "bg-green-50 border-green-300 text-green-600 hover:bg-green-100"
+                      : "bg-gray-50 border-gray-300 text-gray-400 hover:bg-gray-100"
               }`}
               title={
                 !(modifiedEntry?.newTaskId || syncedEntry.project_task_id)

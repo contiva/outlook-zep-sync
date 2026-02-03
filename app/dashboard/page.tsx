@@ -1563,7 +1563,7 @@ export default function Dashboard() {
         // Load tasks for the project before enabling edit mode
         await loadTasksForProject(syncedEntry.project_id);
 
-        // Check if Outlook time differs from ZEP time and create ModifiedEntry if so
+        // Check if Outlook time differs from ZEP time
         const outlookStart = new Date(apt.start.dateTime);
         const outlookEnd = new Date(apt.end.dateTime);
         const outlookZepTimes = calculateZepTimes(outlookStart, outlookEnd);
@@ -1571,13 +1571,20 @@ export default function Dashboard() {
         const outlookBis = outlookZepTimes.end.slice(0, 5);
         const zepVon = syncedEntry.from.slice(0, 5);
         const zepBis = syncedEntry.to.slice(0, 5);
+        const timesNeedCorrection = outlookVon !== zepVon || outlookBis !== zepBis;
 
-        // If times differ, create ModifiedEntry with time correction
-        if (outlookVon !== zepVon || outlookBis !== zepBis) {
-          const project = projects.find((p) => p.id === syncedEntry.project_id);
-          const projectTasks = tasks[syncedEntry.project_id] || [];
-          const task = projectTasks.find((t) => t.id === syncedEntry.project_task_id);
+        // Calculate correct billable value based on projekt/vorgang settings
+        const project = projects.find((p) => p.id === syncedEntry.project_id);
+        const projectTasks = tasks[syncedEntry.project_id] || [];
+        const task = projectTasks.find((t) => t.id === syncedEntry.project_task_id);
+        const projektFakt = project?.voreinstFakturierbarkeit ?? project?.defaultFakt;
+        const vorgangFakt = task?.defaultFakt;
+        const isLocked = !canChangeBillable(projektFakt, vorgangFakt);
+        const correctBillable = isLocked ? determineBillable(projektFakt, vorgangFakt) : syncedEntry.billable;
+        const billableNeedsCorrection = isLocked && correctBillable !== syncedEntry.billable;
 
+        // Create ModifiedEntry if times differ OR billable needs correction
+        if (timesNeedCorrection || billableNeedsCorrection) {
           setModifiedEntries((prev) => {
             const next = new Map(prev);
             next.set(appointmentId, {
@@ -1590,7 +1597,7 @@ export default function Dashboard() {
               newProjectId: syncedEntry.project_id,
               newTaskId: syncedEntry.project_task_id,
               newActivityId: syncedEntry.activity_id,
-              newBillable: syncedEntry.billable,
+              newBillable: correctBillable,
               newProjektNr: project?.name || syncedEntry.projektNr || "",
               newVorgangNr: task?.name || syncedEntry.vorgangNr || "",
               userId: syncedEntry.employee_id,
@@ -1598,8 +1605,8 @@ export default function Dashboard() {
               von: zepVon,
               bis: zepBis,
               bemerkung: syncedEntry.note || undefined,
-              newVon: outlookVon,
-              newBis: outlookBis,
+              // Only set new times if they need correction
+              ...(timesNeedCorrection ? { newVon: outlookVon, newBis: outlookBis } : {}),
             });
             return next;
           });
