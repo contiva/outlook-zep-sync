@@ -72,7 +72,7 @@ export async function GET(
 
   const { searchParams } = new URL(request.url);
   let startDate = searchParams.get("startDate");
-  const endDate = searchParams.get("endDate");
+  let endDate = searchParams.get("endDate");
 
   if (!startDate || !endDate) {
     return NextResponse.json(
@@ -93,6 +93,27 @@ export async function GET(
       `[/api/calls/durations] Adjusting startDate from ${startDate} to ${minStartDateStr} (30-day retention limit)`
     );
     startDate = minStartDateStr;
+  }
+
+  // Call Records are not available for today (processing delay of several hours)
+  // Limit endDate to yesterday to avoid empty results for current day
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = yesterday.toISOString().split("T")[0];
+
+  if (endDate > yesterdayStr) {
+    console.log(
+      `[/api/calls/durations] Adjusting endDate from ${endDate} to ${yesterdayStr} (call records not yet available for today)`
+    );
+    endDate = yesterdayStr;
+  }
+
+  // If adjusted dates result in invalid range (startDate > endDate), return empty
+  if (startDate > endDate) {
+    console.log(
+      `[/api/calls/durations] No valid date range after adjustments (${startDate} > ${endDate}), returning empty`
+    );
+    return NextResponse.json({ durations: {} });
   }
 
   try {
