@@ -194,46 +194,47 @@ export default function SyncConfirmDialog({
       <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
 
       {/* Full-screen container */}
-      <div className="fixed inset-0 flex items-center justify-center p-4">
-        <DialogPanel className="mx-auto max-w-lg w-full bg-white rounded-xl shadow-xl">
+      <div className="fixed inset-0 flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <DialogPanel className="mx-auto w-full sm:max-w-lg bg-white rounded-t-xl sm:rounded-xl shadow-xl max-h-[90vh] sm:max-h-none flex flex-col">
           {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-gray-200">
-            <DialogTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-              <CloudUpload className="h-5 w-5 text-amber-500" />
-              Termine an ZEP übertragen
+          <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-200 shrink-0">
+            <DialogTitle className="text-base sm:text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <CloudUpload className="h-4 w-4 sm:h-5 sm:w-5 text-amber-500" />
+              <span className="hidden sm:inline">Termine an ZEP übertragen</span>
+              <span className="sm:hidden">ZEP Sync</span>
             </DialogTitle>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition"
+              className="text-gray-400 hover:text-gray-600 transition p-1"
             >
               <X className="h-5 w-5" />
             </button>
           </div>
 
           {/* Content */}
-          <div className="p-4">
-            <p className="text-sm text-gray-600 mb-3">
+          <div className="p-3 sm:p-4 overflow-y-auto flex-1">
+            <p className="text-xs sm:text-sm text-gray-600 mb-3">
               {includedAppointments.length === appointments.length ? (
-                <>Folgende {appointments.length} Termine werden synchronisiert:</>
+                <>{appointments.length} Termine werden synchronisiert:</>
               ) : (
                 <>{includedAppointments.length} von {appointments.length} Terminen werden synchronisiert:</>
               )}
             </p>
 
             {appointmentsWithWarnings.length > 0 && (
-              <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                <div className="flex items-center gap-2 text-amber-800 text-sm font-medium mb-2">
-                  <AlertTriangle size={16} />
-                  {appointmentsWithWarnings.length} Termin(e) mit möglichen Duplikaten
+              <div className="mb-3 p-2 sm:p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <div className="flex items-center gap-2 text-amber-800 text-xs sm:text-sm font-medium mb-1 sm:mb-2">
+                  <AlertTriangle size={14} className="sm:w-4 sm:h-4" />
+                  {appointmentsWithWarnings.length} mit Duplikaten
                 </div>
                 <p className="text-xs text-amber-700">
-                  Diese Termine könnten bereits in ZEP existieren. Bitte prüfe vor dem Sync.
+                  Diese Termine könnten bereits existieren.
                 </p>
               </div>
             )}
 
             {/* Scrollable appointment list */}
-            <div className="max-h-64 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100">
+            <div className="max-h-48 sm:max-h-64 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100">
               {appointmentsByDate.map(([dateStr, dayAppointments]) => (
                 <div key={dateStr}>
                   {/* Date header */}
@@ -246,11 +247,11 @@ export default function SyncConfirmDialog({
                     return (
                       <div
                         key={apt.id}
-                        className={`px-3 py-2 flex items-center gap-2 text-sm ${
-                          isExcluded 
-                            ? "bg-gray-100 opacity-60" 
-                            : duplicateWarnings?.has(apt.id) 
-                              ? "bg-amber-50" 
+                        className={`px-2 sm:px-3 py-2 flex items-center gap-2 text-xs sm:text-sm ${
+                          isExcluded
+                            ? "bg-gray-100 opacity-60"
+                            : duplicateWarnings?.has(apt.id)
+                              ? "bg-amber-50"
                               : ""
                         }`}
                       >
@@ -261,18 +262,18 @@ export default function SyncConfirmDialog({
                           className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 flex-shrink-0"
                           aria-label={isExcluded ? `${apt.subject} einschließen` : `${apt.subject} ausschließen`}
                         />
-                        <div className="flex items-center gap-2 min-w-0 flex-1">
-                          <span className={`font-mono text-xs whitespace-nowrap ${isExcluded ? "text-gray-400" : "text-gray-500"}`}>
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-2 min-w-0 flex-1">
+                          <span className={`font-mono text-[10px] sm:text-xs whitespace-nowrap ${isExcluded ? "text-gray-400" : "text-gray-500"}`}>
                             {formatTime(apt.start.dateTime)}-{formatTime(apt.end.dateTime)}
                           </span>
-                          <span className={`truncate ${isExcluded ? "text-gray-400 line-through" : "text-gray-900"}`}>
+                          <span className={`truncate text-xs sm:text-sm ${isExcluded ? "text-gray-400 line-through" : "text-gray-900"}`}>
                             {apt.subject}
                           </span>
                           {duplicateWarnings?.has(apt.id) && !isExcluded && (
-                            <AlertTriangle size={14} className="text-amber-500 flex-shrink-0" />
+                            <AlertTriangle size={12} className="text-amber-500 flex-shrink-0 sm:w-3.5 sm:h-3.5" />
                           )}
                         </div>
-                        <span className={`text-xs ml-2 whitespace-nowrap ${isExcluded ? "text-gray-400" : "text-gray-500"}`}>
+                        <span className={`text-[10px] sm:text-xs whitespace-nowrap hidden sm:block ${isExcluded ? "text-gray-400" : "text-gray-500"}`}>
                           {apt.projectId ? projectMap.get(apt.projectId) || "?" : "-"}
                         </span>
                       </div>
@@ -294,20 +295,20 @@ export default function SyncConfirmDialog({
 
             {/* Modified entries section */}
             {completeModifications.length > 0 && (
-              <div className="mt-4">
+              <div className="mt-3 sm:mt-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <RefreshCw className="h-4 w-4 text-amber-500" />
-                  <span className="text-sm font-medium text-gray-700">
-                    Einträge aktualisieren ({includedModifications.length})
+                  <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4 text-amber-500" />
+                  <span className="text-xs sm:text-sm font-medium text-gray-700">
+                    Aktualisieren ({includedModifications.length})
                   </span>
                 </div>
-                <div className="max-h-48 overflow-y-auto border border-amber-200 rounded-lg divide-y divide-amber-100 bg-amber-50/50">
+                <div className="max-h-32 sm:max-h-48 overflow-y-auto border border-amber-200 rounded-lg divide-y divide-amber-100 bg-amber-50/50">
                   {completeModifications.map((mod) => {
                     const isExcluded = excludedModificationIds.has(mod.outlookEventId);
                     return (
                       <div
                         key={mod.outlookEventId}
-                        className={`px-3 py-2 flex items-center gap-2 text-sm ${
+                        className={`px-2 sm:px-3 py-2 flex items-center gap-2 text-xs sm:text-sm ${
                           isExcluded ? "bg-gray-100 opacity-60" : ""
                         }`}
                       >
@@ -319,14 +320,14 @@ export default function SyncConfirmDialog({
                           aria-label={isExcluded ? "Änderung einschließen" : "Änderung ausschließen"}
                         />
                         <div className="flex flex-col min-w-0 flex-1">
-                          <span className={`truncate ${isExcluded ? "text-gray-400 line-through" : "text-gray-700"}`}>
-                            {mod.bemerkung || `Eintrag vom ${mod.datum}`}
+                          <span className={`truncate text-xs sm:text-sm ${isExcluded ? "text-gray-400 line-through" : "text-gray-700"}`}>
+                            {mod.bemerkung || `${mod.datum}`}
                           </span>
-                          <span className={`text-xs ${isExcluded ? "text-gray-400" : "text-amber-700"}`}>
+                          <span className={`text-[10px] sm:text-xs ${isExcluded ? "text-gray-400" : "text-amber-700"}`}>
                             → {mod.newProjektNr} / {mod.newVorgangNr}
                           </span>
                         </div>
-                        <span className={`text-xs whitespace-nowrap ${isExcluded ? "text-gray-400" : "text-gray-500"}`}>
+                        <span className={`text-[10px] sm:text-xs whitespace-nowrap hidden sm:block ${isExcluded ? "text-gray-400" : "text-gray-500"}`}>
                           {mod.von} - {mod.bis}
                         </span>
                       </div>
@@ -338,23 +339,23 @@ export default function SyncConfirmDialog({
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-end gap-3 p-4 border-t border-gray-200 bg-gray-50 rounded-b-xl">
+          <div className="flex items-center justify-end gap-2 sm:gap-3 p-3 sm:p-4 border-t border-gray-200 bg-gray-50 rounded-b-xl shrink-0">
             <button
               onClick={onClose}
               disabled={submitting}
-              className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 transition disabled:opacity-50"
+              className="px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-gray-700 hover:text-gray-900 transition disabled:opacity-50"
             >
               Abbrechen
             </button>
             <button
               onClick={() => onConfirm(includedAppointments, includedModifications.length > 0 ? includedModifications : undefined)}
               disabled={submitting || (includedAppointments.length === 0 && includedModifications.length === 0)}
-              className="px-4 py-2 text-sm font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition flex items-center gap-2"
+              className="px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition flex items-center gap-1 sm:gap-2"
             >
               {submitting ? (
                 <>
                   <svg
-                    className="animate-spin h-4 w-4"
+                    className="animate-spin h-3 w-3 sm:h-4 sm:w-4"
                     xmlns="http://www.w3.org/2000/svg"
                     fill="none"
                     viewBox="0 0 24 24"
@@ -373,17 +374,23 @@ export default function SyncConfirmDialog({
                       d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                     />
                   </svg>
-                  Wird übertragen...
+                  <span className="hidden sm:inline">Wird übertragen...</span>
+                  <span className="sm:hidden">Sync...</span>
                 </>
               ) : (
                 <>
-                  <CloudUpload className="h-4 w-4" />
-                  {includedAppointments.length > 0 && includedModifications.length > 0 
-                    ? `Übertragen (${includedAppointments.length} neu, ${includedModifications.length} ändern)`
-                    : includedModifications.length > 0 
-                      ? `${includedModifications.length} Änderung(en) übertragen`
-                      : "Übertragen"
-                  }
+                  <CloudUpload className="h-3 w-3 sm:h-4 sm:w-4" />
+                  <span className="hidden sm:inline">
+                    {includedAppointments.length > 0 && includedModifications.length > 0
+                      ? `Übertragen (${includedAppointments.length} neu, ${includedModifications.length} ändern)`
+                      : includedModifications.length > 0
+                        ? `${includedModifications.length} Änderung(en) übertragen`
+                        : "Übertragen"
+                    }
+                  </span>
+                  <span className="sm:hidden">
+                    Sync ({includedAppointments.length + includedModifications.length})
+                  </span>
                 </>
               )}
             </button>

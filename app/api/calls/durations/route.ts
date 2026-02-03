@@ -95,6 +95,34 @@ export async function GET(
     startDate = minStartDateStr;
   }
 
+  // Call Records have a processing delay (~15-30 min, sometimes longer)
+  // Limit endDateTime to 1 hour ago to get reliable data for today
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+  // Use UTC date from oneHourAgo to avoid timezone issues
+  const oneHourAgoDateStr = oneHourAgo.toISOString().split("T")[0];
+
+  // Determine the effective end datetime for the API query
+  let endDateTime: string;
+  if (endDate >= oneHourAgoDateStr) {
+    // If endDate is today or future, limit to 1 hour ago (full ISO string)
+    endDateTime = oneHourAgo.toISOString();
+    console.log(
+      `[/api/calls/durations] Using endDateTime=${endDateTime} (1 hour ago, call records processing delay)`
+    );
+  } else {
+    // For past dates, use end of day
+    endDateTime = `${endDate}T23:59:59Z`;
+  }
+
+  // Check if we have a valid time range
+  const startDateTime = `${startDate}T00:00:00Z`;
+  if (new Date(startDateTime) > new Date(endDateTime)) {
+    console.log(
+      `[/api/calls/durations] No valid date range (${startDateTime} > ${endDateTime}), returning empty`
+    );
+    return NextResponse.json({ durations: {} });
+  }
+
   try {
     // Use Application token (client credentials) for CallRecords.Read.All
     const accessToken = await getAppToken();
@@ -103,7 +131,7 @@ export async function GET(
     // We only need the basic info - no participant resolution needed
     const durations: DurationsResponse["durations"] = {};
 
-    let callUrl: string | null = `https://graph.microsoft.com/v1.0/communications/callRecords?$filter=startDateTime ge ${startDate}T00:00:00Z and startDateTime le ${endDate}T23:59:59Z&$select=id,startDateTime,endDateTime,type,joinWebUrl`;
+    let callUrl: string | null = `https://graph.microsoft.com/v1.0/communications/callRecords?$filter=startDateTime ge ${startDateTime} and startDateTime le ${endDateTime}&$select=id,startDateTime,endDateTime,type,joinWebUrl`;
 
     while (callUrl) {
       const res: Response = await fetch(callUrl, {

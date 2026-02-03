@@ -16,6 +16,79 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-inter), "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  /* Prevent horizontal scroll on mobile */
+  overflow-x: hidden;
+}
+
+/* Mobile-specific global styles */
+@media (max-width: 639px) {
+  /* Ensure proper touch targets */
+  button,
+  input[type="checkbox"],
+  a {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Improve tap highlight on mobile */
+  * {
+    -webkit-tap-highlight-color: rgba(59, 130, 246, 0.1);
+  }
+
+  /* Better scrolling on mobile */
+  .overflow-y-auto,
+  .overflow-auto {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Prevent text selection during scroll */
+  .no-select-mobile {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}
+
+/* Mobile utility classes */
+.mobile-full-width {
+  @media (max-width: 639px) {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}
+
+.mobile-stack {
+  @media (max-width: 639px) {
+    flex-direction: column !important;
+  }
+}
+
+.mobile-hidden {
+  @media (max-width: 639px) {
+    display: none !important;
+  }
+}
+
+.mobile-visible {
+  display: none !important;
+  @media (max-width: 639px) {
+    display: block !important;
+  }
+}
+
+/* Horizontal scroll container for mobile */
+.mobile-scroll-x {
+  @media (max-width: 639px) {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+}
+
+.mobile-scroll-x::-webkit-scrollbar {
+  @media (max-width: 639px) {
+    display: none;
+  }
 }
 
 /* Montserrat font class */

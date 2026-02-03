@@ -370,9 +370,9 @@ export default function AppointmentList({
     <div>
       {/* Header mit "Alle auswählen" Checkbox und Filter */}
       <div className="bg-white rounded-t-lg border border-gray-200">
-        <div className="flex items-center">
+        <div className="flex flex-wrap sm:flex-nowrap items-center">
           {/* Checkbox und Auswahl-Text */}
-          <div className="flex items-center gap-3 px-4 py-3">
+          <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-3">
             {selectableAppointments.length > 0 && (
               <>
                 <input
@@ -401,18 +401,18 @@ export default function AppointmentList({
 
           {showFilterControls && (
             <>
-              {/* Divider */}
-              <div className="h-8 w-px bg-gray-200" />
+              {/* Divider - hidden on mobile when wrapping */}
+              <div className="hidden sm:block h-8 w-px bg-gray-200" />
 
-              {/* Search input */}
-              <div className="relative flex-1">
-                <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+              {/* Search input - full width on mobile */}
+              <div className="relative flex-1 min-w-0 order-last sm:order-none w-full sm:w-auto border-t sm:border-t-0 border-gray-200">
+                <Search size={16} className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input
                   type="text"
                   placeholder="Suchen..."
                   value={searchQuery || ""}
                   onChange={(e) => onSearchChange?.(e.target.value)}
-                  className="w-full pl-11 pr-10 py-3 text-sm bg-transparent border-0 focus:outline-none focus:ring-0"
+                  className="w-full pl-9 sm:pl-11 pr-10 py-2.5 sm:py-3 text-sm bg-transparent border-0 focus:outline-none focus:ring-0"
                   aria-label="Termine durchsuchen"
                 />
                 {searchQuery && (
@@ -427,10 +427,10 @@ export default function AppointmentList({
               </div>
 
               {/* Divider */}
-              <div className="h-8 w-px bg-gray-200" />
+              <div className="hidden sm:block h-8 w-px bg-gray-200" />
 
-              {/* Filter count */}
-              <div className="px-3 text-sm text-gray-500 whitespace-nowrap">
+              {/* Filter count - hidden on mobile */}
+              <div className="hidden sm:block px-3 text-sm text-gray-500 whitespace-nowrap">
                 <span className="font-medium text-gray-700">{appointments.length}</span>
                 {totalAppointmentsCount !== undefined && totalAppointmentsCount !== appointments.length && (
                   <span className="text-gray-400"> / {totalAppointmentsCount}</span>
@@ -440,12 +440,12 @@ export default function AppointmentList({
               {/* Active filters */}
               {(filterDate || seriesFilterActive) && (
                 <>
-                  <div className="h-8 w-px bg-gray-200" />
-                  <div className="flex items-center gap-2 px-2">
+                  <div className="hidden sm:block h-8 w-px bg-gray-200" />
+                  <div className="flex items-center gap-1 sm:gap-2 px-1 sm:px-2">
                     {filterDate && (
                       <button
                         onClick={() => onFilterDateClear?.()}
-                        className="flex items-center gap-1.5 px-2 py-1 text-xs text-blue-700 bg-blue-50 rounded-full hover:bg-blue-100 transition"
+                        className="flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 py-1 text-xs text-blue-700 bg-blue-50 rounded-full hover:bg-blue-100 transition"
                       >
                         <span>{new Date(filterDate).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}</span>
                         <X size={12} />
@@ -454,7 +454,7 @@ export default function AppointmentList({
                     {seriesFilterActive && (
                       <button
                         onClick={() => onSeriesFilterClear?.()}
-                        className="flex items-center gap-1.5 px-2 py-1 text-xs text-purple-700 bg-purple-50 rounded-full hover:bg-purple-100 transition"
+                        className="flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 py-1 text-xs text-purple-700 bg-purple-50 rounded-full hover:bg-purple-100 transition"
                       >
                         <span>Serien</span>
                         <X size={12} />
@@ -465,30 +465,30 @@ export default function AppointmentList({
               )}
 
               {/* Divider */}
-              <div className="h-8 w-px bg-gray-200" />
+              <div className="hidden sm:block h-8 w-px bg-gray-200" />
 
-              {/* Solo toggle */}
+              {/* Solo toggle - icon only on mobile */}
               <button
                 onClick={() => onHideSoloMeetingsChange?.(!hideSoloMeetings)}
-                className={`flex items-center gap-2 px-4 py-3 text-sm whitespace-nowrap transition ${
-                  !hideSoloMeetings 
-                    ? "text-blue-600 bg-blue-50" 
+                className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2.5 sm:py-3 text-sm whitespace-nowrap transition ${
+                  !hideSoloMeetings
+                    ? "text-blue-600 bg-blue-50"
                     : "text-gray-500 hover:bg-gray-50"
                 }`}
                 title={hideSoloMeetings ? "Solo-Termine werden ausgeblendet" : "Solo-Termine werden angezeigt"}
               >
-                <div className={`w-8 h-5 rounded-full relative transition-colors ${
+                <div className={`w-7 sm:w-8 h-4 sm:h-5 rounded-full relative transition-colors ${
                   !hideSoloMeetings ? "bg-blue-600" : "bg-gray-300"
                 }`}>
-                  <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
-                    !hideSoloMeetings ? "translate-x-3.5" : "translate-x-0.5"
+                  <div className={`absolute top-0.5 w-3 sm:w-4 h-3 sm:h-4 bg-white rounded-full shadow transition-transform ${
+                    !hideSoloMeetings ? "translate-x-3 sm:translate-x-3.5" : "translate-x-0.5"
                   }`} />
                 </div>
                 <span className="hidden sm:inline">Solo</span>
               </button>
 
               {/* Divider before sync button */}
-              <div className="h-8 w-px bg-gray-200" />
+              <div className="hidden sm:block h-8 w-px bg-gray-200" />
 
               {/* Sync button */}
               <button
@@ -497,15 +497,16 @@ export default function AppointmentList({
                   submitting ||
                   (syncReadyAppointments.length === 0 && completeModificationsCount === 0)
                 }
-                className="flex items-center gap-2 px-4 py-3 text-sm font-medium bg-green-600 text-white hover:bg-green-700 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition"
+                className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm font-medium bg-green-600 text-white hover:bg-green-700 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition rounded-r-lg sm:rounded-none"
               >
                 {submitting ? (
-                  "Übertragen..."
+                  <span className="hidden sm:inline">Übertragen...</span>
                 ) : (
                   <>
-                    <span>ZEP Sync</span>
+                    <span className="hidden sm:inline">ZEP Sync</span>
+                    <span className="sm:hidden">Sync</span>
                     {(syncReadyAppointments.length > 0 || completeModificationsCount > 0) && (
-                      <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 text-xs font-medium bg-white/20 rounded-full">
+                      <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 sm:px-1.5 text-xs font-medium bg-white/20 rounded-full">
                         {syncReadyAppointments.length + completeModificationsCount}
                       </span>
                     )}
@@ -518,7 +519,7 @@ export default function AppointmentList({
                 <button
                   onClick={onReset}
                   disabled={submitting}
-                  className="p-3 text-gray-400 hover:text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                  className="p-2.5 sm:p-3 text-gray-400 hover:text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
                   title="Auswahl zurücksetzen"
                 >
                   <RotateCcw size={16} />
@@ -659,10 +660,10 @@ export default function AppointmentList({
       </div>
 
       {/* Footer - Status summary */}
-      <div className="px-4 py-3 border border-gray-200 bg-white rounded-b-lg">
-        <div className="flex items-center gap-4 text-sm text-gray-600">
+      <div className="px-3 sm:px-4 py-2 sm:py-3 border border-gray-200 bg-white rounded-b-lg">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm text-gray-600">
           <span>
-            Ausgewählt: <span className="font-medium text-gray-900">{selectedAppointments.length}</span> Termine
+            <span className="font-medium text-gray-900">{selectedAppointments.length}</span> <span className="hidden sm:inline">Termine</span> ausgewählt
             <span className="text-gray-400 ml-1">({hours}h {minutes}min)</span>
           </span>
           {syncReadyAppointments.length > 0 && (
@@ -672,7 +673,7 @@ export default function AppointmentList({
           )}
           {completeModificationsCount > 0 && (
             <span className="text-blue-600">
-              {completeModificationsCount} zu aktualisieren
+              {completeModificationsCount} <span className="hidden sm:inline">zu</span> aktualisieren
             </span>
           )}
           {incompleteUnsyncedAppointments.length > 0 && (

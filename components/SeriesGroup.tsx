@@ -332,8 +332,8 @@ export default function SeriesGroup({
   return (
     <div className="border border-blue-200 bg-blue-50/30">
       {/* Series Header */}
-      <div className="p-4 bg-gradient-to-r from-blue-50 to-white border-b border-blue-100">
-        <div className="flex items-start gap-3">
+      <div className="p-3 sm:p-4 bg-gradient-to-r from-blue-50 to-white border-b border-blue-100">
+        <div className="flex items-start gap-2 sm:gap-3">
           {/* Expand/Collapse Button */}
           <button
             onClick={() => setExpanded(!expanded)}
@@ -360,9 +360,9 @@ export default function SeriesGroup({
             aria-label={`Alle ${appointments.length} Termine der Serie "${seriesSubject}" auswählen`}
           />
 
-          <div className="flex-1">
-            <div className="flex items-center gap-2">
-              <Repeat size={16} className="text-blue-600" />
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-1 sm:gap-2">
+              <Repeat size={14} className="text-blue-600 sm:w-4 sm:h-4" />
               {firstAppointment.isOnlineMeeting && firstAppointment.onlineMeetingProvider === "teamsForBusiness" && (
                 <svg
                   className="w-4 h-4 flex-shrink-0"
@@ -435,21 +435,21 @@ export default function SeriesGroup({
                   />
                 </svg>
               )}
-              <span className="font-medium text-gray-900">{seriesSubject}</span>
-              <span className="text-sm text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full">
-                {appointments.length}x Serie
+              <span className="font-medium text-gray-900 text-sm sm:text-base truncate">{seriesSubject}</span>
+              <span className="text-xs sm:text-sm text-blue-600 bg-blue-100 px-1.5 sm:px-2 py-0.5 rounded-full whitespace-nowrap">
+                {appointments.length}x
               </span>
-              <span className="text-sm text-gray-500">
-                ({hours}h {minutes}min gesamt)
+              <span className="text-xs sm:text-sm text-gray-500 whitespace-nowrap hidden sm:inline">
+                ({hours}h {minutes}min)
               </span>
               {firstAppointment.organizer && (
-                <span className="text-sm text-gray-400" title={firstAppointment.organizer.emailAddress.address}>
+                <span className="text-xs sm:text-sm text-gray-400 hidden sm:inline" title={firstAppointment.organizer.emailAddress.address}>
                   von {firstAppointment.isOrganizer ? "Dir" : (firstAppointment.organizer.emailAddress.name || firstAppointment.organizer.emailAddress.address.split("@")[0])}
                 </span>
               )}
               {/* Sync Status Badge */}
-              <span 
-                className={`flex items-center gap-1.5 text-sm px-2 py-0.5 rounded-full ${
+              <span
+                className={`flex items-center gap-1 sm:gap-1.5 text-xs sm:text-sm px-1.5 sm:px-2 py-0.5 rounded-full ${
                   syncedCount === appointments.length
                     ? "bg-green-100 text-green-700"
                     : syncedCount > 0
@@ -458,31 +458,31 @@ export default function SeriesGroup({
                 }`}
                 title={`${syncedCount} von ${appointments.length} Terminen synchronisiert`}
               >
-                <CheckCircle2 className={`h-3.5 w-3.5 ${
+                <CheckCircle2 className={`h-3 w-3 sm:h-3.5 sm:w-3.5 ${
                   syncedCount === appointments.length
                     ? "text-green-600"
                     : syncedCount > 0
                     ? "text-yellow-600"
                     : "text-gray-400"
                 }`} />
-                {syncedCount}/{appointments.length} sync
+                {syncedCount}/{appointments.length}
               </span>
               {syncReadyCount > 0 && (
-                <span 
-                  className="flex items-center gap-1 text-sm text-amber-600"
+                <span
+                  className="flex items-center gap-1 text-xs sm:text-sm text-amber-600"
                   title={`${syncReadyCount} Termin${syncReadyCount > 1 ? 'e' : ''} werden beim nächsten Sync übertragen`}
                 >
-                  <CloudUpload className="h-4 w-4 text-amber-500" />
+                  <CloudUpload className="h-3 w-3 sm:h-4 sm:w-4 text-amber-500" />
                   {syncReadyCount}
                 </span>
               )}
             </div>
 
             {/* Gebündelte Bearbeitung */}
-            <div className="mt-3 flex items-center gap-4">
+            <div className="mt-2 sm:mt-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
               <button
                 onClick={() => setLinkedEdit(!linkedEdit)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition ${
+                className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition ${
                   linkedEdit
                     ? "bg-blue-600 text-white"
                     : "bg-gray-200 text-gray-700 hover:bg-gray-300"
@@ -491,16 +491,16 @@ export default function SeriesGroup({
                 aria-label={linkedEdit ? "Gebündelte Bearbeitung aktiv - klicken für Einzelbearbeitung" : "Einzelbearbeitung aktiv - klicken für gebündelte Bearbeitung"}
                 title={linkedEdit ? "Änderungen werden auf alle Termine angewendet" : "Jeder Termin wird einzeln bearbeitet"}
               >
-                {linkedEdit ? <Link2 size={14} aria-hidden="true" /> : <Unlink2 size={14} aria-hidden="true" />}
+                {linkedEdit ? <Link2 size={12} aria-hidden="true" className="sm:w-3.5 sm:h-3.5" /> : <Unlink2 size={12} aria-hidden="true" className="sm:w-3.5 sm:h-3.5" />}
                 {linkedEdit ? "Gebündelt" : "Einzeln"}
               </button>
 
               {linkedEdit && (
-                <div className="flex flex-wrap gap-3">
+                <div className="flex flex-col sm:flex-row flex-wrap gap-2 sm:gap-3">
                   {/* Projekt für Serie */}
                   <div className="flex flex-col">
                     <label className="text-xs text-gray-500 mb-1">
-                      Projekt (alle)
+                      Projekt <span className="hidden sm:inline">(alle)</span>
                     </label>
                     <SearchableSelect
                       options={projectOptions}
@@ -516,7 +516,7 @@ export default function SeriesGroup({
                   {/* Task für Serie */}
                   <div className="flex flex-col">
                     <label className="text-xs text-gray-500 mb-1">
-                      Task (alle)
+                      Task <span className="hidden sm:inline">(alle)</span>
                     </label>
                     <SearchableSelect
                       options={taskOptions}
@@ -542,7 +542,7 @@ export default function SeriesGroup({
                   {/* Activity für Serie */}
                   <div className="flex flex-col">
                     <label className="text-xs text-gray-500 mb-1">
-                      Tätigkeit (alle)
+                      Tätigkeit <span className="hidden sm:inline">(alle)</span>
                     </label>
                     <SearchableSelect
                       options={activityOptions}
@@ -598,15 +598,16 @@ export default function SeriesGroup({
 
       {/* Collapsed: Kompakte Übersicht */}
       {!expanded && (
-        <div className="px-4 py-2 text-sm text-gray-500 bg-white/50">
-          {selectedCount} von {appointments.length} ausgewählt
+        <div className="px-3 sm:px-4 py-2 text-xs sm:text-sm text-gray-500 bg-white/50">
+          {selectedCount}/{appointments.length} ausgewählt
           {allSameProject && seriesProjectId && (
             <span className="ml-2">
-              • {projects.find((p) => p.id === seriesProjectId)?.name}
+              • <span className="hidden sm:inline">{projects.find((p) => p.id === seriesProjectId)?.name}</span>
+              <span className="sm:hidden">{projects.find((p) => p.id === seriesProjectId)?.name?.slice(0, 15)}{(projects.find((p) => p.id === seriesProjectId)?.name?.length || 0) > 15 ? '...' : ''}</span>
             </span>
           )}
           {allSameTask && seriesTaskId && (
-            <span className="ml-1">
+            <span className="ml-1 hidden sm:inline">
               / {tasks[seriesProjectId!]?.find((t) => t.id === seriesTaskId)?.name}
             </span>
           )}

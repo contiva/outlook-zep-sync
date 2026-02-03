@@ -1027,7 +1027,8 @@ export function mapProjektzeitToRestFormat(projektzeit: SoapProjektzeit) {
     employee_id: projektzeit.userId,
     duration: projektzeit.dauer ? parseDurationToMinutes(projektzeit.dauer) : undefined,
     note: projektzeit.bemerkung || null,
-    billable: projektzeit.istFakturierbar || false,
+    // SOAP returns "true"/"false" as strings, need explicit check
+    billable: projektzeit.istFakturierbar === true || String(projektzeit.istFakturierbar).toLowerCase() === "true",
     activity_id: projektzeit.taetigkeit,
     project_id: projektzeit.projektId || 0,
     project_task_id: projektzeit.vorgangId || 0,

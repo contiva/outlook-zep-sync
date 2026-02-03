@@ -88,7 +88,7 @@ export default function SearchableSelect({
         return (
           <div className={`relative ${className}`}>
             <ListboxButton
-              className={`w-full rounded-lg border border-gray-300 py-2 pl-3 pr-10 text-sm leading-5 text-left focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none ${
+              className={`w-full rounded-lg border border-gray-300 py-2.5 sm:py-2 pl-3 pr-10 text-sm leading-5 text-left focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none ${
                 disabled ? "bg-gray-100 cursor-not-allowed text-gray-500" : "bg-white cursor-pointer"
               } ${disabled ? "" : (!selectedOption ? "text-gray-500" : "text-gray-900")}`}
             >
@@ -110,7 +110,7 @@ export default function SearchableSelect({
 
             <ListboxOptions
               anchor="bottom start"
-              className="z-[100] mt-1 max-h-72 w-[var(--button-width)] rounded-lg bg-white text-sm shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none"
+              className="z-[100] mt-1 max-h-64 sm:max-h-72 w-[var(--button-width)] rounded-lg bg-white text-sm shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none"
             >
               {/* Search input */}
               {showSearch && (
@@ -137,7 +137,7 @@ export default function SearchableSelect({
                   <ListboxOption
                     value={null}
                     className={({ focus }) =>
-                      `relative cursor-pointer select-none py-2 pl-10 pr-4 ${
+                      `relative cursor-pointer select-none py-3 sm:py-2 pl-10 pr-4 ${
                         focus ? "bg-blue-600 text-white" : "text-gray-500"
                       }`
                     }
@@ -161,7 +161,7 @@ export default function SearchableSelect({
                     key={option.value}
                     value={option}
                     className={({ focus }) =>
-                      `relative cursor-pointer select-none py-2 pl-10 pr-4 ${
+                      `relative cursor-pointer select-none py-3 sm:py-2 pl-10 pr-4 ${
                         focus ? "bg-blue-600 text-white" : "text-gray-900"
                       }`
                     }
