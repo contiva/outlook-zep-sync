@@ -343,17 +343,17 @@ export default function CalendarHeatmap({
   }
 
   return (
-    <div className="p-4">
+    <div className="p-2 sm:p-4 overflow-x-auto">
       {/* Horizontal row - series tile + divider + all days as boxes */}
-      <div 
-        className="grid gap-1 items-end"
-        style={{ gridTemplateColumns: `auto auto repeat(${days.length}, minmax(0, 1fr))` }}
+      <div
+        className="grid gap-1 items-end min-w-max sm:min-w-0"
+        style={{ gridTemplateColumns: `auto auto repeat(${days.length}, minmax(24px, 1fr))` }}
       >
         {/* Series tile - always first */}
         <div className="flex flex-col items-center gap-0.5">
           {/* Label */}
-          <span className="text-[10px] text-gray-400" aria-hidden="true">Serien</span>
-          
+          <span className="text-[9px] sm:text-[10px] text-gray-400" aria-hidden="true">Serien</span>
+
           {/* Series box */}
           <button
             type="button"
@@ -366,11 +366,11 @@ export default function CalendarHeatmap({
               }
             }}
             disabled={seriesData.count === 0}
-            className={`w-10 h-10 rounded overflow-hidden flex items-center justify-center focus:outline-none transition-transform ${
+            className={`w-8 h-8 sm:w-10 sm:h-10 rounded overflow-hidden flex items-center justify-center focus:outline-none transition-transform ${
               seriesData.count === 0
                 ? "bg-gray-100 border border-gray-200 cursor-default"
-                : seriesFilterActive 
-                  ? "cursor-pointer ring-2 ring-blue-600 ring-offset-1 scale-110" 
+                : seriesFilterActive
+                  ? "cursor-pointer ring-2 ring-blue-600 ring-offset-1 scale-110"
                   : "cursor-pointer hover:brightness-110 hover:shadow-md"
             }`}
             aria-label={`Terminserien filtern: ${seriesData.count} Serien mit ${seriesData.totalAppointments} Terminen`}
@@ -403,10 +403,10 @@ export default function CalendarHeatmap({
         </div>
         
         {/* Divider between series and days */}
-        <div className="flex flex-col items-center gap-0.5 px-1">
-          <span className="text-[10px] text-transparent" aria-hidden="true">.</span>
-          <div className="w-px h-10 bg-gray-300" />
-          <span className="text-[10px] text-transparent" aria-hidden="true">.</span>
+        <div className="flex flex-col items-center gap-0.5 px-0.5 sm:px-1">
+          <span className="text-[9px] sm:text-[10px] text-transparent" aria-hidden="true">.</span>
+          <div className="w-px h-8 sm:h-10 bg-gray-300" />
+          <span className="text-[9px] sm:text-[10px] text-transparent" aria-hidden="true">.</span>
         </div>
         
         {days.map((day) => {
@@ -426,13 +426,13 @@ export default function CalendarHeatmap({
               className="flex flex-col items-center gap-0.5"
             >
               {/* Weekday label */}
-              <span className="text-[10px] text-gray-400" aria-hidden="true">{weekday}</span>
-              
+              <span className="text-[9px] sm:text-[10px] text-gray-400" aria-hidden="true">{weekday}</span>
+
               {/* Day box with stacked segments */}
               <button
                 type="button"
                 onClick={() => onDayClick(isSelected ? null : dateStr)}
-                className={`w-full max-w-8 h-10 rounded overflow-hidden cursor-pointer focus:outline-none transition-transform ${
+                className={`w-6 sm:w-full sm:max-w-8 h-8 sm:h-10 rounded overflow-hidden cursor-pointer focus:outline-none transition-transform ${
                   status === "weekend" ? "bg-gray-100" : totalCount === 0 ? "bg-gray-100 border border-gray-200" : ""
                 } ${isSelected ? "ring-2 ring-blue-600 ring-offset-1 scale-110" : "hover:brightness-110 hover:shadow-md"}`}
                 aria-label={`${format(day, "EEEE, d. MMMM", { locale: de })}: ${totalCount} Termine, ${selectedCount} ausgewählt, Status: ${getStatusLabel(status)}`}
@@ -456,7 +456,7 @@ export default function CalendarHeatmap({
               </button>
               
               {/* Day number below */}
-              <span className={`text-[10px] font-medium ${
+              <span className={`text-[9px] sm:text-[10px] font-medium ${
                 status === "weekend" ? "text-gray-400" : "text-gray-600"
               }`}>
                 {dayNum}
@@ -473,20 +473,23 @@ export default function CalendarHeatmap({
 // Legend component exported separately to be placed outside the container
 export function CalendarHeatmapLegend({ stats }: { stats: { synced: number; edited: number; unprocessed: number } }) {
   return (
-    <div className="flex items-center justify-end gap-3 text-[10px] px-1 mt-1">
+    <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3 text-[9px] sm:text-[10px] px-1 mt-1">
       <div className="flex items-center gap-1">
         <div className="w-2 h-2 rounded-sm bg-green-500/60" />
-        <span className="text-gray-400">Synchronisiert</span>
+        <span className="text-gray-400 hidden sm:inline">Synchronisiert</span>
+        <span className="text-gray-400 sm:hidden">Sync</span>
         <span className="text-gray-400">{stats.synced}</span>
       </div>
       <div className="flex items-center gap-1">
         <div className="w-2 h-2 rounded-sm bg-yellow-500/60" />
-        <span className="text-gray-400">Bearbeitet</span>
+        <span className="text-gray-400 hidden sm:inline">Bearbeitet</span>
+        <span className="text-gray-400 sm:hidden">Bearb.</span>
         <span className="text-gray-400">{stats.edited}</span>
       </div>
       <div className="flex items-center gap-1">
         <div className="w-2 h-2 rounded-sm bg-red-400/60" />
-        <span className="text-gray-400">Unbearbeitet</span>
+        <span className="text-gray-400 hidden sm:inline">Unbearbeitet</span>
+        <span className="text-gray-400 sm:hidden">Offen</span>
         <span className="text-gray-400">{stats.unprocessed}</span>
       </div>
     </div>

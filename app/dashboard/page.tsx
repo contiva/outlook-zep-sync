@@ -2344,23 +2344,33 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-sm">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Image src="/logo.png" alt="Logo" width={32} height={32} className="h-8 w-auto" />
-            <h1 className="text-xl font-bold text-gray-900">
-              <span className="font-montserrat">Outlook ZEP</span>{" "}
-              <span className="font-inter font-light">Sync</span>
-            </h1>
+        <div className="max-w-6xl mx-auto px-3 sm:px-4 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0">
+          <div className="flex items-center justify-between sm:justify-start gap-3">
+            <div className="flex items-center gap-3">
+              <Image src="/logo.png" alt="Logo" width={32} height={32} className="h-7 sm:h-8 w-auto" />
+              <h1 className="text-lg sm:text-xl font-bold text-gray-900">
+                <span className="font-montserrat">Outlook ZEP</span>{" "}
+                <span className="font-inter font-light">Sync</span>
+              </h1>
+            </div>
+            {/* Mobile logout button */}
+            <button
+              onClick={() => signOut({ callbackUrl: "/" })}
+              className="flex sm:hidden items-center gap-1 text-sm text-gray-500 hover:text-gray-700 p-2"
+              aria-label="Abmelden"
+            >
+              <LogOut size={18} />
+            </button>
           </div>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-600">
+          <div className="flex items-center gap-2 sm:gap-4">
+            <span className="text-xs sm:text-sm text-gray-600 truncate max-w-[200px] sm:max-w-none">
               {session?.user?.email}
               {employeeLoading && (
                 <span className="ml-1 text-gray-400">(Lade ZEP...)</span>
               )}
             </span>
-            <div 
-              className="relative group"
+            <div
+              className="relative group hidden sm:block"
               title="Tastaturkürzel: Esc = Filter löschen, Strg+R = Neu laden"
             >
               <Keyboard size={16} className="text-gray-400 cursor-help" />
@@ -2370,9 +2380,10 @@ export default function Dashboard() {
                 <div><kbd className="px-1 bg-gray-700 rounded">Strg+R</kbd> Termine laden</div>
               </div>
             </div>
+            {/* Desktop logout button */}
             <button
               onClick={() => signOut({ callbackUrl: "/" })}
-              className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700"
+              className="hidden sm:flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700"
             >
               <LogOut size={16} />
               Abmelden
@@ -2382,14 +2393,14 @@ export default function Dashboard() {
       </header>
 
       {employeeError && (
-        <div className="max-w-6xl mx-auto px-4 pt-4">
-          <div className="p-4 rounded-lg bg-red-50 border border-red-200 text-red-800">
+        <div className="max-w-6xl mx-auto px-2 sm:px-4 pt-3 sm:pt-4">
+          <div className="p-3 sm:p-4 rounded-lg bg-red-50 border border-red-200 text-red-800 text-sm sm:text-base">
             <strong>ZEP-Fehler:</strong> {employeeError}
           </div>
         </div>
       )}
 
-      <main className="max-w-6xl mx-auto px-4 py-8 space-y-4">
+      <main className="max-w-6xl mx-auto px-2 sm:px-4 py-4 sm:py-8 space-y-3 sm:space-y-4">
         {/* Combined Date Picker and Calendar Heatmap with Legend */}
         <div>
           <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">

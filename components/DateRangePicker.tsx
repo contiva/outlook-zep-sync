@@ -111,7 +111,7 @@ export default function DateRangePicker({
   };
 
   return (
-    <div className="flex items-center border-b border-gray-200">
+    <div className="flex flex-wrap sm:flex-nowrap items-center border-b border-gray-200">
         {/* Month presets */}
         {presets.map((preset, index) => {
           const isActive = isPresetActive(preset);
@@ -124,7 +124,7 @@ export default function DateRangePicker({
                 // Clear the filter date when clicking month directly
                 setTimeout(() => onFilterDateChange(null), 100);
               }}
-              className={`px-4 py-3 text-sm whitespace-nowrap transition ${
+              className={`px-2 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm whitespace-nowrap transition ${
                 isActive && !isRelated
                   ? "text-blue-600 bg-blue-50"
                   : isRelated
@@ -136,26 +136,27 @@ export default function DateRangePicker({
             </button>
           );
         })}
-        
-        <div className="h-8 w-px bg-gray-200" />
-        
+
+        <div className="hidden sm:block h-8 w-px bg-gray-200" />
+
         {/* Quick jump buttons */}
         <button
           onClick={jumpToYesterday}
-          className={`px-4 py-3 text-sm whitespace-nowrap transition ${
+          className={`px-2 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm whitespace-nowrap transition ${
             isYesterdayActive
               ? "text-blue-600 bg-blue-50"
               : "text-gray-600 hover:bg-gray-50"
           }`}
         >
-          Gestern
+          <span className="hidden sm:inline">Gestern</span>
+          <span className="sm:hidden">Gest.</span>
         </button>
-        
-        <div className="h-8 w-px bg-gray-200" />
-        
+
+        <div className="hidden sm:block h-8 w-px bg-gray-200" />
+
         <button
           onClick={jumpToToday}
-          className={`px-4 py-3 text-sm whitespace-nowrap transition ${
+          className={`px-2 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm whitespace-nowrap transition ${
             isTodayActive
               ? "text-blue-600 bg-blue-50"
               : "text-gray-600 hover:bg-gray-50"
@@ -163,28 +164,28 @@ export default function DateRangePicker({
         >
           Heute
         </button>
-        
+
         {/* Spacer */}
         <div className="flex-1" />
-        
+
         {/* Last loaded status */}
         {lastLoadedAt && !loading && (
           <>
-            <span 
-              className="px-3 text-xs text-gray-400 hidden sm:inline" 
+            <span
+              className="px-3 text-xs text-gray-400 hidden sm:inline"
               title={format(lastLoadedAt, "PPpp", { locale: de })}
             >
               {formatDistanceToNow(lastLoadedAt, { addSuffix: true, locale: de })}
             </span>
-            <div className="h-8 w-px bg-gray-200" />
+            <div className="hidden sm:block h-8 w-px bg-gray-200" />
           </>
         )}
-        
+
         {/* Load button */}
         <button
           onClick={onLoad}
           disabled={loading}
-          className="relative flex items-center gap-2 px-4 py-3 text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:cursor-wait transition overflow-hidden"
+          className="relative flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:cursor-wait transition overflow-hidden"
         >
           {/* Progress bar background animation */}
           {loading && (
@@ -195,7 +196,7 @@ export default function DateRangePicker({
                   100% { transform: translateX(100%); }
                 }
               `}</style>
-              <div 
+              <div
                 className="absolute inset-0 bg-blue-400 opacity-60"
                 style={{
                   animation: "progress-sweep 1.5s ease-in-out infinite",
@@ -203,8 +204,8 @@ export default function DateRangePicker({
               />
             </>
           )}
-          <span className="relative z-10 flex items-center gap-2">
-            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+          <span className="relative z-10 flex items-center gap-1 sm:gap-2">
+            <RefreshCw size={14} className={`sm:w-4 sm:h-4 ${loading ? "animate-spin" : ""}`} />
             <span className="hidden sm:inline">Termine laden</span>
           </span>
         </button>
