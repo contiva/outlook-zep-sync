@@ -5,7 +5,8 @@ import { Search, X, RotateCcw } from "lucide-react";
 import AppointmentRow from "./AppointmentRow";
 import SeriesGroup from "./SeriesGroup";
 import SyncConfirmDialog from "./SyncConfirmDialog";
-import { DuplicateCheckResult, formatZepStartTime, formatZepEndTime } from "@/lib/zep-api";
+import { DuplicateCheckResult } from "@/lib/zep-api";
+import { ActualDuration, ActualDurationsMap, normalizeJoinUrl } from "@/lib/teams-utils";
 
 interface Project {
   id: number;
@@ -50,7 +51,12 @@ interface Appointment {
   attendees?: Attendee[];
   isOrganizer?: boolean;
   seriesMasterId?: string;
-  type?: string;
+  type?: 'calendar' | 'call' | 'singleInstance' | 'occurrence' | 'exception' | 'seriesMaster';
+  callType?: 'Phone' | 'Video' | 'ScreenShare';
+  direction?: 'incoming' | 'outgoing';
+  isOnlineMeeting?: boolean;
+  onlineMeeting?: { joinUrl?: string };
+  useActualTime?: boolean; // true = use actual time from call records, false = use planned time
 }
 
 interface ZepEntry {
@@ -87,6 +93,9 @@ interface ModifiedEntry {
   von: string;
   bis: string;
   bemerkung?: string;
+  // New time values (when user changes planned/actual time in edit mode)
+  newVon?: string;
+  newBis?: string;
 }
 
 interface AppointmentListProps {
@@ -97,6 +106,8 @@ interface AppointmentListProps {
   syncedEntries: ZepEntry[];
   duplicateWarnings?: Map<string, DuplicateCheckResult>;
   loadingTasks?: Set<number>;
+  // Actual meeting durations from call records
+  actualDurations?: ActualDurationsMap;
   onToggle: (id: string) => void;
   onToggleSeries: (seriesId: string, selected: boolean) => void;
   onSelectAll: (selected: boolean) => void;
@@ -104,6 +115,8 @@ interface AppointmentListProps {
   onTaskChange: (id: string, taskId: number | null) => void;
   onActivityChange: (id: string, activityId: string) => void;
   onBillableChange: (id: string, billable: boolean) => void;
+  // Toggle between planned and actual time for ZEP sync
+  onUseActualTimeChange?: (id: string, useActual: boolean) => void;
   onApplyToSeries: (
     seriesId: string,
     projectId: number | null,
@@ -124,6 +137,9 @@ interface AppointmentListProps {
   onModifyTask?: (appointmentId: string, taskId: number) => void;
   onModifyActivity?: (appointmentId: string, apt: Appointment, syncedEntry: ZepEntry, activityId: string) => void;
   onModifyBillable?: (appointmentId: string, apt: Appointment, syncedEntry: ZepEntry, billable: boolean) => void;
+  onModifyTime?: (appointmentId: string, apt: Appointment, syncedEntry: ZepEntry, useActualTime: boolean) => void;
+  onSaveModifiedSingle?: (modifiedEntry: ModifiedEntry) => void;
+  savingModifiedSingleId?: string | null;
   // Rescheduled appointment time correction
   onCorrectTime?: (appointmentId: string, duplicateWarning: DuplicateCheckResult) => void;
   correctingTimeIds?: Set<string>;
@@ -152,33 +168,20 @@ function isAppointmentSynced(apt: Appointment, syncedEntries: ZepEntry[]): boole
 }
 
 // Helper: Find the matching synced entry for an appointment
-// Compares using rounded times (ZEP stores times in 15-min intervals)
-// Trims subject/note for comparison (Outlook may have trailing spaces that ZEP trims)
+// Matches by subject and date only (not times) because entry could be synced with
+// planned time OR actual time - we need to find the entry regardless
 function findSyncedEntry(apt: Appointment, syncedEntries: ZepEntry[]): ZepEntry | null {
   if (!syncedEntries || syncedEntries.length === 0) {
     return null;
   }
 
-  const aptDate = new Date(apt.start.dateTime);
-  const aptDateStr = aptDate.toISOString().split("T")[0];
-  const aptEndDate = new Date(apt.end.dateTime);
-  
-  // Use rounded times for comparison (same logic as when syncing to ZEP)
-  const aptFromTimeRounded = formatZepStartTime(aptDate);
-  const aptToTimeRounded = formatZepEndTime(aptEndDate);
-  
-  // Trim subject for comparison (Outlook may have trailing spaces)
+  const aptDateStr = new Date(apt.start.dateTime).toISOString().split("T")[0];
   const aptSubject = apt.subject.trim();
 
   return syncedEntries.find((entry) => {
     const entryDate = entry.date.split("T")[0];
     const entryNote = (entry.note || "").trim();
-    return (
-      entryNote === aptSubject &&
-      entryDate === aptDateStr &&
-      entry.from === aptFromTimeRounded &&
-      entry.to === aptToTimeRounded
-    );
+    return entryNote === aptSubject && entryDate === aptDateStr;
   }) || null;
 }
 
@@ -190,6 +193,19 @@ function isAppointmentSyncReady(apt: Appointment, syncedEntries: ZepEntry[]): bo
   return true;
 }
 
+// Helper: Get actual duration for an online meeting from call records
+function getActualDuration(
+  apt: Appointment,
+  actualDurations?: ActualDurationsMap
+): ActualDuration | undefined {
+  if (!actualDurations || !apt.isOnlineMeeting || !apt.onlineMeeting?.joinUrl) {
+    return undefined;
+  }
+  const normalizedUrl = normalizeJoinUrl(apt.onlineMeeting.joinUrl);
+  if (!normalizedUrl) return undefined;
+  return actualDurations.get(normalizedUrl);
+}
+
 export default function AppointmentList({
   appointments,
   projects,
@@ -198,6 +214,7 @@ export default function AppointmentList({
   syncedEntries,
   duplicateWarnings,
   loadingTasks,
+  actualDurations,
   onToggle,
   onToggleSeries,
   onSelectAll,
@@ -205,6 +222,7 @@ export default function AppointmentList({
   onTaskChange,
   onActivityChange,
   onBillableChange,
+  onUseActualTimeChange,
   onApplyToSeries,
   onSubmit,
   onSyncSingle,
@@ -219,6 +237,9 @@ export default function AppointmentList({
   onModifyTask,
   onModifyActivity,
   onModifyBillable,
+  onModifyTime,
+  onSaveModifiedSingle,
+  savingModifiedSingleId,
   onCorrectTime,
   correctingTimeIds,
   // Filter props
@@ -234,11 +255,11 @@ export default function AppointmentList({
 }: AppointmentListProps) {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
-  // Count complete modifications (have project and task)
+  // Count complete modifications (have project and task, or have time changes)
   const completeModificationsCount = useMemo(() => {
     if (!modifiedEntries) return 0;
     return Array.from(modifiedEntries.values()).filter(
-      (mod) => mod.newProjectId > 0 && mod.newTaskId > 0
+      (mod) => (mod.newProjectId > 0 && mod.newTaskId > 0) || mod.newVon !== undefined || mod.newBis !== undefined
     ).length;
   }, [modifiedEntries]);
 
@@ -572,12 +593,15 @@ export default function AppointmentList({
                 syncedEntries={syncedEntries}
                 duplicateWarnings={duplicateWarnings}
                 loadingTasks={loadingTasks}
+                // Actual meeting durations from call records
+                actualDurations={actualDurations}
                 onToggle={onToggle}
                 onToggleSeries={onToggleSeries}
                 onProjectChange={onProjectChange}
                 onTaskChange={onTaskChange}
                 onActivityChange={onActivityChange}
                 onBillableChange={onBillableChange}
+                onUseActualTimeChange={onUseActualTimeChange}
                 onApplyToSeries={onApplyToSeries}
                 // Single sync
                 onSyncSingle={onSyncSingle}
@@ -603,11 +627,14 @@ export default function AppointmentList({
                 syncedEntry={findSyncedEntry(item.appointments[0], syncedEntries)}
                 duplicateWarning={duplicateWarnings?.get(item.appointments[0].id)}
                 loadingTasks={item.appointments[0].projectId ? loadingTasks?.has(item.appointments[0].projectId) : false}
+                // Actual meeting duration from call records
+                actualDuration={getActualDuration(item.appointments[0], actualDurations)}
                 onToggle={onToggle}
                 onProjectChange={onProjectChange}
                 onTaskChange={onTaskChange}
                 onActivityChange={onActivityChange}
                 onBillableChange={onBillableChange}
+                onUseActualTimeChange={onUseActualTimeChange}
                 // Single sync
                 onSyncSingle={onSyncSingle}
                 isSyncingSingle={syncingSingleId === item.appointments[0].id}
@@ -620,6 +647,9 @@ export default function AppointmentList({
                 onModifyTask={onModifyTask}
                 onModifyActivity={onModifyActivity}
                 onModifyBillable={onModifyBillable}
+                onModifyTime={onModifyTime}
+                onSaveModifiedSingle={onSaveModifiedSingle}
+                isSavingModifiedSingle={savingModifiedSingleId === item.appointments[0].id}
                 // Rescheduled time correction
                 onCorrectTime={onCorrectTime}
                 isCorrectingTime={correctingTimeIds?.has(item.appointments[0].id) || false}

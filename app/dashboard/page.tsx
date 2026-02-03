@@ -4,13 +4,15 @@ import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { format, startOfMonth, endOfMonth, subMonths, isWeekend, addDays } from "date-fns";
-import { LogOut, X, Keyboard } from "lucide-react";
+import { LogOut, X, Keyboard, Loader2, Phone } from "lucide-react";
 import Image from "next/image";
 import DateRangePicker from "@/components/DateRangePicker";
 import AppointmentList from "@/components/AppointmentList";
 import CalendarHeatmap, { CalendarHeatmapLegend, HeatmapStats } from "@/components/CalendarHeatmap";
 import { saveSyncRecords, SyncRecord } from "@/lib/sync-history";
-import { checkAppointmentsForDuplicates, DuplicateCheckResult, ZepAttendance, formatZepStartTime, formatZepEndTime } from "@/lib/zep-api";
+import { checkAppointmentsForDuplicates, DuplicateCheckResult, ZepAttendance, calculateZepTimes } from "@/lib/zep-api";
+import { ActualDuration, ActualDurationsMap, normalizeJoinUrl } from "@/lib/teams-utils";
+import { roundToNearest15Min, timesMatch } from "@/lib/time-utils";
 
 // Helper: Determine billable status from project/task settings
 // Values: 0=inherited(task only), 1=billable+editable, 2=billable+locked, 3=not billable+editable, 4=not billable+locked
@@ -104,9 +106,12 @@ interface CalendarEvent {
   };
   isOrganizer?: boolean;
   seriesMasterId?: string;
-  type?: string;
+  type?: 'calendar' | 'call' | 'singleInstance' | 'occurrence' | 'exception' | 'seriesMaster';
+  callType?: 'Phone' | 'Video' | 'ScreenShare';
+  direction?: 'incoming' | 'outgoing';
   isOnlineMeeting?: boolean;
   onlineMeetingProvider?: string;
+  onlineMeeting?: { joinUrl?: string }; // Teams meeting join URL
   isCancelled?: boolean;
   lastModifiedDateTime?: string;
 }
@@ -131,12 +136,16 @@ interface Appointment {
   };
   isOrganizer?: boolean;
   seriesMasterId?: string;
-  type?: string;
+  type?: 'calendar' | 'call' | 'singleInstance' | 'occurrence' | 'exception' | 'seriesMaster';
+  callType?: 'Phone' | 'Video' | 'ScreenShare';
+  direction?: 'incoming' | 'outgoing';
   synced?: boolean; // true if already exists in ZEP
   isOnlineMeeting?: boolean;
   onlineMeetingProvider?: string;
+  onlineMeeting?: { joinUrl?: string }; // Teams meeting join URL
   isCancelled?: boolean;
   lastModifiedDateTime?: string;
+  useActualTime?: boolean; // true = use actual time from call records, false = use planned time
 }
 
 interface ZepEntry {
@@ -174,6 +183,9 @@ export interface ModifiedEntry {
   von: string;
   bis: string;
   bemerkung?: string;
+  // New time values (when user changes planned/actual time in edit mode)
+  newVon?: string;
+  newBis?: string;
 }
 
 // localStorage key for persisting work state
@@ -305,27 +317,94 @@ function isAppointmentSynced(apt: Appointment, syncedEntries: ZepEntry[]): boole
     return false;
   }
 
-  const aptDate = new Date(apt.start.dateTime);
-  const aptDateStr = aptDate.toISOString().split("T")[0];
-  const aptEndDate = new Date(apt.end.dateTime);
-  
-  // Use rounded times (same logic as when syncing to ZEP)
-  const aptFromTime = formatZepStartTime(aptDate);
-  const aptToTime = formatZepEndTime(aptEndDate);
-  
-  // Trim subject for comparison (Outlook may have trailing spaces)
+  const aptDateStr = new Date(apt.start.dateTime).toISOString().split("T")[0];
   const aptSubject = apt.subject.trim();
 
-  return syncedEntries.some((entry) => {
+  // Check if any synced entry matches this appointment by subject and date
+  // We don't check times strictly because the entry could have been synced with
+  // planned time OR actual time - we just need to know if it exists
+  const result = syncedEntries.some((entry) => {
     const entryDate = entry.date.split("T")[0];
     const entryNote = (entry.note || "").trim();
-    return (
-      entryNote === aptSubject &&
-      entryDate === aptDateStr &&
-      entry.from === aptFromTime &&
-      entry.to === aptToTime
-    );
+    return entryNote === aptSubject && entryDate === aptDateStr;
   });
+
+  return result;
+}
+
+// Helper: Detect which time was synced to ZEP (planned or actual)
+// Returns true if actual time was used, false if planned time was used
+// Returns undefined if cannot be determined (appointment not synced or no actual duration data)
+function detectSyncedTimePreference(
+  apt: Appointment,
+  syncedEntries: ZepEntry[],
+  actualDuration: ActualDuration | undefined
+): boolean | undefined {
+  if (!syncedEntries || syncedEntries.length === 0) {
+    return undefined;
+  }
+
+  const aptDateStr = new Date(apt.start.dateTime).toISOString().split("T")[0];
+  const aptSubject = apt.subject.trim();
+
+  // Find the matching synced entry
+  const syncedEntry = syncedEntries.find((entry) => {
+    const entryDate = entry.date.split("T")[0];
+    const entryNote = (entry.note || "").trim();
+    return entryNote === aptSubject && entryDate === aptDateStr;
+  });
+
+  if (!syncedEntry) {
+    return undefined;
+  }
+
+  // Get planned times (rounded)
+  const plannedStart = new Date(apt.start.dateTime);
+  const plannedEnd = new Date(apt.end.dateTime);
+  const plannedStartRounded = roundToNearest15Min(plannedStart);
+  const plannedEndRounded = roundToNearest15Min(plannedEnd);
+
+  // Convert ZEP entry times to comparable format (HH:mm)
+  const zepStartTime = syncedEntry.from.slice(0, 5);
+  const zepEndTime = syncedEntry.to.slice(0, 5);
+
+  // Format planned rounded times
+  const plannedStartStr = plannedStartRounded.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  const plannedEndStr = plannedEndRounded.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+
+  // Check if ZEP times match planned times
+  const matchesPlanned = timesMatch(zepStartTime, plannedStartStr) && timesMatch(zepEndTime, plannedEndStr);
+
+  // If no actual duration data, we can't compare to actual
+  if (!actualDuration) {
+    return matchesPlanned ? false : undefined;
+  }
+
+  // Get actual times (rounded)
+  const actualStart = new Date(actualDuration.actualStart);
+  const actualEnd = new Date(actualDuration.actualEnd);
+  const actualStartRounded = roundToNearest15Min(actualStart);
+  const actualEndRounded = roundToNearest15Min(actualEnd);
+
+  // Format actual rounded times
+  const actualStartStr = actualStartRounded.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  const actualEndStr = actualEndRounded.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+
+  // Check if ZEP times match actual times
+  const matchesActual = timesMatch(zepStartTime, actualStartStr) && timesMatch(zepEndTime, actualEndStr);
+
+  // Determine which was used based on matches
+  if (matchesActual && !matchesPlanned) {
+    return true; // Actual time was used
+  } else if (matchesPlanned && !matchesActual) {
+    return false; // Planned time was used
+  } else if (matchesActual && matchesPlanned) {
+    // Both match (actual and planned were the same), default to planned
+    return false;
+  }
+
+  // Neither matches exactly - return undefined
+  return undefined;
 }
 
 // Helper to safely access localStorage (SSR-safe)
@@ -596,6 +675,19 @@ export default function Dashboard() {
   // State for correcting rescheduled appointment times
   const [correctingTimeIds, setCorrectingTimeIds] = useState<Set<string>>(new Set());
 
+  // State for saving single modified entry
+  const [savingModifiedSingleId, setSavingModifiedSingleId] = useState<string | null>(null);
+
+  // State for calls toggle
+  const [callsEnabled, setCallsEnabled] = useState(false);
+  const [callsLoading, setCallsLoading] = useState(false);
+  const [calls, setCalls] = useState<Appointment[]>([]);
+
+  // State for actual meeting durations (from call records)
+  const [actualDurations, setActualDurations] = useState<ActualDurationsMap>(new Map());
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [durationsLoading, setDurationsLoading] = useState(false); // For potential future loading indicator
+
   const employeeId = zepEmployee?.username ?? "";
 
   // Ref to hold the loadAppointments function for keyboard shortcuts
@@ -618,60 +710,6 @@ export default function Dashboard() {
     );
   }, [appointments]);
 
-  // Filter appointments by selected date, series filter, search query, and solo-meeting toggle
-  const filteredAppointments = useMemo(() => {
-    let filtered = appointments;
-    
-    // Filter by series if active
-    if (seriesFilterActive) {
-      filtered = filtered.filter(
-        (apt) => apt.seriesMasterId && apt.type === "occurrence" && validSeriesIds.has(apt.seriesMasterId)
-      );
-    }
-    
-    // Filter by date if selected
-    if (filterDate) {
-      filtered = filtered.filter((apt) => apt.start.dateTime.startsWith(filterDate));
-    }
-    
-    // Filter by search query (title or attendee name/email)
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase().trim();
-      filtered = filtered.filter((apt) => {
-        // Match title
-        if (apt.subject.toLowerCase().includes(query)) {
-          return true;
-        }
-        // Match attendee name or email
-        if (apt.attendees?.some(
-          (a) => 
-            a.emailAddress.name.toLowerCase().includes(query) ||
-            a.emailAddress.address.toLowerCase().includes(query)
-        )) {
-          return true;
-        }
-        return false;
-      });
-    }
-    
-    // Filter out solo meetings if toggle is on, BUT keep selected ones visible
-    if (hideSoloMeetings) {
-      const userEmail = session?.user?.email?.toLowerCase();
-      filtered = filtered.filter((apt) => {
-        // Always show if manually selected
-        if (apt.selected) return true;
-        
-        // Otherwise, only show if has other attendees
-        const otherAttendees = (apt.attendees || []).filter(
-          (a) => a.emailAddress.address.toLowerCase() !== userEmail
-        );
-        return otherAttendees.length > 0;
-      });
-    }
-    
-    return filtered;
-  }, [appointments, filterDate, seriesFilterActive, validSeriesIds, searchQuery, hideSoloMeetings, session?.user?.email]);
-
   useEffect(() => {
     if (status === "unauthenticated") {
       router.push("/");
@@ -691,7 +729,7 @@ export default function Dashboard() {
         syncedEntries,
       });
     }
-  }, [startDate, endDate, appointments, filterDate, hideSoloMeetings, syncedEntries]);
+  }, [startDate, endDate, appointments, filterDate, hideSoloMeetings, syncedEntries.length]);
 
   // Check for potential duplicates when appointments or synced entries change
   useEffect(() => {
@@ -711,7 +749,7 @@ export default function Dashboard() {
     
     const warnings = checkAppointmentsForDuplicates(appointmentsToCheck, syncedEntries as unknown as ZepAttendance[]);
     setDuplicateWarnings(warnings);
-  }, [appointments, syncedEntries]);
+  }, [appointments, syncedEntries.length]);
 
   useEffect(() => {
     // Load activities (global, not per employee)
@@ -1009,6 +1047,252 @@ export default function Dashboard() {
   // Update ref so keyboard shortcuts can call loadAppointments with force refresh
   loadAppointmentsRef.current = () => loadAppointments(undefined, undefined, true);
 
+  // Load calls when toggle is enabled
+  const loadCalls = useCallback(async () => {
+    setCallsLoading(true);
+    try {
+      const res = await fetch(`/api/calls?startDate=${startDate}&endDate=${endDate}`);
+      const data = await res.json();
+
+      if (data.calls && Array.isArray(data.calls)) {
+        // Map calls to Appointment format
+        const mappedCalls: Appointment[] = data.calls.map((call: {
+          id: string;
+          subject: string;
+          start: string;
+          end: string;
+          participants: string[];
+          organizer: string;
+          callType: 'Phone' | 'Video' | 'ScreenShare';
+          direction: 'incoming' | 'outgoing';
+        }) => ({
+          id: call.id,
+          subject: call.subject,
+          start: { dateTime: call.start },
+          end: { dateTime: call.end },
+          attendees: call.participants.map((p: string) => ({
+            emailAddress: { name: p, address: '' },
+            type: 'required' as const,
+            status: { response: 'none' },
+          })),
+          organizer: {
+            emailAddress: { name: call.organizer, address: '' },
+          },
+          type: 'call' as const,
+          callType: call.callType,
+          direction: call.direction,
+          selected: false,
+          projectId: null,
+          taskId: null,
+          activityId: 'be', // Default: Beratung
+          billable: true,
+          canChangeBillable: true,
+        }));
+        setCalls(mappedCalls);
+      }
+    } catch (error) {
+      console.error("Failed to load calls:", error);
+      setMessage({ text: "Fehler beim Laden der Anrufe", type: "error" });
+    } finally {
+      setCallsLoading(false);
+    }
+  }, [startDate, endDate]);
+
+  // Load/clear calls when toggle changes
+  useEffect(() => {
+    if (callsEnabled) {
+      loadCalls();
+    } else {
+      setCalls([]);
+    }
+  }, [callsEnabled, loadCalls]);
+
+  // Check if we have appointments with online meetings (memoized to avoid re-renders)
+  const hasOnlineMeetings = useMemo(() => {
+    return appointments.some(apt => apt.isOnlineMeeting && apt.onlineMeeting?.joinUrl);
+  }, [appointments]);
+
+  // Load actual meeting durations after appointments are loaded
+  // This runs in background and doesn't block the UI
+  useEffect(() => {
+    if (appointments.length === 0 || !hasOnlineMeetings) {
+      setActualDurations(new Map());
+      return;
+    }
+
+    const loadActualDurations = async () => {
+      setDurationsLoading(true);
+      try {
+        const res = await fetch(
+          `/api/calls/durations?startDate=${startDate}&endDate=${endDate}`
+        );
+        const data = await res.json();
+
+        if (data.durations) {
+          const durationsMap: ActualDurationsMap = new Map();
+          for (const [key, value] of Object.entries(data.durations)) {
+            durationsMap.set(key, value as ActualDuration);
+          }
+          setActualDurations(durationsMap);
+
+          // Set useActualTime based on:
+          // 1. If synced: detect which time was used from ZEP entry
+          // 2. If not synced: prefer longer time (don't shortchange yourself)
+          setAppointments((prev) =>
+            prev.map((apt) => {
+              // Only set default if useActualTime is not already defined
+              if (apt.useActualTime !== undefined) return apt;
+
+              // Check if this appointment has actual duration data
+              if (apt.isOnlineMeeting && apt.onlineMeeting?.joinUrl) {
+                const normalizedUrl = normalizeJoinUrl(apt.onlineMeeting.joinUrl);
+                if (normalizedUrl && durationsMap.has(normalizedUrl)) {
+                  const actual = durationsMap.get(normalizedUrl)!;
+
+                  // First, check if this appointment is already synced
+                  // and detect which time was used
+                  const detectedPreference = detectSyncedTimePreference(apt, syncedEntries, actual);
+                  if (detectedPreference !== undefined) {
+                    // Use the detected preference from the synced entry
+                    return { ...apt, useActualTime: detectedPreference };
+                  }
+
+                  // Not synced - use heuristic: prefer longer time
+                  const actualMs = new Date(actual.actualEnd).getTime() - new Date(actual.actualStart).getTime();
+                  const plannedMs = new Date(apt.end.dateTime).getTime() - new Date(apt.start.dateTime).getTime();
+
+                  // Use actual time only if meeting took longer than planned
+                  // Otherwise use planned time (default to planned when shorter)
+                  const useActual = actualMs > plannedMs;
+                  return { ...apt, useActualTime: useActual };
+                }
+              }
+              return apt;
+            })
+          );
+        }
+      } catch (error) {
+        console.error("Failed to load actual durations:", error);
+        // Don't show error message - this is a non-critical feature
+      } finally {
+        setDurationsLoading(false);
+      }
+    };
+
+    loadActualDurations();
+  }, [appointments.length, hasOnlineMeetings, startDate, endDate, syncedEntries.length]);
+
+  // Merge appointments with calls, deduplicating overlapping entries
+  const mergedAppointments = useMemo(() => {
+    if (!callsEnabled || calls.length === 0) {
+      return appointments;
+    }
+
+    // Helper to check if two time ranges overlap within ±5 minutes
+    const hasTimeOverlap = (apt: Appointment, call: Appointment): boolean => {
+      const aptStart = new Date(apt.start.dateTime).getTime();
+      const aptEnd = new Date(apt.end.dateTime).getTime();
+      const callStart = new Date(call.start.dateTime).getTime();
+      const callEnd = new Date(call.end.dateTime).getTime();
+
+      const tolerance = 5 * 60 * 1000; // 5 minutes in ms
+
+      // Check if start times are within ±5 minutes
+      return Math.abs(aptStart - callStart) <= tolerance ||
+             Math.abs(aptEnd - callEnd) <= tolerance ||
+             (aptStart <= callStart && aptEnd >= callEnd) ||
+             (callStart <= aptStart && callEnd >= aptEnd);
+    };
+
+    // Helper to check if any participant name appears in appointment attendees
+    const hasParticipantOverlap = (apt: Appointment, call: Appointment): boolean => {
+      if (!apt.attendees || apt.attendees.length === 0) return false;
+      if (!call.attendees || call.attendees.length === 0) return false;
+
+      const aptNames = apt.attendees.map(a => a.emailAddress.name.toLowerCase());
+      const callNames = call.attendees.map(a => a.emailAddress.name.toLowerCase());
+
+      return callNames.some(callName =>
+        aptNames.some(aptName =>
+          aptName.includes(callName) || callName.includes(aptName)
+        )
+      );
+    };
+
+    // Filter out calls that have matching calendar appointments
+    const uniqueCalls = calls.filter(call => {
+      const hasMatchingAppointment = appointments.some(apt =>
+        hasTimeOverlap(apt, call) && hasParticipantOverlap(apt, call)
+      );
+      return !hasMatchingAppointment;
+    });
+
+    // Merge and sort by start time
+    const merged = [...appointments, ...uniqueCalls];
+    merged.sort((a, b) =>
+      new Date(a.start.dateTime).getTime() - new Date(b.start.dateTime).getTime()
+    );
+
+    return merged;
+  }, [appointments, calls, callsEnabled]);
+
+  // Filter merged appointments (includes calls when enabled)
+  const filteredMergedAppointments = useMemo(() => {
+    let filtered = mergedAppointments;
+
+    // Filter by series if active
+    if (seriesFilterActive) {
+      filtered = filtered.filter(
+        (apt) => apt.seriesMasterId && apt.type === "occurrence" && validSeriesIds.has(apt.seriesMasterId)
+      );
+    }
+
+    // Filter by date if selected
+    if (filterDate) {
+      filtered = filtered.filter((apt) => apt.start.dateTime.startsWith(filterDate));
+    }
+
+    // Filter by search query (title or attendee name/email)
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      filtered = filtered.filter((apt) => {
+        // Match title
+        if (apt.subject.toLowerCase().includes(query)) {
+          return true;
+        }
+        // Match attendee name or email
+        if (apt.attendees?.some(
+          (a) =>
+            a.emailAddress.name.toLowerCase().includes(query) ||
+            a.emailAddress.address.toLowerCase().includes(query)
+        )) {
+          return true;
+        }
+        return false;
+      });
+    }
+
+    // Filter out solo meetings if toggle is on, BUT keep selected ones visible
+    if (hideSoloMeetings) {
+      const userEmail = session?.user?.email?.toLowerCase();
+      filtered = filtered.filter((apt) => {
+        // Always show if manually selected
+        if (apt.selected) return true;
+
+        // Always show calls (they always have other participants)
+        if (apt.type === 'call') return true;
+
+        // Otherwise, only show if has other attendees
+        const otherAttendees = (apt.attendees || []).filter(
+          (a) => a.emailAddress.address.toLowerCase() !== userEmail
+        );
+        return otherAttendees.length > 0;
+      });
+    }
+
+    return filtered;
+  }, [mergedAppointments, filterDate, seriesFilterActive, validSeriesIds, searchQuery, hideSoloMeetings, session?.user?.email]);
+
   // Handler für Preset-Buttons: setzt Datum UND lädt sofort
   const handleDateRangeChange = (newStartDate: string, newEndDate: string) => {
     setStartDate(newStartDate);
@@ -1018,11 +1302,21 @@ export default function Dashboard() {
   };
 
   const toggleAppointment = (id: string) => {
-    setAppointments((prev) =>
-      prev.map((apt) =>
-        apt.id === id ? { ...apt, selected: !apt.selected } : apt
-      )
-    );
+    // Check if this is a call
+    const isCall = calls.some((c) => c.id === id);
+    if (isCall) {
+      setCalls((prev) =>
+        prev.map((call) =>
+          call.id === id ? { ...call, selected: !call.selected } : call
+        )
+      );
+    } else {
+      setAppointments((prev) =>
+        prev.map((apt) =>
+          apt.id === id ? { ...apt, selected: !apt.selected } : apt
+        )
+      );
+    }
   };
 
   // Toggle alle Termine einer Serie
@@ -1036,9 +1330,9 @@ export default function Dashboard() {
 
   // Alle nicht-gesyncten Termine auswählen/abwählen
   const selectAllAppointments = (selected: boolean) => {
-    // Erstelle Set der IDs von gefilterten, sichtbaren Terminen
-    const visibleIds = new Set(filteredAppointments.map(a => a.id));
-    
+    // Erstelle Set der IDs von gefilterten, sichtbaren Terminen (includes calls when enabled)
+    const visibleIds = new Set(filteredMergedAppointments.map(a => a.id));
+
     setAppointments((prev) =>
       prev.map((apt) => {
         // Nur Termine ändern die in der gefilterten Liste sichtbar sind
@@ -1048,6 +1342,17 @@ export default function Dashboard() {
         return { ...apt, selected };
       })
     );
+
+    // Also update calls if enabled
+    if (callsEnabled) {
+      setCalls((prev) =>
+        prev.map((call) => {
+          if (!visibleIds.has(call.id)) return call;
+          // Calls cannot be synced yet, so just toggle them
+          return { ...call, selected };
+        })
+      );
+    }
   };
 
   // Reset: Projekt/Task/Tätigkeit-Zuweisungen zurücksetzen (Auswahl bleibt erhalten)
@@ -1067,6 +1372,18 @@ export default function Dashboard() {
         };
       })
     );
+    // Also reset calls
+    setCalls((prev) =>
+      prev.map((call) => ({
+        ...call,
+        projectId: null,
+        taskId: null,
+        activityId: "be",
+        billable: true,
+        canChangeBillable: true,
+        selected: false,
+      }))
+    );
     // Auch Editing-State zurücksetzen
     setEditingAppointments(new Set());
     setModifiedEntries(new Map());
@@ -1074,44 +1391,48 @@ export default function Dashboard() {
   };
 
   const changeProject = async (id: string, projectId: number | null) => {
+    // Check if this is a call
+    const isCall = calls.some((c) => c.id === id);
+    const setItems = isCall ? setCalls : setAppointments;
+
     if (projectId) {
       // Load tasks first to check if auto-selection is possible
       const loadedTasks = await loadTasksForProject(projectId);
-      
+
       // Auto-select if there's exactly one task
       if (loadedTasks.length === 1) {
         const singleTask = loadedTasks[0];
-        
+
         // Find standard activity for this task
         const project = projects.find((p) => p.id === projectId);
         const taskActivities = singleTask.activities || [];
         const projectActivities = project?.activities || [];
         const relevantActivities = taskActivities.length > 0 ? taskActivities : projectActivities;
         const standardActivity = relevantActivities.find((a) => a.standard);
-        
+
         // Determine billable settings from task/project
         const projektFakt = project?.voreinstFakturierbarkeit ?? project?.defaultFakt;
         const vorgangFakt = singleTask.defaultFakt;
         const newBillable = determineBillable(projektFakt, vorgangFakt);
         const newCanChangeBillable = canChangeBillable(projektFakt, vorgangFakt);
-        
-        setAppointments((prev) =>
+
+        setItems((prev) =>
           prev.map((apt) =>
-            apt.id === id 
-              ? { 
-                  ...apt, 
-                  projectId, 
+            apt.id === id
+              ? {
+                  ...apt,
+                  projectId,
                   taskId: singleTask.id,
                   activityId: standardActivity?.name || apt.activityId,
                   billable: newBillable,
                   canChangeBillable: newCanChangeBillable,
-                } 
+                }
               : apt
           )
         );
       } else {
         // Multiple tasks or no tasks - just set project, clear task, reset billable settings
-        setAppointments((prev) =>
+        setItems((prev) =>
           prev.map((apt) =>
             apt.id === id ? { ...apt, projectId, taskId: null, canChangeBillable: true } : apt
           )
@@ -1119,7 +1440,7 @@ export default function Dashboard() {
       }
     } else {
       // No project selected - clear everything, reset billable settings
-      setAppointments((prev) =>
+      setItems((prev) =>
         prev.map((apt) =>
           apt.id === id ? { ...apt, projectId, taskId: null, canChangeBillable: true } : apt
         )
@@ -1128,32 +1449,36 @@ export default function Dashboard() {
   };
 
   const changeTask = (id: string, taskId: number | null) => {
-    setAppointments((prev) =>
+    // Check if this is a call
+    const isCall = calls.some((c) => c.id === id);
+    const setItems = isCall ? setCalls : setAppointments;
+
+    setItems((prev) =>
       prev.map((apt) => {
         if (apt.id !== id) return apt;
-        
+
         // Find standard activity for the selected task
         let newActivityId = apt.activityId;
         let newBillable = apt.billable;
         let newCanChangeBillable = apt.canChangeBillable;
-        
+
         if (taskId && apt.projectId) {
           const projectTasks = tasks[apt.projectId] || [];
           const selectedTask = projectTasks.find((t) => t.id === taskId);
           const project = projects.find((p) => p.id === apt.projectId);
-          
+
           // Check task activities first, then project activities
           const taskActivities = selectedTask?.activities || [];
           const projectActivities = project?.activities || [];
-          
+
           // Use task activities if available, otherwise project activities
           const relevantActivities = taskActivities.length > 0 ? taskActivities : projectActivities;
           const standardActivity = relevantActivities.find((a) => a.standard);
-          
+
           if (standardActivity) {
             newActivityId = standardActivity.name;
           }
-          
+
           // Determine billable status and editability from task/project settings
           const projektFakt = project?.voreinstFakturierbarkeit ?? project?.defaultFakt;
           const vorgangFakt = selectedTask?.defaultFakt;
@@ -1163,21 +1488,39 @@ export default function Dashboard() {
           // No task selected - reset to defaults
           newCanChangeBillable = true;
         }
-        
+
         return { ...apt, taskId, activityId: newActivityId, billable: newBillable, canChangeBillable: newCanChangeBillable };
       })
     );
   };
 
   const changeActivity = (id: string, activityId: string) => {
-    setAppointments((prev) =>
+    // Check if this is a call
+    const isCall = calls.some((c) => c.id === id);
+    const setItems = isCall ? setCalls : setAppointments;
+
+    setItems((prev) =>
       prev.map((apt) => (apt.id === id ? { ...apt, activityId } : apt))
     );
   };
 
   const changeBillable = (id: string, billable: boolean) => {
-    setAppointments((prev) =>
+    // Check if this is a call
+    const isCall = calls.some((c) => c.id === id);
+    const setItems = isCall ? setCalls : setAppointments;
+
+    setItems((prev) =>
       prev.map((apt) => (apt.id === id ? { ...apt, billable } : apt))
+    );
+  };
+
+  const changeUseActualTime = (id: string, useActual: boolean) => {
+    // Check if this is a call
+    const isCall = calls.some((c) => c.id === id);
+    const setItems = isCall ? setCalls : setAppointments;
+
+    setItems((prev) =>
+      prev.map((apt) => (apt.id === id ? { ...apt, useActualTime: useActual } : apt))
     );
   };
 
@@ -1215,15 +1558,57 @@ export default function Dashboard() {
         const aptDate = apt.start.dateTime.split("T")[0];
         return entryDate === aptDate && (entry.note?.trim() || "") === (apt.subject?.trim() || "");
       });
-      
+
       if (syncedEntry) {
         // Load tasks for the project before enabling edit mode
         await loadTasksForProject(syncedEntry.project_id);
+
+        // Check if Outlook time differs from ZEP time and create ModifiedEntry if so
+        const outlookStart = new Date(apt.start.dateTime);
+        const outlookEnd = new Date(apt.end.dateTime);
+        const outlookZepTimes = calculateZepTimes(outlookStart, outlookEnd);
+        const outlookVon = outlookZepTimes.start.slice(0, 5);
+        const outlookBis = outlookZepTimes.end.slice(0, 5);
+        const zepVon = syncedEntry.from.slice(0, 5);
+        const zepBis = syncedEntry.to.slice(0, 5);
+
+        // If times differ, create ModifiedEntry with time correction
+        if (outlookVon !== zepVon || outlookBis !== zepBis) {
+          const project = projects.find((p) => p.id === syncedEntry.project_id);
+          const projectTasks = tasks[syncedEntry.project_id] || [];
+          const task = projectTasks.find((t) => t.id === syncedEntry.project_task_id);
+
+          setModifiedEntries((prev) => {
+            const next = new Map(prev);
+            next.set(appointmentId, {
+              zepId: syncedEntry.id,
+              outlookEventId: appointmentId,
+              originalProjectId: syncedEntry.project_id,
+              originalTaskId: syncedEntry.project_task_id,
+              originalActivityId: syncedEntry.activity_id,
+              originalBillable: syncedEntry.billable,
+              newProjectId: syncedEntry.project_id,
+              newTaskId: syncedEntry.project_task_id,
+              newActivityId: syncedEntry.activity_id,
+              newBillable: syncedEntry.billable,
+              newProjektNr: project?.name || syncedEntry.projektNr || "",
+              newVorgangNr: task?.name || syncedEntry.vorgangNr || "",
+              userId: syncedEntry.employee_id,
+              datum: syncedEntry.date.split("T")[0],
+              von: zepVon,
+              bis: zepBis,
+              bemerkung: syncedEntry.note || undefined,
+              newVon: outlookVon,
+              newBis: outlookBis,
+            });
+            return next;
+          });
+        }
       }
     }
-    
+
     setEditingAppointments((prev) => new Set(prev).add(appointmentId));
-  }, [appointments, syncedEntries, loadTasksForProject]);
+  }, [appointments, syncedEntries, loadTasksForProject, projects, tasks]);
 
   // Cancel editing a synced appointment
   const cancelEditingSyncedAppointment = useCallback((appointmentId: string) => {
@@ -1408,6 +1793,96 @@ export default function Dashboard() {
     });
   }, [projects, tasks]);
 
+  // Update a modified entry's time (when user changes planned/actual time in edit mode)
+  const updateModifiedTime = useCallback((
+    appointmentId: string,
+    apt: Appointment,
+    syncedEntry: ZepEntry,
+    useActualTime: boolean
+  ) => {
+    // Calculate the new times based on useActualTime toggle
+    let startDt: Date;
+    let endDt: Date;
+
+    if (useActualTime && apt.isOnlineMeeting && apt.onlineMeeting?.joinUrl) {
+      const normalizedUrl = normalizeJoinUrl(apt.onlineMeeting.joinUrl);
+      const actualDuration = normalizedUrl ? actualDurations.get(normalizedUrl) : undefined;
+
+      if (actualDuration) {
+        startDt = new Date(actualDuration.actualStart);
+        endDt = new Date(actualDuration.actualEnd);
+      } else {
+        // No actual duration data, use planned time
+        startDt = new Date(apt.start.dateTime);
+        endDt = new Date(apt.end.dateTime);
+      }
+    } else {
+      // Use planned time
+      startDt = new Date(apt.start.dateTime);
+      endDt = new Date(apt.end.dateTime);
+    }
+
+    // Calculate ZEP times (only rounds if duration is not a 15-min multiple)
+    const zepTimes = calculateZepTimes(startDt, endDt);
+    const calculatedVon = zepTimes.start.slice(0, 5);
+    const calculatedBis = zepTimes.end.slice(0, 5);
+
+    // Compare with current ZEP times - only set newVon/newBis if they differ
+    const currentZepVon = syncedEntry.from.slice(0, 5);
+    const currentZepBis = syncedEntry.to.slice(0, 5);
+    const timesChanged = calculatedVon !== currentZepVon || calculatedBis !== currentZepBis;
+
+    // Only set new times if they differ from current ZEP entry
+    const newVon = timesChanged ? calculatedVon : undefined;
+    const newBis = timesChanged ? calculatedBis : undefined;
+
+    // Also update the appointment's useActualTime state
+    setAppointments((prev) =>
+      prev.map((a) => (a.id === appointmentId ? { ...a, useActualTime } : a))
+    );
+
+    setModifiedEntries((prev) => {
+      const next = new Map(prev);
+      const existing = next.get(appointmentId);
+
+      if (existing) {
+        next.set(appointmentId, {
+          ...existing,
+          newVon,
+          newBis,
+        });
+      } else {
+        // Find current project/task info
+        const project = projects.find((p) => p.id === syncedEntry.project_id);
+        const projectTasks = tasks[syncedEntry.project_id] || [];
+        const task = projectTasks.find((t) => t.id === syncedEntry.project_task_id);
+
+        next.set(appointmentId, {
+          zepId: syncedEntry.id,
+          outlookEventId: appointmentId,
+          originalProjectId: syncedEntry.project_id,
+          originalTaskId: syncedEntry.project_task_id,
+          originalActivityId: syncedEntry.activity_id,
+          originalBillable: syncedEntry.billable,
+          newProjectId: syncedEntry.project_id,
+          newTaskId: syncedEntry.project_task_id,
+          newActivityId: syncedEntry.activity_id,
+          newBillable: syncedEntry.billable,
+          newProjektNr: project?.name || syncedEntry.projektNr || "",
+          newVorgangNr: task?.name || syncedEntry.vorgangNr || "",
+          userId: syncedEntry.employee_id,
+          datum: syncedEntry.date.split("T")[0],
+          von: syncedEntry.from.slice(0, 5),
+          bis: syncedEntry.to.slice(0, 5),
+          bemerkung: syncedEntry.note || undefined,
+          newVon,
+          newBis,
+        });
+      }
+      return next;
+    });
+  }, [projects, tasks, actualDurations]);
+
   // Reload synced entries from ZEP
   const loadSyncedEntries = useCallback(async () => {
     if (!employeeId) return;
@@ -1496,6 +1971,86 @@ export default function Dashboard() {
     }
   }, [loadSyncedEntries]);
 
+  // Save a single modified entry (for inline sync button)
+  const saveModifiedSingle = useCallback(async (modifiedEntry: ModifiedEntry) => {
+    setSavingModifiedSingleId(modifiedEntry.outlookEventId);
+
+    try {
+      const response = await fetch("/api/zep/timeentries", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          entries: [{
+            id: String(modifiedEntry.zepId),
+            projektNr: modifiedEntry.newProjektNr,
+            vorgangNr: modifiedEntry.newVorgangNr,
+            taetigkeit: modifiedEntry.newActivityId,
+            userId: modifiedEntry.userId,
+            datum: modifiedEntry.datum,
+            von: modifiedEntry.newVon || modifiedEntry.von,
+            bis: modifiedEntry.newBis || modifiedEntry.bis,
+            bemerkung: modifiedEntry.bemerkung,
+            istFakturierbar: modifiedEntry.newBillable,
+          }],
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Fehler beim Speichern");
+      }
+
+      // Remove from editing state
+      setEditingAppointments((prev) => {
+        const next = new Set(prev);
+        next.delete(modifiedEntry.outlookEventId);
+        return next;
+      });
+      setModifiedEntries((prev) => {
+        const next = new Map(prev);
+        next.delete(modifiedEntry.outlookEventId);
+        return next;
+      });
+
+      // Reload synced entries
+      await loadSyncedEntries();
+
+      setMessage({ text: "Änderung gespeichert", type: "success" });
+    } catch (error) {
+      console.error("Save modified entry error:", error);
+      setMessage({
+        text: `Fehler beim Speichern: ${error instanceof Error ? error.message : "Unbekannter Fehler"}`,
+        type: "error",
+      });
+    } finally {
+      setSavingModifiedSingleId(null);
+    }
+  }, [loadSyncedEntries]);
+
+  // Helper to get effective start/end times for an appointment
+  // Uses actual time from call records if useActualTime is true and data is available
+  const getEffectiveTime = useCallback((apt: Appointment): { startDt: Date; endDt: Date } => {
+    // Check if we should use actual time
+    if (apt.useActualTime && apt.isOnlineMeeting && apt.onlineMeeting?.joinUrl) {
+      const normalizedUrl = normalizeJoinUrl(apt.onlineMeeting.joinUrl);
+      if (normalizedUrl) {
+        const actualDuration = actualDurations.get(normalizedUrl);
+        if (actualDuration) {
+          return {
+            startDt: new Date(actualDuration.actualStart),
+            endDt: new Date(actualDuration.actualEnd),
+          };
+        }
+      }
+    }
+    // Default: use planned time
+    return {
+      startDt: new Date(apt.start.dateTime),
+      endDt: new Date(apt.end.dateTime),
+    };
+  }, [actualDurations]);
+
   // Sync a single appointment directly
   const syncSingleAppointment = async (appointment: Appointment) => {
     if (!appointment.projectId || !appointment.taskId || !employeeId) {
@@ -1506,21 +2061,46 @@ export default function Dashboard() {
     setSyncingSingleId(appointment.id);
 
     try {
-      const startDt = new Date(appointment.start.dateTime);
-      const endDt = new Date(appointment.end.dateTime);
-      const dateStr = startDt.toISOString().split("T")[0];
+      const { startDt, endDt } = getEffectiveTime(appointment);
+      // Always use the Outlook appointment date, even when using actual times
+      // This prevents booking to the wrong day if actualDuration has a different date
+      const dateStr = new Date(appointment.start.dateTime).toISOString().split("T")[0];
+      const zepTimes = calculateZepTimes(startDt, endDt);
+
+      // Determine the correct billable value
+      // If canChangeBillable is false, the value is locked by projekt/vorgang settings
+      // and we should use the correct value from those settings, not the stored value
+      let billableValue = appointment.billable;
+      if (!appointment.canChangeBillable && appointment.projectId && appointment.taskId) {
+        const project = projects.find((p) => p.id === appointment.projectId);
+        const projectTasks = tasks[appointment.projectId] || [];
+        const task = projectTasks.find((t) => t.id === appointment.taskId);
+        const projektFakt = project?.voreinstFakturierbarkeit ?? project?.defaultFakt;
+        const vorgangFakt = task?.defaultFakt;
+        billableValue = determineBillable(projektFakt, vorgangFakt);
+      }
 
       const entry = {
         date: dateStr,
-        from: formatZepStartTime(startDt),
-        to: formatZepEndTime(endDt),
+        from: zepTimes.start,
+        to: zepTimes.end,
         employee_id: employeeId,
         note: appointment.subject,
-        billable: appointment.billable,
+        billable: billableValue,
         activity_id: appointment.activityId,
         project_id: appointment.projectId,
         project_task_id: appointment.taskId,
       };
+
+      // Debug: Log what we're sending
+      console.log('syncSingleAppointment DEBUG:', JSON.stringify({
+        useActualTime: appointment.useActualTime,
+        plannedStart: appointment.start.dateTime,
+        plannedEnd: appointment.end.dateTime,
+        effectiveStart: startDt.toISOString(),
+        effectiveEnd: endDt.toISOString(),
+        entry
+      }, null, 2));
 
       const res = await fetch("/api/zep/timeentries", {
         method: "POST",
@@ -1529,6 +2109,7 @@ export default function Dashboard() {
       });
 
       const result = await res.json();
+      console.log('syncSingleAppointment RESULT:', JSON.stringify(result, null, 2));
 
       if (result.succeeded > 0) {
         // Save sync history
@@ -1593,17 +2174,30 @@ export default function Dashboard() {
       // 1. Create new entries
       if (syncReadyAppointments.length > 0) {
         const entries = syncReadyAppointments.map((apt) => {
-          const startDt = new Date(apt.start.dateTime);
-          const endDt = new Date(apt.end.dateTime);
-          const dateStr = startDt.toISOString().split("T")[0];
+          const { startDt, endDt } = getEffectiveTime(apt);
+          // Always use the Outlook appointment date, even when using actual times
+          const dateStr = new Date(apt.start.dateTime).toISOString().split("T")[0];
+          const zepTimes = calculateZepTimes(startDt, endDt);
+
+          // Determine the correct billable value
+          // If canChangeBillable is false, use the value from projekt/vorgang settings
+          let billableValue = apt.billable;
+          if (!apt.canChangeBillable && apt.projectId && apt.taskId) {
+            const project = projects.find((p) => p.id === apt.projectId);
+            const projectTasks = tasks[apt.projectId] || [];
+            const task = projectTasks.find((t) => t.id === apt.taskId);
+            const projektFakt = project?.voreinstFakturierbarkeit ?? project?.defaultFakt;
+            const vorgangFakt = task?.defaultFakt;
+            billableValue = determineBillable(projektFakt, vorgangFakt);
+          }
 
           return {
             date: dateStr,
-            from: formatZepStartTime(startDt),
-            to: formatZepEndTime(endDt),
+            from: zepTimes.start,
+            to: zepTimes.end,
             employee_id: employeeId,
             note: apt.subject,
-            billable: apt.billable,
+            billable: billableValue,
             activity_id: apt.activityId,
             project_id: apt.projectId!,
             project_task_id: apt.taskId!,
@@ -1663,8 +2257,8 @@ export default function Dashboard() {
           taetigkeit: mod.newActivityId,
           userId: mod.userId,
           datum: mod.datum,
-          von: mod.von,
-          bis: mod.bis,
+          von: mod.newVon || mod.von, // Use new time if set, otherwise original
+          bis: mod.newBis || mod.bis, // Use new time if set, otherwise original
           bemerkung: mod.bemerkung,
           istFakturierbar: mod.newBillable,
         }));
@@ -1792,16 +2386,49 @@ export default function Dashboard() {
         {/* Combined Date Picker and Calendar Heatmap with Legend */}
         <div>
           <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-            <DateRangePicker
-              startDate={startDate}
-              endDate={endDate}
-              filterDate={filterDate}
-              onLoad={() => loadAppointments(undefined, undefined, true)}
-              onDateRangeChange={handleDateRangeChange}
-              onFilterDateChange={setFilterDate}
-              loading={loading}
-              lastLoadedAt={lastLoadedAt}
-            />
+            <div className="flex items-center">
+              <div className="flex-1">
+                <DateRangePicker
+                  startDate={startDate}
+                  endDate={endDate}
+                  filterDate={filterDate}
+                  onLoad={() => loadAppointments(undefined, undefined, true)}
+                  onDateRangeChange={handleDateRangeChange}
+                  onFilterDateChange={setFilterDate}
+                  loading={loading}
+                  lastLoadedAt={lastLoadedAt}
+                />
+              </div>
+
+              {/* Calls toggle */}
+              <div className="flex items-center border-b border-gray-200">
+                <div className="h-8 w-px bg-gray-200" />
+                <button
+                  onClick={() => setCallsEnabled(!callsEnabled)}
+                  disabled={callsLoading}
+                  className={`flex items-center gap-2 px-4 py-3 text-sm whitespace-nowrap transition ${
+                    callsEnabled
+                      ? "text-blue-600 bg-blue-50"
+                      : "text-gray-500 hover:bg-gray-50"
+                  } ${callsLoading ? "cursor-wait" : ""}`}
+                  title={callsEnabled ? "Anrufe ausblenden" : "Anrufe einblenden"}
+                >
+                  {callsLoading ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <Phone size={16} />
+                  )}
+                  <span className="hidden sm:inline">Calls</span>
+                  <div className={`w-8 h-5 rounded-full relative transition-colors ${
+                    callsEnabled ? "bg-blue-600" : "bg-gray-300"
+                  }`}>
+                    <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                      callsEnabled ? "translate-x-3.5" : "translate-x-0.5"
+                    }`} />
+                  </div>
+                </button>
+              </div>
+            </div>
 
             <CalendarHeatmap
               startDate={startDate}
@@ -1854,13 +2481,15 @@ export default function Dashboard() {
         )}
 
         <AppointmentList
-          appointments={filteredAppointments}
+          appointments={filteredMergedAppointments}
           projects={projects}
           tasks={tasks}
           activities={activities}
           syncedEntries={syncedEntries}
           duplicateWarnings={duplicateWarnings}
           loadingTasks={loadingTasks}
+          // Actual meeting durations from call records
+          actualDurations={actualDurations}
           onToggle={toggleAppointment}
           onToggleSeries={toggleSeries}
           onSelectAll={selectAllAppointments}
@@ -1868,6 +2497,7 @@ export default function Dashboard() {
           onTaskChange={changeTask}
           onActivityChange={changeActivity}
           onBillableChange={changeBillable}
+          onUseActualTimeChange={changeUseActualTime}
           onApplyToSeries={applyToSeries}
           onSubmit={submitToZep}
           onSyncSingle={syncSingleAppointment}
@@ -1883,11 +2513,14 @@ export default function Dashboard() {
           onModifyTask={updateModifiedTask}
           onModifyActivity={updateModifiedActivity}
           onModifyBillable={updateModifiedBillable}
+          onModifyTime={updateModifiedTime}
+          onSaveModifiedSingle={saveModifiedSingle}
+          savingModifiedSingleId={savingModifiedSingleId}
           // Correcting rescheduled appointment times
           onCorrectTime={correctRescheduledTime}
           correctingTimeIds={correctingTimeIds}
           // Filter controls
-          totalAppointmentsCount={appointments.length}
+          totalAppointmentsCount={mergedAppointments.length}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
           filterDate={filterDate}

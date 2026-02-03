@@ -69,6 +69,52 @@ export function formatZepEndTime(date: Date): string {
   return formatZepTime(roundTimeUp(date));
 }
 
+// Helper: Round time to nearest 15-minute interval using midpoint rounding
+// This preserves duration better than always rounding start down / end up
+// Examples: 12:40 -> 12:45, 12:37 -> 12:30, 12:55 -> 13:00
+function roundToNearest15Min(date: Date): Date {
+  const minutes = date.getMinutes();
+  const remainder = minutes % 15;
+
+  let roundedMinutes: number;
+  if (remainder < 7.5) {
+    // Round down
+    roundedMinutes = minutes - remainder;
+  } else {
+    // Round up
+    roundedMinutes = minutes + (15 - remainder);
+  }
+
+  const result = new Date(date);
+
+  // Handle rollover to next hour
+  if (roundedMinutes >= 60) {
+    result.setHours(result.getHours() + 1);
+    result.setMinutes(0);
+  } else {
+    result.setMinutes(roundedMinutes);
+  }
+
+  result.setSeconds(0);
+  result.setMilliseconds(0);
+  return result;
+}
+
+// Helper: Calculate ZEP times for a time range
+// ZEP requires times to be on 15-minute boundaries (12:00, 12:15, 12:30, 12:45)
+// Uses midpoint rounding to preserve duration as much as possible
+// Example: 12:40-12:55 (15 min) -> 12:45-13:00 (15 min) instead of 12:30-13:00 (30 min)
+export function calculateZepTimes(startDate: Date, endDate: Date): { start: string; end: string } {
+  // Always round to 15-minute boundaries using midpoint rounding
+  const roundedStart = roundToNearest15Min(startDate);
+  const roundedEnd = roundToNearest15Min(endDate);
+
+  return {
+    start: formatZepTime(roundedStart),
+    end: formatZepTime(roundedEnd),
+  };
+}
+
 // Duplicate Detection Types
 export interface DuplicateCheckResult {
   hasDuplicate: boolean;
@@ -153,8 +199,10 @@ export function findRescheduledEntry(
   const aptDate = new Date(appointment.startDateTime);
   const aptDateStr = aptDate.toISOString().split("T")[0];
   const aptEndDate = new Date(appointment.endDateTime);
-  const aptFromTime = formatZepStartTime(aptDate);
-  const aptToTime = formatZepEndTime(aptEndDate);
+  // Use consistent midpoint rounding (same as calculateZepTimes)
+  const zepTimes = calculateZepTimes(aptDate, aptEndDate);
+  const aptFromTime = zepTimes.start;
+  const aptToTime = zepTimes.end;
   const aptSubject = appointment.subject.toLowerCase().trim();
 
   if (!aptSubject) return null;
@@ -201,10 +249,11 @@ export function checkForDuplicate(
   const aptDate = new Date(appointment.startDateTime);
   const aptDateStr = aptDate.toISOString().split("T")[0];
   const aptEndDate = new Date(appointment.endDateTime);
-  
-  // Use rounded times (same as when syncing to ZEP)
-  const aptFromTime = formatZepStartTime(aptDate);
-  const aptToTime = formatZepEndTime(aptEndDate);
+
+  // Use consistent midpoint rounding (same as calculateZepTimes)
+  const zepTimes = calculateZepTimes(aptDate, aptEndDate);
+  const aptFromTime = zepTimes.start;
+  const aptToTime = zepTimes.end;
   const aptSubject = appointment.subject.toLowerCase().trim();
   
   // Filter entries for the same day

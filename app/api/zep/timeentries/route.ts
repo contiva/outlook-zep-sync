@@ -207,15 +207,9 @@ export async function POST(request: Request) {
         const toDate = new Date(entryDate);
         toDate.setHours(toHours, toMinutes, 0, 0);
 
-        // Ermittle Fakturierbarkeit basierend auf Projekt- und Vorgang-Einstellungen
-        const projektData = projektCache.get(entry.project_id);
-        const vorgangData = vorgangCache.get(entry.project_task_id);
-        
-        // Priorität: voreinstFakturierbarkeit > defaultFakt auf Projekt-Ebene
-        const projektFakt = projektData?.voreinstFakturierbarkeit ?? projektData?.defaultFakt;
-        const vorgangFakt = vorgangData?.defaultFakt;
-        
-        const istFakturierbar = determineBillable(projektFakt, vorgangFakt);
+        // Use billable value from client (already validated by UI based on projekt/vorgang settings)
+        // Fall back to determineBillable only if not explicitly set
+        const istFakturierbar = entry.billable;
 
         const soapEntry = {
           userId: entry.employee_id,

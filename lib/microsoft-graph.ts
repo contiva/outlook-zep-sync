@@ -36,6 +36,9 @@ export interface OutlookEvent {
   // Online Meeting Info
   isOnlineMeeting?: boolean;
   onlineMeetingProvider?: "teamsForBusiness" | "skypeForBusiness" | "skypeForConsumer" | "unknown";
+  onlineMeeting?: {
+    joinUrl?: string;
+  };
   // Abgesagte Termine
   isCancelled?: boolean;
   // Letzte Änderung (bei abgesagten Terminen = Absage-Zeitpunkt)
@@ -64,7 +67,7 @@ export async function getCalendarEvents(
     u.searchParams.set("endDateTime", `${endDate}T23:59:59`);
     u.searchParams.set("$orderby", "start/dateTime");
     u.searchParams.set("$top", "250"); // Max allowed by Graph API
-    u.searchParams.set("$select", "id,subject,start,end,bodyPreview,attendees,organizer,isOrganizer,type,seriesMasterId,isOnlineMeeting,onlineMeetingProvider,isCancelled,lastModifiedDateTime");
+    u.searchParams.set("$select", "id,subject,start,end,bodyPreview,attendees,organizer,isOrganizer,type,seriesMasterId,isOnlineMeeting,onlineMeetingProvider,onlineMeeting,isCancelled,lastModifiedDateTime");
     return u.toString();
   })();
 

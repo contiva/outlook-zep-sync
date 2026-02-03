@@ -3,7 +3,6 @@
 import { useMemo, useEffect } from "react";
 import { format, eachDayOfInterval, parseISO, isWeekend } from "date-fns";
 import { de } from "date-fns/locale";
-import { formatZepStartTime, formatZepEndTime } from "@/lib/zep-api";
 
 interface Attendee {
   emailAddress: {
@@ -21,7 +20,9 @@ interface Appointment {
   billable?: boolean;
   canChangeBillable?: boolean;
   seriesMasterId?: string;
-  type?: string;
+  type?: 'calendar' | 'call' | 'singleInstance' | 'occurrence' | 'exception' | 'seriesMaster';
+  callType?: 'Phone' | 'Video' | 'ScreenShare';
+  direction?: 'incoming' | 'outgoing';
   attendees?: Attendee[];
 }
 
@@ -157,29 +158,18 @@ export default function CalendarHeatmap({
   }, [filteredAppointments]);
 
   // Helper: Check if a specific appointment is synced to ZEP (needs to be before getSeriesStatus)
-  // Uses rounded times for comparison (ZEP stores times in 15-min intervals)
-  // Trims subject/note for comparison (Outlook may have trailing spaces that ZEP trims)
+  // Matches by subject and date only (not times) because entry could be synced with
+  // planned time OR actual time
   const isAppointmentSyncedCheck = (apt: Appointment): boolean => {
     const zepEntries = syncedByDate.get(apt.start.dateTime.split("T")[0]) || [];
     if (zepEntries.length === 0) return false;
-    
-    const aptDate = new Date(apt.start.dateTime);
-    const aptEndDate = new Date(apt.end.dateTime);
-    
-    // Use rounded times (same logic as when syncing to ZEP)
-    const aptFromTime = formatZepStartTime(aptDate);
-    const aptToTime = formatZepEndTime(aptEndDate);
-    
+
     // Trim subject for comparison (Outlook may have trailing spaces)
     const aptSubject = apt.subject.trim();
 
     return zepEntries.some((entry) => {
       const entryNote = (entry.note || "").trim();
-      return (
-        entryNote === aptSubject &&
-        entry.from === aptFromTime &&
-        entry.to === aptToTime
-      );
+      return entryNote === aptSubject;
     });
   };
 
@@ -220,28 +210,17 @@ export default function CalendarHeatmap({
   };
 
   // Helper: Check if a specific appointment is synced to ZEP
-  // Uses rounded times for comparison (ZEP stores times in 15-min intervals)
-  // Trims subject/note for comparison (Outlook may have trailing spaces that ZEP trims)
+  // Matches by subject and date only (not times) because entry could be synced with
+  // planned time OR actual time
   const isAppointmentSynced = (apt: Appointment, zepEntries: ZepAttendance[]): boolean => {
     if (!zepEntries || zepEntries.length === 0) return false;
-    
-    const aptDate = new Date(apt.start.dateTime);
-    const aptEndDate = new Date(apt.end.dateTime);
-    
-    // Use rounded times (same logic as when syncing to ZEP)
-    const aptFromTime = formatZepStartTime(aptDate);
-    const aptToTime = formatZepEndTime(aptEndDate);
-    
+
     // Trim subject for comparison (Outlook may have trailing spaces)
     const aptSubject = apt.subject.trim();
 
     return zepEntries.some((entry) => {
       const entryNote = (entry.note || "").trim();
-      return (
-        entryNote === aptSubject &&
-        entry.from === aptFromTime &&
-        entry.to === aptToTime
-      );
+      return entryNote === aptSubject;
     });
   };
 

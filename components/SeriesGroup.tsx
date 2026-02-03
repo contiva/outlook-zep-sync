@@ -4,7 +4,8 @@ import { useState, useMemo } from "react";
 import { ChevronDown, ChevronRight, Repeat, Link2, Unlink2, CloudUpload, CheckCircle2 } from "lucide-react";
 import AppointmentRow from "./AppointmentRow";
 import SearchableSelect, { SelectOption } from "./SearchableSelect";
-import { formatZepStartTime, formatZepEndTime, DuplicateCheckResult } from "@/lib/zep-api";
+import { DuplicateCheckResult } from "@/lib/zep-api";
+import { ActualDuration, ActualDurationsMap, normalizeJoinUrl } from "@/lib/teams-utils";
 
 // Zugeordnete Tätigkeit (zu Projekt oder Vorgang)
 interface AssignedActivity {
@@ -76,9 +77,13 @@ interface Appointment {
   };
   isOrganizer?: boolean;
   seriesMasterId?: string;
-  type?: string;
+  type?: 'calendar' | 'call' | 'singleInstance' | 'occurrence' | 'exception' | 'seriesMaster';
+  callType?: 'Phone' | 'Video' | 'ScreenShare';
+  direction?: 'incoming' | 'outgoing';
   isOnlineMeeting?: boolean;
   onlineMeetingProvider?: string;
+  onlineMeeting?: { joinUrl?: string };
+  useActualTime?: boolean; // true = use actual time from call records, false = use planned time
 }
 
 interface SeriesGroupProps {
@@ -90,12 +95,16 @@ interface SeriesGroupProps {
   syncedEntries: ZepEntry[];
   duplicateWarnings?: Map<string, DuplicateCheckResult>;
   loadingTasks?: Set<number>;
+  // Actual meeting durations from call records
+  actualDurations?: ActualDurationsMap;
   onToggle: (id: string) => void;
   onToggleSeries: (seriesId: string, selected: boolean) => void;
   onProjectChange: (id: string, projectId: number | null) => void;
   onTaskChange: (id: string, taskId: number | null) => void;
   onActivityChange: (id: string, activityId: string) => void;
   onBillableChange: (id: string, billable: boolean) => void;
+  // Toggle between planned and actual time for ZEP sync
+  onUseActualTimeChange?: (id: string, useActual: boolean) => void;
   onApplyToSeries: (
     seriesId: string,
     projectId: number | null,
@@ -116,32 +125,20 @@ function isAppointmentSynced(apt: Appointment, syncedEntries: ZepEntry[]): boole
 }
 
 // Helper: Find the matching synced entry for an appointment
-// Trims subject/note for comparison (Outlook may have trailing spaces that ZEP trims)
+// Matches by subject and date only (not times) because entry could be synced with
+// planned time OR actual time
 function findSyncedEntry(apt: Appointment, syncedEntries: ZepEntry[]): ZepEntry | null {
   if (!syncedEntries || syncedEntries.length === 0) {
     return null;
   }
 
-  const aptDate = new Date(apt.start.dateTime);
-  const aptDateStr = aptDate.toISOString().split("T")[0];
-  const aptEndDate = new Date(apt.end.dateTime);
-  
-  // Use rounded times for comparison (same logic as when syncing to ZEP)
-  const aptFromTimeRounded = formatZepStartTime(aptDate);
-  const aptToTimeRounded = formatZepEndTime(aptEndDate);
-  
-  // Trim subject for comparison (Outlook may have trailing spaces)
+  const aptDateStr = new Date(apt.start.dateTime).toISOString().split("T")[0];
   const aptSubject = apt.subject.trim();
 
   return syncedEntries.find((entry) => {
     const entryDate = entry.date.split("T")[0];
     const entryNote = (entry.note || "").trim();
-    return (
-      entryNote === aptSubject &&
-      entryDate === aptDateStr &&
-      entry.from === aptFromTimeRounded &&
-      entry.to === aptToTimeRounded
-    );
+    return entryNote === aptSubject && entryDate === aptDateStr;
   }) || null;
 }
 
@@ -153,6 +150,19 @@ function isAppointmentSyncReady(apt: Appointment, syncedEntries: ZepEntry[]): bo
   return true;
 }
 
+// Helper: Get actual duration for an online meeting from call records
+function getActualDuration(
+  apt: Appointment,
+  actualDurations?: ActualDurationsMap
+): ActualDuration | undefined {
+  if (!actualDurations || !apt.isOnlineMeeting || !apt.onlineMeeting?.joinUrl) {
+    return undefined;
+  }
+  const normalizedUrl = normalizeJoinUrl(apt.onlineMeeting.joinUrl);
+  if (!normalizedUrl) return undefined;
+  return actualDurations.get(normalizedUrl);
+}
+
 export default function SeriesGroup({
   seriesId,
   appointments,
@@ -162,12 +172,14 @@ export default function SeriesGroup({
   syncedEntries,
   duplicateWarnings,
   loadingTasks,
+  actualDurations,
   onToggle,
   onToggleSeries,
   onProjectChange,
   onTaskChange,
   onActivityChange,
   onBillableChange,
+  onUseActualTimeChange,
   onApplyToSeries,
   onSyncSingle,
   syncingSingleId,
@@ -565,11 +577,14 @@ export default function SeriesGroup({
               syncedEntry={findSyncedEntry(appointment, syncedEntries)}
               duplicateWarning={duplicateWarnings?.get(appointment.id)}
               loadingTasks={appointment.projectId ? loadingTasks?.has(appointment.projectId) : false}
+              // Actual meeting duration from call records
+              actualDuration={getActualDuration(appointment, actualDurations)}
               onToggle={onToggle}
               onProjectChange={onProjectChange}
               onTaskChange={onTaskChange}
               onActivityChange={onActivityChange}
               onBillableChange={onBillableChange}
+              onUseActualTimeChange={onUseActualTimeChange}
               // Single sync
               onSyncSingle={onSyncSingle}
               isSyncingSingle={syncingSingleId === appointment.id}

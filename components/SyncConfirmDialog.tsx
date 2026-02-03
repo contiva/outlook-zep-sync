@@ -42,6 +42,9 @@ interface Appointment {
   activityId: string;
   billable: boolean;
   canChangeBillable: boolean;
+  type?: 'calendar' | 'call' | 'singleInstance' | 'occurrence' | 'exception' | 'seriesMaster';
+  callType?: 'Phone' | 'Video' | 'ScreenShare';
+  direction?: 'incoming' | 'outgoing';
 }
 
 interface SyncConfirmDialogProps {
