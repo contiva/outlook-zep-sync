@@ -2400,7 +2400,8 @@ export default function Dashboard() {
                 />
               </div>
 
-              {/* Calls toggle */}
+              {/* Calls toggle - temporarily disabled */}
+              {false && (
               <div className="flex items-center border-b border-gray-200">
                 <div className="h-8 w-px bg-gray-200" />
                 <button
@@ -2428,6 +2429,7 @@ export default function Dashboard() {
                   </div>
                 </button>
               </div>
+              )}
             </div>
 
             <CalendarHeatmap
