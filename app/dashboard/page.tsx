@@ -1380,6 +1380,7 @@ export default function Dashboard() {
           activityId: "be", // Default zurücksetzen
           billable: true, // Default zurücksetzen
           canChangeBillable: true, // Default zurücksetzen
+          useActualTime: false, // Plan/Ist zurücksetzen auf geplante Zeit
         };
       })
     );
@@ -1393,6 +1394,7 @@ export default function Dashboard() {
         billable: true,
         canChangeBillable: true,
         selected: false,
+        useActualTime: false, // Plan/Ist zurücksetzen auf geplante Zeit
       }))
     );
     // Auch Editing-State zurücksetzen

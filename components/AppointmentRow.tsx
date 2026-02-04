@@ -627,7 +627,7 @@ export default function AppointmentRow({
 
     // Times don't match either - could be manually edited in ZEP
     return 'other';
-  }, [zepBookedDuration, plannedDurationRounded, actualDurationInfo, actualDuration]);
+  }, [zepBookedDuration, plannedDurationRounded, actualDurationInfo]);
 
   // Check if there's a time deviation between Outlook and ZEP times
   const timeDeviation = useMemo(() => {
@@ -814,14 +814,6 @@ export default function AppointmentRow({
     return hasProjectChanges || hasTimeChanges;
   }, [modifiedEntry, syncedEntry]);
 
-  // Check if modification is complete (has project and task selected, or has time changes)
-  const isModificationComplete = useMemo(() => {
-    if (!modifiedEntry) return false;
-    const hasProjectAndTask = modifiedEntry.newProjectId > 0 && modifiedEntry.newTaskId > 0;
-    const hasTimeChanges = modifiedEntry.newVon !== undefined || modifiedEntry.newBis !== undefined;
-    // Complete if has project/task OR if only time changed (time changes keep original project/task)
-    return hasProjectAndTask || hasTimeChanges;
-  }, [modifiedEntry]);
 
   // Click outside handler: Cancel editing if no changes were made
   useEffect(() => {
@@ -947,12 +939,14 @@ export default function AppointmentRow({
           </div>
           {/* Duplicate warning indicator */}
           {duplicateWarning?.hasDuplicate && !isSynced && duplicateWarning.type !== 'rescheduled' && (
-            <div className="h-4 w-4 flex items-center justify-center">
+            <div
+              className="h-4 w-4 flex items-center justify-center"
+              title={duplicateWarning.message}
+            >
               <AlertTriangle
                 size={14}
                 className="text-amber-500"
                 aria-label={duplicateWarning.message}
-                title={duplicateWarning.message}
               />
             </div>
           )}
@@ -1020,7 +1014,7 @@ export default function AppointmentRow({
             ) : (
               // Not synced or editing: Show both times as toggle buttons
               <span
-                className={`inline-flex items-center gap-0.5 text-[10px] rounded ${isMuted ? "bg-gray-100 text-gray-400" : "bg-gray-100"}`}
+                className={`inline-flex items-center gap-0.5 text-[10px] rounded ring-1 ${isMuted ? "bg-gray-100 text-gray-400 ring-gray-200" : "bg-gray-100 ring-blue-300"}`}
                 title={actualDurationInfo
                   ? `Geplant: ${plannedDurationRounded.hours > 0 ? `${plannedDurationRounded.hours}h ${plannedDurationRounded.minutes}min` : `${plannedDurationRounded.minutes}min`} | Tatsächlich: ${actualDurationInfo.hours > 0 ? `${actualDurationInfo.hours}h ${actualDurationInfo.minutes}min` : `${actualDurationInfo.minutes}min`}`
                   : `Geplant: ${plannedDurationRounded.hours > 0 ? `${plannedDurationRounded.hours}h ${plannedDurationRounded.minutes}min` : `${plannedDurationRounded.minutes}min`} | Tatsächlich: keine Daten`
@@ -1039,41 +1033,45 @@ export default function AppointmentRow({
                     }
                   }}
                   disabled={!actualDurationInfo}
-                  className={`px-1.5 py-0.5 rounded-l transition-colors ${
+                  className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-l transition-colors ${
                     !appointment.useActualTime || !actualDurationInfo
                       ? "bg-blue-100 text-blue-700 font-medium"
                       : "text-gray-400 hover:text-gray-600 hover:bg-gray-200"
                   } ${!actualDurationInfo ? "cursor-default" : "cursor-pointer"}`}
                   title={`Geplant (gerundet): ${plannedDurationRounded.hours > 0 ? `${plannedDurationRounded.hours}h ${plannedDurationRounded.minutes}min` : `${plannedDurationRounded.minutes}min`} - für ZEP verwenden`}
                 >
+                  {(!appointment.useActualTime || !actualDurationInfo) && <Check size={10} />}
                   {plannedDurationRounded.hours > 0 ? `${plannedDurationRounded.hours}h${plannedDurationRounded.minutes > 0 ? plannedDurationRounded.minutes : ''}` : `${plannedDurationRounded.minutes}m`}
                 </button>
                 <span className="text-gray-300">|</span>
-                {/* Actual time button */}
+                {/* Actual time button - disabled if no actual data or if times are equal */}
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (!actualDurationInfo) return; // Can't toggle without actual data
+                    if (!actualDurationInfo || actualDurationInfo.difference === 0) return;
                     if (isEditing && syncedEntry && onModifyTime) {
                       onModifyTime(appointment.id, appointment, syncedEntry, true);
                     } else {
                       onUseActualTimeChange?.(appointment.id, true);
                     }
                   }}
-                  disabled={!actualDurationInfo}
-                  className={`px-1.5 py-0.5 rounded-r transition-colors ${
-                    !actualDurationInfo
+                  disabled={!actualDurationInfo || actualDurationInfo.difference === 0}
+                  className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-r transition-colors ${
+                    !actualDurationInfo || actualDurationInfo.difference === 0
                       ? "text-gray-300 cursor-default"
                       : appointment.useActualTime
                         ? `bg-blue-100 font-medium ${actualDurationInfo.color}`
                         : `${actualDurationInfo.color} hover:bg-gray-200`
                   }`}
-                  title={actualDurationInfo
-                    ? `Tatsächlich (gerundet): ${actualDurationInfo.hours > 0 ? `${actualDurationInfo.hours}h ${actualDurationInfo.minutes}min` : `${actualDurationInfo.minutes}min`} - für ZEP verwenden`
-                    : "Keine tatsächliche Zeit verfügbar"
+                  title={!actualDurationInfo
+                    ? "Keine tatsächliche Zeit verfügbar"
+                    : actualDurationInfo.difference === 0
+                      ? "Tatsächliche Zeit entspricht der geplanten Zeit"
+                      : `Tatsächlich (gerundet): ${actualDurationInfo.hours > 0 ? `${actualDurationInfo.hours}h ${actualDurationInfo.minutes}min` : `${actualDurationInfo.minutes}min`} - für ZEP verwenden`
                   }
                 >
+                  {actualDurationInfo && appointment.useActualTime && actualDurationInfo.difference !== 0 && <Check size={10} />}
                   {actualDurationInfo
                     ? (actualDurationInfo.hours > 0 ? `${actualDurationInfo.hours}h${actualDurationInfo.minutes > 0 ? actualDurationInfo.minutes : ''}` : `${actualDurationInfo.minutes}m`)
                     : "--"
