@@ -895,23 +895,28 @@ export default function AppointmentRow({
         </div>
 
         {/* Main content - Title on top, details below */}
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 overflow-hidden">
           {/* Title row with duration */}
-          <div className="flex flex-wrap items-center gap-1 sm:gap-1.5">
-            {appointment.subject ? (
-              <span className={`font-semibold text-sm truncate ${isMuted ? "text-gray-400" : "text-gray-900"}`}>{appointment.subject}</span>
-            ) : (
-              <span className="font-medium text-gray-400 text-sm italic">Kein Titel definiert</span>
-            )}
-            {/* Organizer - inline after title */}
-            {appointment.organizer && (
-              <span
-                className={`text-xs font-light shrink-0 hidden sm:inline ${isMuted ? "text-gray-300" : "text-gray-400"}`}
-                title={appointment.organizer.emailAddress.address}
-              >
-                {appointment.isOrganizer ? "von Dir" : `von ${appointment.organizer.emailAddress.name || appointment.organizer.emailAddress.address}`}
-              </span>
-            )}
+          <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-0.5 sm:gap-1.5">
+            {/* Title - truncated on mobile */}
+            <div className="flex items-center gap-1.5 min-w-0">
+              {appointment.subject ? (
+                <span className={`font-semibold text-sm truncate max-w-[200px] sm:max-w-none ${isMuted ? "text-gray-400" : "text-gray-900"}`}>{appointment.subject}</span>
+              ) : (
+                <span className="font-medium text-gray-400 text-sm italic">Kein Titel</span>
+              )}
+              {/* Organizer - inline after title, hidden on mobile */}
+              {appointment.organizer && (
+                <span
+                  className={`text-xs font-light shrink-0 hidden sm:inline ${isMuted ? "text-gray-300" : "text-gray-400"}`}
+                  title={appointment.organizer.emailAddress.address}
+                >
+                  {appointment.isOrganizer ? "von Dir" : `von ${appointment.organizer.emailAddress.name || appointment.organizer.emailAddress.address}`}
+                </span>
+              )}
+            </div>
+            {/* Badges row - inline on desktop, wraps on mobile */}
+            <div className="flex flex-wrap items-center gap-1">
             {/* Duration badge - shows both times for synced entries with checkmark on synced one */}
             {isSynced && !isEditing && zepBookedDuration ? (
               // Synced (not editing): Show both times with checkmark on synced one
@@ -1017,53 +1022,56 @@ export default function AppointmentRow({
                 </button>
               </span>
             )}
-            {/* Cancelled badge */}
+            {/* Cancelled badge - icon only on mobile */}
             {appointment.isCancelled && (
-              <span 
-                className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-medium cursor-help"
-                title={appointment.lastModifiedDateTime 
-                  ? `Abgesagt am ${format(new Date(appointment.lastModifiedDateTime), "dd.MM.yyyy 'um' HH:mm", { locale: de })}` 
+              <span
+                className="inline-flex items-center gap-0.5 sm:gap-1 text-[10px] px-1 sm:px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-medium cursor-help"
+                title={appointment.lastModifiedDateTime
+                  ? `Abgesagt am ${format(new Date(appointment.lastModifiedDateTime), "dd.MM.yyyy 'um' HH:mm", { locale: de })}`
                   : "Abgesagt"}
               >
                 <Ban size={10} />
-                Abgesagt
+                <span className="hidden sm:inline">Abgesagt</span>
                 {appointment.lastModifiedDateTime && (
-                  <span className="text-red-500">
+                  <span className="text-red-500 hidden sm:inline">
                     ({format(new Date(appointment.lastModifiedDateTime), "dd.MM.", { locale: de })})
                   </span>
                 )}
               </span>
             )}
-            {/* Internal/External meeting badge */}
+            {/* Internal/External meeting badge - icon on mobile */}
             {attendeeCount > 0 && (
               isInternalOnly ? (
                 <span
-                  className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-gray-100 text-gray-600"
+                  className="px-1 sm:px-1.5 py-0.5 text-[10px] font-medium rounded bg-gray-100 text-gray-600"
                   title="Internes Meeting - nur Contiva-Teilnehmer"
                 >
-                  Intern
+                  <span className="hidden sm:inline">Intern</span>
+                  <Users size={10} className="sm:hidden" />
                 </span>
               ) : (
                 <span
-                  className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-100 text-amber-700"
+                  className="px-1 sm:px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-100 text-amber-700"
                   title="Externes Meeting - externe Teilnehmer"
                 >
-                  Extern
+                  <span className="hidden sm:inline">Extern</span>
+                  <Users size={10} className="sm:hidden" />
                 </span>
               )
             )}
-            {/* Call badges */}
+            {/* Call badges - compact on mobile */}
             {appointment.type === 'call' && (
               <>
                 <span
-                  className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-blue-100 text-blue-800"
+                  className="px-1 sm:px-1.5 py-0.5 text-[10px] font-medium rounded bg-blue-100 text-blue-800 inline-flex items-center gap-0.5"
                   title="Anruf"
                 >
-                  Call
+                  📞
+                  <span className="hidden sm:inline">Call</span>
                 </span>
                 {appointment.callType && (
                   <span
-                    className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-gray-100 text-gray-600"
+                    className="px-1 sm:px-1.5 py-0.5 text-[10px] font-medium rounded bg-gray-100 text-gray-600 hidden sm:inline"
                     title={`Anruftyp: ${appointment.callType}`}
                   >
                     {appointment.callType}
@@ -1079,10 +1087,11 @@ export default function AppointmentRow({
                 )}
               </>
             )}
+            </div>{/* End badges row */}
           </div>
-          
-          {/* Details row - Date/Time, Organizer, Attendee Domains */}
-          <div className={`flex items-center gap-2 text-xs mt-0.5 ${isMuted ? "text-gray-400" : "text-gray-500"}`}>
+
+          {/* Details row - Date/Time, Attendees */}
+          <div className={`flex items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs mt-0.5 ${isMuted ? "text-gray-400" : "text-gray-500"}`}>
             {/* Date and Time - show ZEP booked time for synced (not editing), rounded times otherwise */}
             {(() => {
               // Build the time display content
@@ -1121,35 +1130,47 @@ export default function AppointmentRow({
                 <span>{timeContent}</span>
               );
             })()}
-            
-            {/* Attendees with Popover */}
+
+            {/* Attendees with Popover - hidden on mobile, show count only */}
             {attendeeCount > 0 && (
-              <AttendeePopover
-                attendees={attendees}
-                organizer={appointment.organizer}
-                isOrganizer={appointment.isOrganizer}
-                isMuted={isMuted}
-              />
+              <>
+                <span className="sm:hidden text-gray-400">•</span>
+                <span className="sm:hidden flex items-center gap-0.5">
+                  <Users size={10} />
+                  <span>{attendeeCount}</span>
+                </span>
+                <span className="hidden sm:inline-flex">
+                  <AttendeePopover
+                    attendees={attendees}
+                    organizer={appointment.organizer}
+                    isOrganizer={appointment.isOrganizer}
+                    isMuted={isMuted}
+                  />
+                </span>
+              </>
             )}
           </div>
         </div>
 
-        {/* Status badges */}
-        <div className="shrink-0 flex items-center gap-1.5">
+        {/* Status badges - compact on mobile */}
+        <div className="shrink-0 flex items-center gap-1 sm:gap-1.5">
           {/* Editing badge */}
           {isSynced && isEditing && (
-            <span className="px-2 py-0.5 text-xs font-medium text-red-700 bg-red-50 rounded">
-              In Bearbeitung
+            <span className="p-1 sm:px-2 sm:py-0.5 text-[10px] sm:text-xs font-medium text-red-700 bg-red-50 rounded">
+              <Pencil size={12} className="sm:hidden" />
+              <span className="hidden sm:inline">In Bearbeitung</span>
             </span>
           )}
           {isSynced && (
-            <span className="px-2 py-0.5 text-xs font-medium text-green-700 bg-green-50 rounded">
-              ZEP
+            <span className="p-1 sm:px-2 sm:py-0.5 text-[10px] sm:text-xs font-medium text-green-700 bg-green-50 rounded">
+              <CheckCircle size={12} className="sm:hidden" />
+              <span className="hidden sm:inline">ZEP</span>
             </span>
           )}
           {duplicateWarning?.hasDuplicate && !isSynced && duplicateWarning.type !== 'rescheduled' && (
-            <span className="px-2 py-0.5 text-xs font-medium text-amber-700 bg-amber-50 rounded" title={duplicateWarning.message}>
-              {duplicateWarning.type === 'exact' ? 'Duplikat' : duplicateWarning.type === 'timeOverlap' ? 'Konflikt' : 'Ähnlich'}
+            <span className="p-1 sm:px-2 sm:py-0.5 text-[10px] sm:text-xs font-medium text-amber-700 bg-amber-50 rounded" title={duplicateWarning.message}>
+              <AlertTriangle size={12} className="sm:hidden" />
+              <span className="hidden sm:inline">{duplicateWarning.type === 'exact' ? 'Duplikat' : duplicateWarning.type === 'timeOverlap' ? 'Konflikt' : 'Ähnlich'}</span>
             </span>
           )}
           {/* Rescheduled appointment - show correction button */}
@@ -1185,41 +1206,41 @@ export default function AppointmentRow({
         </div>
       </div>
 
-      {/* Synced entry info - compact inline */}
+      {/* Synced entry info - compact inline, truncated on mobile */}
       {isSynced && syncedInfo && !isEditing && (
-        <div className="mt-1 ml-8 flex items-center gap-2 text-xs text-gray-500">
-          <span className="font-medium text-gray-600">{syncedInfo.projectName}</span>
+        <div className="mt-1 ml-6 sm:ml-8 flex items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs text-gray-500 overflow-hidden">
+          <span className="font-medium text-gray-600 truncate max-w-[120px] sm:max-w-none">{syncedInfo.projectName}</span>
           {syncedInfo.taskName && (
             <>
-              <span className="text-gray-300">/</span>
-              <span title={syncedInfo.activityName}>
+              <span className="text-gray-300 shrink-0">/</span>
+              <span className="truncate max-w-[80px] sm:max-w-none" title={syncedInfo.activityName}>
                 {syncedInfo.taskName} <span className="text-gray-400">({syncedInfo.activityId})</span>
               </span>
             </>
           )}
-          <span className="text-gray-300">•</span>
-          <span title={syncedInfo.billable ? "Fakturierbar" : "Nicht fakturierbar (intern)"}>
+          <span className="text-gray-300 shrink-0">•</span>
+          <span className="shrink-0" title={syncedInfo.billable ? "Fakturierbar" : "Nicht fakturierbar (intern)"}>
             <Banknote
               size={14}
               className={syncedInfo.billable ? "text-amber-500" : "text-gray-400"}
             />
           </span>
-          {isModified && <span className="text-amber-600 font-medium">Geändert</span>}
+          {isModified && <span className="text-amber-600 font-medium shrink-0">Geändert</span>}
         </div>
       )}
 
-      {/* Rescheduled appointment info - show time change details */}
+      {/* Rescheduled appointment info - show time change details, compact on mobile */}
       {duplicateWarning?.type === 'rescheduled' && !isSynced && duplicateWarning.originalTime && duplicateWarning.newTime && (
-        <div className="mt-1 ml-8 text-xs space-y-0.5">
-          <div className="flex items-center gap-2">
-            <span className="text-gray-500 w-14">In ZEP:</span>
-            <span className="text-red-500 line-through">
+        <div className="mt-1 ml-6 sm:ml-8 text-[11px] sm:text-xs space-y-0.5">
+          <div className="flex items-center gap-1 sm:gap-2">
+            <span className="text-gray-500 w-10 sm:w-14 shrink-0">ZEP:</span>
+            <span className="text-red-500 line-through truncate">
               {duplicateWarning.originalTime.date} {duplicateWarning.originalTime.from.slice(0, 5)}–{duplicateWarning.originalTime.to.slice(0, 5)}
             </span>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-gray-500 w-14">Outlook:</span>
-            <span className="text-green-600 font-medium">
+          <div className="flex items-center gap-1 sm:gap-2">
+            <span className="text-gray-500 w-10 sm:w-14 shrink-0">Neu:</span>
+            <span className="text-green-600 font-medium truncate">
               {duplicateWarning.newTime.date} {duplicateWarning.newTime.from.slice(0, 5)}–{duplicateWarning.newTime.to.slice(0, 5)}
             </span>
           </div>
@@ -1228,10 +1249,10 @@ export default function AppointmentRow({
 
       {/* Editing UI for synced entries - inline like normal appointments */}
       {isSynced && isEditing && syncedEntry && (
-        <div className="mt-3 ml-0 sm:ml-8 flex flex-wrap items-end gap-2 sm:gap-3">
+        <div className="mt-2 sm:mt-3 ml-0 sm:ml-8 flex flex-wrap items-end gap-1.5 sm:gap-3">
           {/* Projekt-Dropdown */}
           <div className="flex flex-col min-w-0 w-full sm:w-auto">
-            <label className="text-xs text-gray-500 mb-1">Projekt</label>
+            <label className="text-[10px] sm:text-xs text-gray-500 mb-0.5 sm:mb-1">Projekt</label>
             <SearchableSelect
               options={projectOptions}
               value={modifiedEntry?.newProjectId || syncedEntry.project_id}
@@ -1247,7 +1268,7 @@ export default function AppointmentRow({
 
           {/* Task-Dropdown */}
           <div className="flex flex-col min-w-0 w-full sm:w-auto">
-            <label className="text-xs text-gray-500 mb-1">Task</label>
+            <label className="text-[10px] sm:text-xs text-gray-500 mb-0.5 sm:mb-1">Task</label>
             <SearchableSelect
               options={editingTaskOptions}
               value={modifiedEntry?.newTaskId || syncedEntry.project_task_id}
@@ -1256,18 +1277,18 @@ export default function AppointmentRow({
                   onModifyTask(appointment.id, Number(val));
                 }
               }}
-              placeholder="-- Task wählen --"
+              placeholder="-- Task --"
               disabled={editingTaskOptions.length === 0}
-              disabledMessage={editingTaskOptions.length === 0 ? "Laden..." : undefined}
+              disabledMessage={editingTaskOptions.length === 0 ? "..." : undefined}
               className="w-full sm:w-72"
             />
           </div>
 
           {/* Activity-Dropdown and controls row */}
-          <div className="flex flex-row items-end gap-2 sm:gap-3 w-full sm:w-auto">
+          <div className="flex flex-row items-end gap-1.5 sm:gap-3 w-full sm:w-auto">
             {/* Activity-Dropdown */}
             <div className="flex flex-col min-w-0 flex-1 sm:flex-initial">
-              <label className="text-xs text-gray-500 mb-1">Tätigkeit</label>
+              <label className="text-[10px] sm:text-xs text-gray-500 mb-0.5 sm:mb-1">Tätigk.</label>
               <SearchableSelect
                 options={activityOptions}
                 value={modifiedEntry?.newActivityId || syncedEntry.activity_id}
@@ -1285,7 +1306,7 @@ export default function AppointmentRow({
 
             {/* Billable Toggle */}
             <div className="flex flex-col shrink-0">
-              <label className="text-xs text-gray-500 mb-1">Fakt.</label>
+              <label className="text-[10px] sm:text-xs text-gray-500 mb-0.5 sm:mb-1">€</label>
               <button
                 type="button"
                 onClick={() => {
@@ -1295,7 +1316,7 @@ export default function AppointmentRow({
                   }
                 }}
                 disabled={!(modifiedEntry?.newTaskId || syncedEntry.project_task_id) || !canEditBillableInEditMode}
-                className={`flex items-center justify-center w-10 h-9.5 rounded-lg border transition-colors ${
+                className={`flex items-center justify-center w-9 h-9 sm:w-10 sm:h-9.5 rounded-lg border transition-colors ${
                   !(modifiedEntry?.newTaskId || syncedEntry.project_task_id)
                     ? "bg-gray-100 border-gray-200 text-gray-300 cursor-not-allowed"
                     : !canEditBillableInEditMode
@@ -1316,19 +1337,19 @@ export default function AppointmentRow({
                         : "Nicht fakturierbar (intern) - klicken zum Ändern"
                 }
               >
-                <Banknote size={18} className={!(modifiedEntry?.newTaskId || syncedEntry.project_task_id) || !(modifiedEntry?.newBillable ?? syncedEntry.billable) ? "opacity-50" : ""} />
+                <Banknote size={16} className={!(modifiedEntry?.newTaskId || syncedEntry.project_task_id) || !(modifiedEntry?.newBillable ?? syncedEntry.billable) ? "opacity-50" : ""} />
               </button>
             </div>
 
             {/* Sync button for pending changes */}
             {isModificationComplete && isModified && (
               <div className="flex flex-col shrink-0">
-                <label className="text-xs text-gray-500 mb-1">Sync</label>
+                <label className="text-[10px] sm:text-xs text-gray-500 mb-0.5 sm:mb-1">↑</label>
                 <button
                   type="button"
                   onClick={() => modifiedEntry && onSaveModifiedSingle?.(modifiedEntry)}
                   disabled={isSavingModifiedSingle || !onSaveModifiedSingle}
-                  className={`flex items-center justify-center w-10 h-9.5 rounded-lg border transition-colors ${
+                  className={`flex items-center justify-center w-9 h-9 sm:w-10 sm:h-9.5 rounded-lg border transition-colors ${
                     isSavingModifiedSingle
                       ? "bg-blue-50 border-blue-300 text-blue-500 cursor-wait"
                       : "bg-amber-50 border-amber-300 text-amber-600 hover:bg-amber-100"
@@ -1336,9 +1357,9 @@ export default function AppointmentRow({
                   title={isSavingModifiedSingle ? "Wird gespeichert..." : "Änderungen in ZEP speichern"}
                 >
                   {isSavingModifiedSingle ? (
-                    <Loader2 size={18} className="animate-spin" />
+                    <Loader2 size={16} className="animate-spin" />
                   ) : (
-                    <CloudUpload size={18} />
+                    <CloudUpload size={16} />
                   )}
                 </button>
               </div>
@@ -1349,10 +1370,10 @@ export default function AppointmentRow({
 
       {/* Dropdowns for selected unsynchronized appointments */}
       {appointment.selected && !isSynced && (
-        <div className="mt-3 ml-0 sm:ml-8 flex flex-wrap items-end gap-2 sm:gap-3">
+        <div className="mt-2 sm:mt-3 ml-0 sm:ml-8 flex flex-wrap items-end gap-1.5 sm:gap-3">
           {/* Projekt-Dropdown */}
           <div className="flex flex-col min-w-0 w-full sm:w-auto">
-            <label className="text-xs text-gray-500 mb-1">Projekt</label>
+            <label className="text-[10px] sm:text-xs text-gray-500 mb-0.5 sm:mb-1">Projekt</label>
             <SearchableSelect
               options={projectOptions}
               value={appointment.projectId}
@@ -1369,7 +1390,7 @@ export default function AppointmentRow({
 
           {/* Task-Dropdown */}
           <div className="flex flex-col min-w-0 w-full sm:w-auto">
-            <label className="text-xs text-gray-500 mb-1">Task</label>
+            <label className="text-[10px] sm:text-xs text-gray-500 mb-0.5 sm:mb-1">Task</label>
             <SearchableSelect
               options={taskOptions}
               value={appointment.taskId}
@@ -1379,14 +1400,14 @@ export default function AppointmentRow({
                   val !== null ? Number(val) : null
                 )
               }
-              placeholder="-- Task wählen --"
+              placeholder="-- Task --"
               disabled={!appointment.projectId || (tasks.length === 0 && !loadingTasks)}
               disabledMessage={
                 !appointment.projectId
-                  ? "Erst Projekt wählen"
+                  ? "..."
                   : loadingTasks
-                    ? "Laden..."
-                    : "Keine Tasks vorhanden"
+                    ? "..."
+                    : "Keine"
               }
               loading={loadingTasks}
               className="w-full sm:w-72"
@@ -1394,31 +1415,31 @@ export default function AppointmentRow({
           </div>
 
           {/* Activity-Dropdown and controls row */}
-          <div className="flex flex-row items-end gap-2 sm:gap-3 w-full sm:w-auto">
+          <div className="flex flex-row items-end gap-1.5 sm:gap-3 w-full sm:w-auto">
             {/* Activity-Dropdown */}
             <div className="flex flex-col min-w-0 flex-1 sm:flex-initial">
-              <label className="text-xs text-gray-500 mb-1">Tätigkeit</label>
+              <label className="text-[10px] sm:text-xs text-gray-500 mb-0.5 sm:mb-1">Tätigk.</label>
               <SearchableSelect
                 options={activityOptions}
                 value={appointment.activityId}
                 onChange={(val) =>
                   onActivityChange(appointment.id, String(val ?? "be"))
                 }
-                placeholder="-- Tätigkeit wählen --"
+                placeholder="--"
                 disabled={!appointment.taskId}
-                disabledMessage={!appointment.projectId ? "Erst Projekt wählen" : "Erst Task wählen"}
+                disabledMessage={!appointment.projectId ? "..." : "..."}
                 className="w-full sm:w-48"
               />
             </div>
 
             {/* Billable Toggle */}
             <div className="flex flex-col shrink-0">
-              <label className="text-xs text-gray-500 mb-1">Fakt.</label>
+              <label className="text-[10px] sm:text-xs text-gray-500 mb-0.5 sm:mb-1">€</label>
               <button
                 type="button"
                 onClick={() => appointment.taskId && appointment.canChangeBillable && onBillableChange(appointment.id, !appointment.billable)}
                 disabled={!appointment.taskId || !appointment.canChangeBillable}
-                className={`flex items-center justify-center w-10 h-9.5 rounded-lg border transition-colors ${
+                className={`flex items-center justify-center w-9 h-9 sm:w-10 sm:h-9.5 rounded-lg border transition-colors ${
                   !appointment.taskId
                     ? "bg-gray-100 border-gray-200 text-gray-300 cursor-not-allowed"
                     : appointment.billable
@@ -1435,19 +1456,19 @@ export default function AppointmentRow({
                         : "Nicht fakturierbar (intern) - klicken zum Ändern"
                 }
               >
-                <Banknote size={18} className={!appointment.taskId || (!appointment.billable && appointment.canChangeBillable) ? "opacity-50" : ""} />
+                <Banknote size={16} className={!appointment.taskId || (!appointment.billable && appointment.canChangeBillable) ? "opacity-50" : ""} />
               </button>
             </div>
 
             {/* Single Sync Button */}
             {onSyncSingle && (
               <div className="flex flex-col shrink-0">
-                <label className="text-xs text-gray-500 mb-1">Sync</label>
+                <label className="text-[10px] sm:text-xs text-gray-500 mb-0.5 sm:mb-1">↑</label>
                 <button
                   type="button"
                   onClick={() => isSyncReady && onSyncSingle(appointment)}
                   disabled={!isSyncReady || isSyncingSingle}
-                  className={`flex items-center justify-center w-10 h-9.5 rounded-lg border transition-colors ${
+                  className={`flex items-center justify-center w-9 h-9 sm:w-10 sm:h-9.5 rounded-lg border transition-colors ${
                     isSyncingSingle
                       ? "bg-blue-50 border-blue-300 text-blue-500 cursor-wait"
                       : !isSyncReady
@@ -1463,9 +1484,9 @@ export default function AppointmentRow({
                   }
                 >
                   {isSyncingSingle ? (
-                    <Loader2 size={18} className="animate-spin" />
+                    <Loader2 size={16} className="animate-spin" />
                   ) : (
-                    <Upload size={18} className={!isSyncReady ? "opacity-50" : ""} />
+                    <Upload size={16} className={!isSyncReady ? "opacity-50" : ""} />
                   )}
                 </button>
               </div>
