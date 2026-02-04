@@ -16,6 +16,10 @@ const montserrat = Montserrat({
 export const metadata: Metadata = {
   title: "Outlook ZEP Sync",
   description: "Übertrage Outlook-Termine zu ZEP Zeiterfassung",
+  robots: {
+    index: false,
+    follow: false,
+  },
   openGraph: {
     title: "Outlook ZEP Sync",
     description: "Übertrage Outlook-Termine zu ZEP Zeiterfassung",
