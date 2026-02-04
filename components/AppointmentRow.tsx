@@ -287,7 +287,10 @@ function AttendeePopover({ attendees, organizer, isOrganizer, isMuted }: Attende
         <span>{attendeeCount}</span>
         {!isInternalOnly && domains.length > 0 && (
           <span className="text-gray-400">
-            ({domains.join(', ')})
+            {domains.length <= 2
+              ? `(${domains.join(', ')})`
+              : `(${domains.length} extern)`
+            }
           </span>
         )}
       </button>
