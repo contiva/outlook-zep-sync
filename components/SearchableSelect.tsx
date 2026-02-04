@@ -89,7 +89,7 @@ export default function SearchableSelect({
           <div className={`relative ${className}`}>
             <ListboxButton
               className={`w-full rounded-lg border border-gray-300 py-2 pl-3 pr-10 text-sm leading-5 text-left focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none ${
-                disabled ? "bg-gray-100 cursor-not-allowed text-gray-500" : "bg-white cursor-pointer"
+                disabled ? "bg-gray-50 cursor-not-allowed text-gray-300 opacity-40" : "bg-white cursor-pointer"
               } ${disabled ? "" : (!selectedOption ? "text-gray-500" : "text-gray-900")}`}
             >
               <span className="block truncate">{displayText}</span>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Search, X, RotateCcw, CloudUpload } from "lucide-react";
+import { Search, X, RotateCcw, ClockArrowUp } from "lucide-react";
 import AppointmentRow from "./AppointmentRow";
 import SeriesGroup from "./SeriesGroup";
 import SyncConfirmDialog from "./SyncConfirmDialog";
@@ -515,7 +515,7 @@ export default function AppointmentList({
                   "Übertragen..."
                 ) : (
                   <>
-                    <CloudUpload size={18} />
+                    <ClockArrowUp size={18} />
                     <span>ZEP Sync</span>
                     {(syncReadyAppointments.length > 0 || completeModificationsCount > 0) && (
                       <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 text-xs font-medium bg-white/20 rounded-full">
@@ -567,7 +567,7 @@ export default function AppointmentList({
                   "Übertragen..."
                 ) : (
                   <>
-                    <CloudUpload size={18} />
+                    <ClockArrowUp size={18} />
                     <span>ZEP Sync</span>
                     {(syncReadyAppointments.length > 0 || completeModificationsCount > 0) && (
                       <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 text-xs font-medium bg-white/20 rounded-full">

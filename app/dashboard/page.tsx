@@ -1593,10 +1593,19 @@ export default function Dashboard() {
           if (normalizedUrl) {
             const actualDuration = actualDurations.get(normalizedUrl);
             if (actualDuration) {
-              const actualZepTimes = calculateZepTimes(
+              // Use planned start + ROUNDED actual duration (so only end time changes)
+              // First, calculate rounded duration from actual times
+              const actualTimesRounded = calculateZepTimes(
                 new Date(actualDuration.actualStart),
                 new Date(actualDuration.actualEnd)
               );
+              const [actStartH, actStartM] = actualTimesRounded.start.split(':').map(Number);
+              const [actEndH, actEndM] = actualTimesRounded.end.split(':').map(Number);
+              const roundedDurationMin = (actEndH * 60 + actEndM) - (actStartH * 60 + actStartM);
+
+              const plannedStart = new Date(apt.start.dateTime);
+              const adjustedEnd = new Date(plannedStart.getTime() + roundedDurationMin * 60 * 1000);
+              const actualZepTimes = calculateZepTimes(plannedStart, adjustedEnd);
               actualVon = actualZepTimes.start.slice(0, 5);
               actualBis = actualZepTimes.end.slice(0, 5);
             }
@@ -1851,8 +1860,19 @@ export default function Dashboard() {
       const actualDuration = normalizedUrl ? actualDurations.get(normalizedUrl) : undefined;
 
       if (actualDuration) {
-        startDt = new Date(actualDuration.actualStart);
-        endDt = new Date(actualDuration.actualEnd);
+        // Use planned start time + ROUNDED actual duration (so only end time changes, not start)
+        // First, calculate rounded duration from actual times
+        const actualTimes = calculateZepTimes(
+          new Date(actualDuration.actualStart),
+          new Date(actualDuration.actualEnd)
+        );
+        const [actStartH, actStartM] = actualTimes.start.split(':').map(Number);
+        const [actEndH, actEndM] = actualTimes.end.split(':').map(Number);
+        const roundedDurationMinutes = (actEndH * 60 + actEndM) - (actStartH * 60 + actStartM);
+
+        const plannedStart = new Date(apt.start.dateTime);
+        startDt = plannedStart;
+        endDt = new Date(plannedStart.getTime() + roundedDurationMinutes * 60 * 1000);
       } else {
         // No actual duration data, use planned time
         startDt = new Date(apt.start.dateTime);
@@ -2079,9 +2099,21 @@ export default function Dashboard() {
       if (normalizedUrl) {
         const actualDuration = actualDurations.get(normalizedUrl);
         if (actualDuration) {
+          // Use planned start + ROUNDED actual duration (so only end time changes)
+          // First, calculate rounded duration from actual times
+          const actualTimes = calculateZepTimes(
+            new Date(actualDuration.actualStart),
+            new Date(actualDuration.actualEnd)
+          );
+          const [startH, startM] = actualTimes.start.split(':').map(Number);
+          const [endH, endM] = actualTimes.end.split(':').map(Number);
+          const roundedDurationMinutes = (endH * 60 + endM) - (startH * 60 + startM);
+
+          // Now apply rounded duration to planned start
+          const plannedStart = new Date(apt.start.dateTime);
           return {
-            startDt: new Date(actualDuration.actualStart),
-            endDt: new Date(actualDuration.actualEnd),
+            startDt: plannedStart,
+            endDt: new Date(plannedStart.getTime() + roundedDurationMinutes * 60 * 1000),
           };
         }
       }

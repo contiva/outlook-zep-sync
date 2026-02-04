@@ -1,7 +1,7 @@
 "use client";
 
 import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
-import { X, CloudUpload, AlertTriangle, RefreshCw } from "lucide-react";
+import { X, ClockArrowUp, AlertTriangle, RefreshCw } from "lucide-react";
 import { DuplicateCheckResult } from "@/lib/zep-api";
 import { useMemo, useState } from "react";
 
@@ -199,7 +199,7 @@ export default function SyncConfirmDialog({
           {/* Header */}
           <div className="flex items-center justify-between p-4 border-b border-gray-200">
             <DialogTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-              <CloudUpload className="h-5 w-5 text-amber-500" />
+              <ClockArrowUp className="h-5 w-5 text-amber-500" />
               Termine an ZEP übertragen
             </DialogTitle>
             <button
@@ -377,7 +377,7 @@ export default function SyncConfirmDialog({
                 </>
               ) : (
                 <>
-                  <CloudUpload className="h-4 w-4" />
+                  <ClockArrowUp className="h-4 w-4" />
                   {includedAppointments.length > 0 && includedModifications.length > 0 
                     ? `Übertragen (${includedAppointments.length} neu, ${includedModifications.length} ändern)`
                     : includedModifications.length > 0 

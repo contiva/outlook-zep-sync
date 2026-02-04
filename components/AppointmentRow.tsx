@@ -3,11 +3,22 @@
 import { useMemo, useState, useRef, useEffect } from "react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
-import { Users, CheckCircle, CloudUpload, AlertTriangle, Pencil, X, Check, HelpCircle, XCircle, Clock, RefreshCw, Ban, Banknote, Loader2 } from "lucide-react";
+import { Users, ClockCheck, ClockArrowUp, AlertTriangle, Pencil, X, Check, HelpCircle, XCircle, Clock, RefreshCw, Ban, Banknote, Loader2 } from "lucide-react";
 import SearchableSelect, { SelectOption } from "./SearchableSelect";
 import { DuplicateCheckResult } from "@/lib/zep-api";
 import { ActualDuration } from "@/lib/teams-utils";
-import { calculateDisplayTimes } from "@/lib/time-utils";
+import { calculateDisplayTimes, roundToNearest15Min } from "@/lib/time-utils";
+
+// Helper: Format name from "Nachname, Vorname" to "Vorname Nachname"
+function formatName(name?: string | null): string | null {
+  if (!name) return null;
+  // Check if name contains comma (format: "Nachname, Vorname")
+  if (name.includes(', ')) {
+    const [lastName, firstName] = name.split(', ');
+    return `${firstName} ${lastName}`;
+  }
+  return name;
+}
 
 // Helper: Determine if user can change billable status
 // Values 1 and 3 are editable, values 2 and 4 are locked
@@ -532,13 +543,26 @@ export default function AppointmentRow({
     };
   }, [appointment.start.dateTime, appointment.end.dateTime]);
 
-  // Actual duration from call records (if available) - only rounds if needed
+  // Actual duration from call records (if available)
+  // Display uses real call record times, ZEP booking uses planned start + actual duration
   const actualDurationInfo = useMemo(() => {
     if (!actualDuration) return null;
     const actualStart = new Date(actualDuration.actualStart);
     const actualEnd = new Date(actualDuration.actualEnd);
+
+    // For DISPLAY: use real call record times (rounded)
     const display = calculateDisplayTimes(actualStart, actualEnd);
     const difference = display.durationMinutes - plannedDurationRounded.totalMinutes;
+
+    // For ZEP BOOKING: use planned start (rounded) + ROUNDED actual duration
+    // We use display.durationMinutes (the rounded duration) to match what the badge shows
+    const plannedStart = new Date(appointment.start.dateTime);
+    const roundedPlannedStart = roundToNearest15Min(plannedStart);
+    const zepEndDate = new Date(roundedPlannedStart.getTime() + display.durationMinutes * 60 * 1000);
+
+    const formatTime = (d: Date) =>
+      d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+
     return {
       hours: display.durationHours,
       minutes: display.durationMins,
@@ -546,11 +570,14 @@ export default function AppointmentRow({
       difference,
       // Color based on difference: green if shorter, orange if longer, gray if same
       color: difference < 0 ? "text-green-600" : difference > 0 ? "text-orange-600" : "text-gray-500",
-      // Times for ZEP (only rounded if needed)
+      // Display times (real call record times, rounded)
       startRounded: display.startFormatted,
       endRounded: display.endFormatted,
+      // ZEP booking times (planned start rounded + rounded duration)
+      zepStart: formatTime(roundedPlannedStart),
+      zepEnd: formatTime(zepEndDate),
     };
-  }, [actualDuration, plannedDurationRounded.totalMinutes]);
+  }, [actualDuration, appointment.start.dateTime, plannedDurationRounded.totalMinutes]);
 
   // ZEP booked duration (for synced entries)
   const zepBookedDuration = useMemo(() => {
@@ -588,16 +615,19 @@ export default function AppointmentRow({
 
     // Check if synced with actual time (if available)
     if (actualDurationInfo) {
-      const actualFrom = actualDurationInfo.startRounded;
-      const actualTo = actualDurationInfo.endRounded;
-      if (zepFrom === actualFrom && zepTo === actualTo) {
+      // New format: planned start + actual duration (for ZEP booking)
+      if (zepFrom === actualDurationInfo.zepStart && zepTo === actualDurationInfo.zepEnd) {
+        return 'actual';
+      }
+      // Also check old format: original call record times (for backwards compatibility)
+      if (zepFrom === actualDurationInfo.startRounded && zepTo === actualDurationInfo.endRounded) {
         return 'actual';
       }
     }
 
     // Times don't match either - could be manually edited in ZEP
     return 'other';
-  }, [zepBookedDuration, plannedDurationRounded, actualDurationInfo]);
+  }, [zepBookedDuration, plannedDurationRounded, actualDurationInfo, actualDuration]);
 
   // Check if there's a time deviation between Outlook and ZEP times
   const timeDeviation = useMemo(() => {
@@ -610,9 +640,9 @@ export default function AppointmentRow({
       zepStart = zepBookedDuration.from;
       zepEnd = zepBookedDuration.to;
     } else if (appointment.useActualTime && actualDurationInfo) {
-      // Will use actual time
-      zepStart = actualDurationInfo.startRounded;
-      zepEnd = actualDurationInfo.endRounded;
+      // Will use actual time (planned start + actual duration for ZEP)
+      zepStart = actualDurationInfo.zepStart;
+      zepEnd = actualDurationInfo.zepEnd;
     } else {
       // Will use planned time (rounded)
       zepStart = plannedDurationRounded.startFormatted;
@@ -873,19 +903,39 @@ export default function AppointmentRow({
       }`}
     >
       <div className="flex items-start gap-3">
-        {/* Status icons: Synced (green) or Checkbox + SyncReady indicator (amber) */}
-        <div className="flex flex-col items-center gap-0.5 shrink-0 pt-0.5">
-          {isSynced ? (
-            <div 
-              className="h-5 w-5 flex items-center justify-center" 
-              title="Bereits in ZEP synchronisiert"
-              role="img"
-              aria-label="Bereits in ZEP synchronisiert"
-            >
-              <CheckCircle className="h-4 w-4 text-green-600" aria-hidden="true" />
-            </div>
-          ) : (
-            <>
+        {/* Status icons: Synced, Ready-to-sync, or Checkbox + duplicate warning below */}
+        <div className="shrink-0 pt-0.5 w-5 flex flex-col items-center gap-1">
+          {/* Primary status icon */}
+          <div className="h-5 w-5 flex items-center justify-center">
+            {isSynced && isModified ? (
+              // Synced with pending changes - orange clock arrow up
+              <div
+                title="Änderungen ausstehend"
+                role="img"
+                aria-label="Änderungen ausstehend"
+              >
+                <ClockArrowUp className="h-4 w-4 text-amber-500" aria-hidden="true" />
+              </div>
+            ) : isSynced ? (
+              // Synced without changes - green clock check
+              <div
+                title="Bereits in ZEP synchronisiert"
+                role="img"
+                aria-label="Bereits in ZEP synchronisiert"
+              >
+                <ClockCheck className="h-4 w-4 text-green-600" aria-hidden="true" />
+              </div>
+            ) : isSyncReady ? (
+              // Ready to sync - orange clock arrow up
+              <div
+                title="Bereit zur Synchronisierung"
+                role="img"
+                aria-label="Bereit zur Synchronisierung"
+              >
+                <ClockArrowUp className="h-4 w-4 text-amber-500" aria-hidden="true" />
+              </div>
+            ) : (
+              // Not synced, not ready - checkbox
               <input
                 type="checkbox"
                 checked={appointment.selected}
@@ -893,46 +943,18 @@ export default function AppointmentRow({
                 className="h-4 w-4 text-blue-600 rounded"
                 aria-label={`Termin auswählen: ${appointment.subject}`}
               />
-              {isSyncReady && (
-                <div 
-                  className="h-4 w-4 flex items-center justify-center" 
-                  title="Wird beim nächsten Sync übertragen"
-                  role="img"
-                  aria-label="Bereit zum Synchronisieren"
-                >
-                  <CloudUpload className="h-3.5 w-3.5 text-amber-500" aria-hidden="true" />
-                </div>
-              )}
-              {duplicateWarning?.hasDuplicate && !isSynced && (
-                <div
-                  className="h-4 w-4 flex items-center justify-center"
-                  title={duplicateWarning.message || "Mögliches Duplikat erkannt"}
-                  role="img"
-                  aria-label={duplicateWarning.message || "Mögliches Duplikat erkannt"}
-                >
-                  <AlertTriangle className="h-3.5 w-3.5 text-amber-500" aria-hidden="true" />
-                </div>
-              )}
-            </>
-          )}
-          {/* Teams Meeting Icon */}
-          {appointment.isOnlineMeeting && appointment.onlineMeetingProvider === "teamsForBusiness" && (
-            <svg
-              className={`w-3.5 h-3.5 ${isMuted ? "opacity-40" : ""}`}
-              viewBox="0 0 2228.833 2073.333"
-              xmlns="http://www.w3.org/2000/svg"
-              aria-label="Teams Meeting"
-            >
-              <path fill="#5059C9" d="M1554.637 777.5h575.713c54.391 0 98.483 44.092 98.483 98.483v524.398c0 199.901-162.051 361.952-361.952 361.952h-1.711c-199.901.028-361.975-162.023-362.004-361.924V828.971c.001-28.427 23.045-51.471 51.471-51.471z"/>
-              <circle fill="#5059C9" cx="1943.75" cy="440.583" r="233.25"/>
-              <circle fill="#7B83EB" cx="1218.083" cy="336.917" r="336.917"/>
-              <path fill="#7B83EB" d="M1667.323 777.5H717.01c-53.743 1.33-96.257 45.931-95.01 99.676v598.105c-7.505 322.519 247.657 590.16 570.167 598.053 322.51-7.893 577.671-275.534 570.167-598.053V877.176c1.245-53.745-41.268-98.346-95.011-99.676z"/>
-              <linearGradient id="a" gradientUnits="userSpaceOnUse" x1="198.099" y1="1683.0726" x2="942.2344" y2="394.2607" gradientTransform="matrix(1 0 0 -1 0 2075.3333)">
-                <stop offset="0" stopColor="#5a62c3"/><stop offset=".5" stopColor="#4d55bd"/><stop offset="1" stopColor="#3940ab"/>
-              </linearGradient>
-              <path fill="url(#a)" d="M95.01 466.5h950.312c52.473 0 95.01 42.538 95.01 95.01v950.312c0 52.473-42.538 95.01-95.01 95.01H95.01c-52.473 0-95.01-42.538-95.01-95.01V561.51c0-52.472 42.538-95.01 95.01-95.01z"/>
-              <path fill="#FFF" d="M820.211 828.193H630.241v517.297H509.211V828.193H320.123V727.844h500.088v100.349z"/>
-            </svg>
+            )}
+          </div>
+          {/* Duplicate warning indicator */}
+          {duplicateWarning?.hasDuplicate && !isSynced && duplicateWarning.type !== 'rescheduled' && (
+            <div className="h-4 w-4 flex items-center justify-center">
+              <AlertTriangle
+                size={14}
+                className="text-amber-500"
+                aria-label={duplicateWarning.message}
+                title={duplicateWarning.message}
+              />
+            </div>
           )}
         </div>
 
@@ -948,10 +970,10 @@ export default function AppointmentRow({
             {/* Organizer - inline after title */}
             {appointment.organizer && (
               <span
-                className={`text-xs font-light shrink-0 ${isMuted ? "text-gray-300" : "text-gray-400"}`}
+                className={`text-xs font-light shrink-0 ${isMuted ? "text-gray-400" : "text-gray-500"}`}
                 title={appointment.organizer.emailAddress.address}
               >
-                {appointment.isOrganizer ? "von Dir" : `von ${appointment.organizer.emailAddress.name || appointment.organizer.emailAddress.address}`}
+                {appointment.isOrganizer ? "von Dir" : `von ${formatName(appointment.organizer.emailAddress.name) || appointment.organizer.emailAddress.address}`}
               </span>
             )}
             {/* Duration badge - shows both times for synced entries with checkmark on synced one */}
@@ -970,7 +992,7 @@ export default function AppointmentRow({
                   }`}
                   title={`Geplant: ${plannedDurationRounded.startFormatted}–${plannedDurationRounded.endFormatted}${syncedTimeType === 'planned' ? ' ✓ In ZEP gebucht' : ''}`}
                 >
-                  {syncedTimeType === 'planned' && <CheckCircle size={10} className="text-green-600" />}
+                  {syncedTimeType === 'planned' && <ClockCheck size={10} className="text-green-600" />}
                   {plannedDurationRounded.hours > 0 ? `${plannedDurationRounded.hours}h${plannedDurationRounded.minutes > 0 ? plannedDurationRounded.minutes : ''}` : `${plannedDurationRounded.minutes}m`}
                 </span>
                 <span className="text-gray-300">|</span>
@@ -988,7 +1010,7 @@ export default function AppointmentRow({
                     : "Keine tatsächliche Zeit verfügbar"
                   }
                 >
-                  {syncedTimeType === 'actual' && <CheckCircle size={10} className="text-green-600" />}
+                  {syncedTimeType === 'actual' && <ClockCheck size={10} className="text-green-600" />}
                   {actualDurationInfo
                     ? (actualDurationInfo.hours > 0 ? `${actualDurationInfo.hours}h${actualDurationInfo.minutes > 0 ? actualDurationInfo.minutes : ''}` : `${actualDurationInfo.minutes}m`)
                     : "--"
@@ -1076,6 +1098,25 @@ export default function AppointmentRow({
                 )}
               </span>
             )}
+            {/* Teams Meeting Icon */}
+            {appointment.isOnlineMeeting && appointment.onlineMeetingProvider === "teamsForBusiness" && (
+              <svg
+                className={`w-3.5 h-3.5 shrink-0 ${isMuted ? "opacity-40" : ""}`}
+                viewBox="0 0 2228.833 2073.333"
+                xmlns="http://www.w3.org/2000/svg"
+                aria-label="Teams Meeting"
+              >
+                <path fill="#5059C9" d="M1554.637 777.5h575.713c54.391 0 98.483 44.092 98.483 98.483v524.398c0 199.901-162.051 361.952-361.952 361.952h-1.711c-199.901.028-361.975-162.023-362.004-361.924V828.971c.001-28.427 23.045-51.471 51.471-51.471z"/>
+                <circle fill="#5059C9" cx="1943.75" cy="440.583" r="233.25"/>
+                <circle fill="#7B83EB" cx="1218.083" cy="336.917" r="336.917"/>
+                <path fill="#7B83EB" d="M1667.323 777.5H717.01c-53.743 1.33-96.257 45.931-95.01 99.676v598.105c-7.505 322.519 247.657 590.16 570.167 598.053 322.51-7.893 577.671-275.534 570.167-598.053V877.176c1.245-53.745-41.268-98.346-95.011-99.676z"/>
+                <linearGradient id="a" gradientUnits="userSpaceOnUse" x1="198.099" y1="1683.0726" x2="942.2344" y2="394.2607" gradientTransform="matrix(1 0 0 -1 0 2075.3333)">
+                  <stop offset="0" stopColor="#5a62c3"/><stop offset=".5" stopColor="#4d55bd"/><stop offset="1" stopColor="#3940ab"/>
+                </linearGradient>
+                <path fill="url(#a)" d="M95.01 466.5h950.312c52.473 0 95.01 42.538 95.01 95.01v950.312c0 52.473-42.538 95.01-95.01 95.01H95.01c-52.473 0-95.01-42.538-95.01-95.01V561.51c0-52.472 42.538-95.01 95.01-95.01z"/>
+                <path fill="#FFF" d="M820.211 828.193H630.241v517.297H509.211V828.193H320.123V727.844h500.088v100.349z"/>
+              </svg>
+            )}
             {/* Internal/External meeting badge */}
             {attendeeCount > 0 && (
               isInternalOnly ? (
@@ -1135,7 +1176,7 @@ export default function AppointmentRow({
                   ) : actualDurationInfo ? (
                     <span className={`font-semibold ${isMuted ? "text-gray-400" : "text-gray-700"}`}>
                       {appointment.useActualTime
-                        ? `${actualDurationInfo.startRounded}–${actualDurationInfo.endRounded}`
+                        ? `${actualDurationInfo.zepStart}–${actualDurationInfo.zepEnd}`
                         : `${plannedDurationRounded.startFormatted}–${plannedDurationRounded.endFormatted}`
                       }
                     </span>
@@ -1361,28 +1402,28 @@ export default function AppointmentRow({
           </div>
 
           {/* Sync button for pending changes */}
-          {isModificationComplete && isModified && (
-            <div className="flex flex-col">
-              <label className="text-xs text-gray-500 mb-1">Sync</label>
-              <button
-                type="button"
-                onClick={() => modifiedEntry && onSaveModifiedSingle?.(modifiedEntry)}
-                disabled={isSavingModifiedSingle || !onSaveModifiedSingle}
-                className={`flex items-center justify-center w-10 h-9.5 rounded-lg border transition-colors ${
-                  isSavingModifiedSingle
-                    ? "bg-green-500 border-green-500 text-white cursor-wait"
+          <div className="flex flex-col">
+            <label className={`text-xs mb-1 ${!isModified ? "text-gray-300" : "text-gray-500"}`}>Sync</label>
+            <button
+              type="button"
+              onClick={() => modifiedEntry && isModified && onSaveModifiedSingle?.(modifiedEntry)}
+              disabled={isSavingModifiedSingle || !onSaveModifiedSingle || !isModified}
+              className={`flex items-center justify-center w-10 h-9.5 rounded-lg border transition-colors ${
+                isSavingModifiedSingle
+                  ? "bg-green-500 border-green-500 text-white cursor-wait"
+                  : !isModified
+                    ? "bg-gray-50 border-gray-200 text-gray-300 cursor-not-allowed opacity-40"
                     : "bg-green-600 border-green-600 text-white hover:bg-green-700 hover:border-green-700"
-                }`}
-                title={isSavingModifiedSingle ? "Wird gespeichert..." : "Änderungen in ZEP speichern"}
-              >
-                {isSavingModifiedSingle ? (
-                  <Loader2 size={18} className="animate-spin" />
-                ) : (
-                  <CloudUpload size={18} />
-                )}
-              </button>
-            </div>
-          )}
+              }`}
+              title={isSavingModifiedSingle ? "Wird gespeichert..." : !isModified ? "Keine Änderungen" : "Änderungen in ZEP speichern"}
+            >
+              {isSavingModifiedSingle ? (
+                <Loader2 size={18} className="animate-spin" />
+              ) : (
+                <ClockArrowUp size={18} />
+              )}
+            </button>
+          </div>
         </div>
       )}
 
@@ -1408,7 +1449,7 @@ export default function AppointmentRow({
 
           {/* Task-Dropdown */}
           <div className="flex flex-col min-w-0">
-            <label className="text-xs text-gray-500 mb-1">Task</label>
+            <label className={`text-xs mb-1 ${!appointment.projectId ? "text-gray-300" : "text-gray-500"}`}>Task</label>
             <SearchableSelect
               options={taskOptions}
               value={appointment.taskId}
@@ -1423,7 +1464,7 @@ export default function AppointmentRow({
               disabledMessage={
                 !appointment.projectId
                   ? "Erst Projekt wählen"
-                  : loadingTasks 
+                  : loadingTasks
                     ? "Laden..."
                     : "Keine Tasks vorhanden"
               }
@@ -1434,7 +1475,7 @@ export default function AppointmentRow({
 
           {/* Activity-Dropdown */}
           <div className="flex flex-col min-w-0">
-            <label className="text-xs text-gray-500 mb-1">Tätigkeit</label>
+            <label className={`text-xs mb-1 ${!appointment.taskId ? "text-gray-300" : "text-gray-500"}`}>Tätigkeit</label>
             <SearchableSelect
               options={activityOptions}
               value={appointment.activityId}
@@ -1450,14 +1491,14 @@ export default function AppointmentRow({
 
           {/* Billable Toggle */}
           <div className="flex flex-col">
-            <label className="text-xs text-gray-500 mb-1">Fakt.</label>
+            <label className={`text-xs mb-1 ${!appointment.taskId ? "text-gray-300" : "text-gray-500"}`}>Fakt.</label>
             <button
               type="button"
               onClick={() => appointment.taskId && appointment.canChangeBillable && onBillableChange(appointment.id, !appointment.billable)}
               disabled={!appointment.taskId || !appointment.canChangeBillable}
               className={`flex items-center justify-center w-10 h-9.5 rounded-lg border transition-colors ${
                 !appointment.taskId
-                  ? "bg-gray-100 border-gray-200 text-gray-300 cursor-not-allowed"
+                  ? "bg-gray-50 border-gray-200 text-gray-300 cursor-not-allowed opacity-40"
                   : appointment.billable
                     ? `bg-amber-50 border-amber-300 text-amber-500 ${appointment.canChangeBillable ? "hover:bg-amber-100" : "cursor-not-allowed"}`
                     : `bg-gray-50 border-gray-300 text-gray-400 ${appointment.canChangeBillable ? "hover:bg-gray-100" : "cursor-not-allowed"}`
@@ -1479,7 +1520,7 @@ export default function AppointmentRow({
           {/* Single Sync Button */}
           {onSyncSingle && (
             <div className="flex flex-col">
-              <label className="text-xs text-gray-500 mb-1">Sync</label>
+              <label className={`text-xs mb-1 ${!isSyncReady ? "text-gray-300" : "text-gray-500"}`}>Sync</label>
               <button
                 type="button"
                 onClick={() => isSyncReady && onSyncSingle(appointment)}
@@ -1488,7 +1529,7 @@ export default function AppointmentRow({
                   isSyncingSingle
                     ? "bg-green-500 border-green-500 text-white cursor-wait"
                     : !isSyncReady
-                      ? "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed"
+                      ? "bg-gray-50 border-gray-200 text-gray-300 cursor-not-allowed opacity-40"
                       : "bg-green-600 border-green-600 text-white hover:bg-green-700 hover:border-green-700"
                 }`}
                 title={
@@ -1502,7 +1543,7 @@ export default function AppointmentRow({
                 {isSyncingSingle ? (
                   <Loader2 size={18} className="animate-spin" />
                 ) : (
-                  <CloudUpload size={18} className={!isSyncReady ? "opacity-50" : ""} />
+                  <ClockArrowUp size={18} className={!isSyncReady ? "opacity-50" : ""} />
                 )}
               </button>
             </div>

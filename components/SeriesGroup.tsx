@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { ChevronDown, ChevronRight, Repeat, Link2, Unlink2, CloudUpload, CheckCircle2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Repeat, Link2, Unlink2, ClockArrowUp, CheckCircle2 } from "lucide-react";
 import AppointmentRow from "./AppointmentRow";
 import SearchableSelect, { SelectOption } from "./SearchableSelect";
 import { DuplicateCheckResult } from "@/lib/zep-api";
@@ -472,7 +472,7 @@ export default function SeriesGroup({
                   className="flex items-center gap-1 text-sm text-amber-600"
                   title={`${syncReadyCount} Termin${syncReadyCount > 1 ? 'e' : ''} werden beim nächsten Sync übertragen`}
                 >
-                  <CloudUpload className="h-4 w-4 text-amber-500" />
+                  <ClockArrowUp className="h-4 w-4 text-amber-500" />
                   {syncReadyCount}
                 </span>
               )}
