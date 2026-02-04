@@ -731,6 +731,7 @@ export default function Dashboard() {
         syncedEntries,
       });
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally using .length to avoid re-renders on content changes
   }, [startDate, endDate, appointments, filterDate, hideSoloMeetings, syncedEntries.length]);
 
   // Check for potential duplicates when appointments or synced entries change
@@ -751,6 +752,7 @@ export default function Dashboard() {
     
     const warnings = checkAppointmentsForDuplicates(appointmentsToCheck, syncedEntries as unknown as ZepAttendance[]);
     setDuplicateWarnings(warnings);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally using .length to avoid re-renders on content changes
   }, [appointments, syncedEntries.length]);
 
   useEffect(() => {
@@ -1181,6 +1183,7 @@ export default function Dashboard() {
     };
 
     loadActualDurations();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally using .length to avoid re-renders on content changes
   }, [appointments.length, hasOnlineMeetings, startDate, endDate, syncedEntries.length]);
 
   // Merge appointments with calls, deduplicating overlapping entries
