@@ -1,21 +1,36 @@
 "use client";
 
 import { signIn, useSession } from "next-auth/react";
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { LogIn } from "lucide-react";
+import { useEffect, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Loader2, LogIn } from "lucide-react";
 import Image from "next/image";
 
 export default function LoginForm() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const hasTriggeredLogin = useRef(false);
 
-  // Automatisch zum Dashboard weiterleiten wenn eingeloggt
+  // Prüfen ob ein Fehler vorliegt (z.B. von Error-Seite kommend)
+  const hasError = searchParams.get("error") !== null;
+
+  // Manuellen Login anzeigen wenn Fehler vorliegt
+  const showManualLogin = hasError;
+
   useEffect(() => {
-    if (session) {
+    // Bereits eingeloggt -> zum Dashboard
+    if (status === "authenticated" && session) {
       router.push("/dashboard");
+      return;
     }
-  }, [session, router]);
+
+    // Nicht eingeloggt und kein Fehler -> automatisch Azure Login auslösen
+    if (status === "unauthenticated" && !hasTriggeredLogin.current && !hasError) {
+      hasTriggeredLogin.current = true;
+      signIn("azure-ad", { callbackUrl: "/dashboard" });
+    }
+  }, [status, session, router, hasError]);
 
   const handleMicrosoftLogin = () => {
     signIn("azure-ad", { callbackUrl: "/dashboard" });
@@ -36,16 +51,13 @@ export default function LoginForm() {
         </div>
 
         <div className="space-y-6">
-          {/* Microsoft Login */}
-          <div>
-            {session ? (
-              <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
-                <span className="text-green-600">✓</span>
-                <span className="text-green-800">
-                  Angemeldet als {session.user?.email}
-                </span>
-              </div>
-            ) : (
+          {showManualLogin ? (
+            <>
+              {hasError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-center text-sm text-red-700">
+                  Anmeldung fehlgeschlagen. Bitte mit einem @contiva.com Konto anmelden.
+                </div>
+              )}
               <button
                 onClick={handleMicrosoftLogin}
                 className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
@@ -53,11 +65,16 @@ export default function LoginForm() {
                 <LogIn size={20} />
                 Mit Microsoft anmelden
               </button>
-            )}
-          </div>
+            </>
+          ) : (
+            <div className="flex items-center justify-center gap-2 p-3 text-gray-600">
+              <Loader2 size={20} className="animate-spin" />
+              <span>Weiterleitung zur Anmeldung...</span>
+            </div>
+          )}
 
           <p className="text-xs text-gray-400 text-center">
-            ZEP-Verbindung ist bereits konfiguriert.
+            Nur für contiva.com Konten
           </p>
         </div>
       </div>

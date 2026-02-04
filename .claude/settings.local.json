@@ -9,7 +9,9 @@
       "Bash(git push:*)",
       "Bash(git checkout:*)",
       "Bash(git pull:*)",
-      "Bash(git merge:*)"
+      "Bash(git merge:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nchore: block search engine indexing\n\n- Add robots.txt to disallow all crawlers\n- Add robots meta tag with noindex, nofollow\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
     ]
   }
 }
