@@ -97,7 +97,7 @@ export async function GET(
 
   // Call Records have a processing delay (~15-30 min, sometimes longer)
   // Limit endDateTime to 1 hour ago to get reliable data for today
-  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+  const oneHourAgo = new Date(Date.now() - 5 * 60 * 1000);
   // Use UTC date from oneHourAgo to avoid timezone issues
   const oneHourAgoDateStr = oneHourAgo.toISOString().split("T")[0];
 

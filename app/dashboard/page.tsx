@@ -4,7 +4,7 @@ import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { format, startOfMonth, endOfMonth, subMonths, isWeekend, addDays } from "date-fns";
-import { LogOut, Keyboard, Loader2, Phone } from "lucide-react";
+import { LogOut, Keyboard, Loader2, Phone, ChevronLeft, ChevronRight } from "lucide-react";
 import { useToast } from "@/components/Toast";
 import Image from "next/image";
 import DateRangePicker from "@/components/DateRangePicker";
@@ -1297,6 +1297,42 @@ export default function Dashboard() {
     return filtered;
   }, [mergedAppointments, filterDate, seriesFilterActive, validSeriesIds, searchQuery, hideSoloMeetings, session?.user?.email]);
 
+  // Get unique sorted dates from appointments for day navigation
+  const availableDates = useMemo(() => {
+    const dates = new Set<string>();
+    mergedAppointments.forEach(apt => {
+      const date = apt.start.dateTime.split('T')[0];
+      dates.add(date);
+    });
+    return Array.from(dates).sort();
+  }, [mergedAppointments]);
+
+  // Navigation to previous/next day
+  const navigateDay = (direction: 'prev' | 'next') => {
+    if (availableDates.length === 0) return;
+
+    if (!filterDate) {
+      // No filter set - go to first or last day
+      setFilterDate(direction === 'prev' ? availableDates[availableDates.length - 1] : availableDates[0]);
+      return;
+    }
+
+    const currentIndex = availableDates.indexOf(filterDate);
+    if (currentIndex === -1) {
+      // Current filter not in list - go to nearest
+      setFilterDate(direction === 'prev' ? availableDates[availableDates.length - 1] : availableDates[0]);
+      return;
+    }
+
+    const newIndex = direction === 'prev' ? currentIndex - 1 : currentIndex + 1;
+    if (newIndex >= 0 && newIndex < availableDates.length) {
+      setFilterDate(availableDates[newIndex]);
+    }
+  };
+
+  const canNavigatePrev = availableDates.length > 0 && (!filterDate || availableDates.indexOf(filterDate) > 0);
+  const canNavigateNext = availableDates.length > 0 && (!filterDate || availableDates.indexOf(filterDate) < availableDates.length - 1);
+
   // Handler für Preset-Buttons: setzt Datum UND lädt sofort
   const handleDateRangeChange = (newStartDate: string, newEndDate: string) => {
     setStartDate(newStartDate);
@@ -2453,7 +2489,27 @@ export default function Dashboard() {
 
       <main className="max-w-6xl mx-auto px-4 py-8 space-y-4">
         {/* Combined Date Picker and Calendar Heatmap with Legend */}
-        <div>
+        <div className="relative">
+          {/* Left navigation arrow - positioned outside the card */}
+          <button
+            onClick={() => navigateDay('prev')}
+            disabled={!canNavigatePrev}
+            className="absolute -left-12 top-1/2 -translate-y-1/2 p-2 rounded-full text-gray-300 hover:text-blue-500 hover:bg-blue-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+            title="Vorheriger Tag"
+          >
+            <ChevronLeft size={24} />
+          </button>
+
+          {/* Right navigation arrow - positioned outside the card */}
+          <button
+            onClick={() => navigateDay('next')}
+            disabled={!canNavigateNext}
+            className="absolute -right-12 top-1/2 -translate-y-1/2 p-2 rounded-full text-gray-300 hover:text-blue-500 hover:bg-blue-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+            title="Nächster Tag"
+          >
+            <ChevronRight size={24} />
+          </button>
+
           <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
             <div className="flex items-center">
               <div className="flex-1">
