@@ -489,7 +489,7 @@ export default function AppointmentList({
       >
         {/* Gradient shadow when sticky */}
         <div
-          className={`absolute left-0 right-0 top-full h-1 pointer-events-none transition-opacity duration-500 ${
+          className={`absolute left-0 right-0 top-full h-1.5 pointer-events-none transition-opacity duration-100 ${
             isFilterbarSticky ? "opacity-100" : "opacity-0"
           }`}
           style={{ background: "linear-gradient(to bottom, rgb(209 213 219), transparent)" }}
