@@ -199,22 +199,20 @@ export default function CalendarHeatmap({
 
   // Calculate aggregated status for a series
   const getSeriesStatus = (seriesAppointments: Appointment[]): AppointmentStatus => {
+    let syncedCount = 0;
     let hasUnprocessed = false;
     let hasEdited = false;
-    let allSynced = true;
     let allDeselectedOrSynced = true;
 
     for (const apt of seriesAppointments) {
       const isSynced = isAppointmentSyncedCheck(apt) || submittedIds.has(apt.id);
-      
+
       if (isSynced) {
-        // Synced appointments are fine, continue checking others
+        syncedCount++;
         continue;
       }
-      
+
       // Not synced
-      allSynced = false;
-      
       if (apt.selected) {
         allDeselectedOrSynced = false;
         if (apt.projectId !== null) {
@@ -226,7 +224,12 @@ export default function CalendarHeatmap({
       // Deselected but not synced - counts as deselected
     }
 
+    const allSynced = syncedCount === seriesAppointments.length;
+    const someSynced = syncedCount > 0;
+
     if (allSynced) return "synced";
+    // Partially synced series = yellow (syncedWithChanges)
+    if (someSynced) return "syncedWithChanges";
     if (hasUnprocessed) return "unprocessed";
     if (hasEdited) return "edited";
     if (allDeselectedOrSynced) return "deselected";
@@ -373,6 +376,22 @@ export default function CalendarHeatmap({
     }
   };
 
+  // Series status colors - same as appointments but with amber for edited
+  const getSeriesStatusColor = (status: AppointmentStatus): string => {
+    switch (status) {
+      case "synced":
+        return "bg-green-600";
+      case "syncedWithChanges":
+        return "bg-yellow-400";
+      case "edited":
+        return "bg-amber-400"; // Ready to sync
+      case "unprocessed":
+        return "bg-red-400"; // Not ready - red
+      case "deselected":
+        return "bg-gray-300";
+    }
+  };
+
   // Count stats (per appointment, not per day)
   const stats = useMemo(() => {
     let synced = 0;
@@ -446,7 +465,7 @@ export default function CalendarHeatmap({
                   return (
                     <div
                       key={seriesId}
-                      className={`flex-1 ${getAppointmentStatusColor(seriesStatus)} border-b border-white/30 last:border-b-0`}
+                      className={`flex-1 ${getSeriesStatusColor(seriesStatus)} border-b border-white/30 last:border-b-0`}
                       aria-hidden="true"
                     />
                   );

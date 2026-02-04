@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { ChevronDown, ChevronRight, Repeat, Link2, Unlink2, ClockArrowUp, CheckCircle2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Repeat, ClockArrowUp } from "lucide-react";
 import AppointmentRow from "./AppointmentRow";
 import SearchableSelect, { SelectOption } from "./SearchableSelect";
 import { DuplicateCheckResult } from "@/lib/zep-api";
@@ -193,7 +193,6 @@ export default function SeriesGroup({
   focusedAppointmentId,
 }: SeriesGroupProps) {
   const [expanded, setExpanded] = useState(false);
-  const [linkedEdit, setLinkedEdit] = useState(true);
 
   // Serien-Level Werte (vom ersten Termin oder gemeinsame Werte)
   const firstAppointment = appointments[0];
@@ -295,62 +294,79 @@ export default function SeriesGroup({
   }, [activities, projects, tasks, seriesProjectId, seriesTaskId]);
 
   const handleSeriesProjectChange = (projectId: number | null) => {
-    if (linkedEdit) {
-      onApplyToSeries(seriesId, projectId, null, seriesActivityId);
-    }
+    onApplyToSeries(seriesId, projectId, null, seriesActivityId);
   };
 
   const handleSeriesTaskChange = (taskId: number | null) => {
-    if (linkedEdit && seriesProjectId) {
-      // Find standard activity for the selected task
-      let newActivityId = seriesActivityId;
-      if (taskId) {
-        const projectTasks = tasks[seriesProjectId] || [];
-        const selectedTask = projectTasks.find((t) => t.id === taskId);
-        const project = projects.find((p) => p.id === seriesProjectId);
-        
-        // Check task activities first, then project activities
-        const taskActivities = selectedTask?.activities || [];
-        const projectActivities = project?.activities || [];
-        const relevantActivities = taskActivities.length > 0 ? taskActivities : projectActivities;
-        const standardActivity = relevantActivities.find((a) => a.standard);
-        
-        if (standardActivity) {
-          newActivityId = standardActivity.name;
-        }
+    if (!seriesProjectId) return;
+
+    // Find standard activity for the selected task
+    let newActivityId = seriesActivityId;
+    if (taskId) {
+      const projectTasks = tasks[seriesProjectId] || [];
+      const selectedTask = projectTasks.find((t) => t.id === taskId);
+      const project = projects.find((p) => p.id === seriesProjectId);
+
+      // Check task activities first, then project activities
+      const taskActivities = selectedTask?.activities || [];
+      const projectActivities = project?.activities || [];
+      const relevantActivities = taskActivities.length > 0 ? taskActivities : projectActivities;
+      const standardActivity = relevantActivities.find((a) => a.standard);
+
+      if (standardActivity) {
+        newActivityId = standardActivity.name;
       }
-      
-      onApplyToSeries(seriesId, seriesProjectId, taskId, newActivityId);
     }
+
+    onApplyToSeries(seriesId, seriesProjectId, taskId, newActivityId);
   };
 
   const handleSeriesActivityChange = (activityId: string) => {
-    if (linkedEdit) {
-      onApplyToSeries(
-        seriesId,
-        seriesProjectId,
-        seriesTaskId,
-        activityId
-      );
-    }
+    onApplyToSeries(
+      seriesId,
+      seriesProjectId,
+      seriesTaskId,
+      activityId
+    );
   };
 
+  // Determine series status for left border color
+  const seriesStatus = syncedCount === appointments.length
+    ? "synced" // All synced - green
+    : syncedCount > 0
+    ? "partial" // Some synced - yellow
+    : syncReadyCount > 0
+    ? "ready" // Some ready to sync - amber
+    : someSelected
+    ? "unsynced" // Some selected but not sync-ready - red
+    : "idle"; // Nothing selected - gray
+
   return (
-    <div className="border border-blue-200 bg-blue-50/30">
+    <div className={`border-r border-b border-t border-l-4 transition-shadow ${
+      seriesStatus === "synced"
+        ? "border-l-green-600 border-gray-200 bg-green-50/20"
+        : seriesStatus === "partial"
+        ? "border-l-yellow-400 border-gray-200 bg-yellow-50/20"
+        : seriesStatus === "ready"
+        ? "border-l-amber-400 border-gray-200 bg-amber-50/20"
+        : seriesStatus === "unsynced"
+        ? "border-l-red-400 border-gray-200 bg-red-50/20"
+        : "border-l-gray-300 border-gray-200 bg-gray-50/30"
+    }`}>
       {/* Series Header */}
-      <div className="p-4 bg-gradient-to-r from-blue-50 to-white border-b border-blue-100">
+      <div className="px-3 py-2">
         <div className="flex items-start gap-3">
           {/* Expand/Collapse Button */}
           <button
             onClick={() => setExpanded(!expanded)}
-            className="mt-0.5 p-1 hover:bg-blue-100 rounded transition"
+            className="mt-0.5 p-0.5 hover:bg-gray-100 rounded transition"
             aria-expanded={expanded}
             aria-label={expanded ? "Terminserie einklappen" : "Terminserie ausklappen"}
           >
             {expanded ? (
-              <ChevronDown size={18} className="text-blue-600" aria-hidden="true" />
+              <ChevronDown size={16} className="text-gray-500" aria-hidden="true" />
             ) : (
-              <ChevronRight size={18} className="text-blue-600" aria-hidden="true" />
+              <ChevronRight size={16} className="text-gray-500" aria-hidden="true" />
             )}
           </button>
 
@@ -362,7 +378,7 @@ export default function SeriesGroup({
               if (el) el.indeterminate = someSelected && !allSelected;
             }}
             onChange={() => onToggleSeries(seriesId, !allSelected)}
-            className="mt-1 h-5 w-5 accent-sky-300 rounded"
+            className="mt-0.5 h-4 w-4 accent-sky-300 rounded"
             aria-label={`Alle ${appointments.length} Termine der Serie "${seriesSubject}" auswählen`}
           />
 
@@ -441,127 +457,81 @@ export default function SeriesGroup({
                   />
                 </svg>
               )}
-              <span className="font-medium text-gray-900">{seriesSubject}</span>
-              <span className="text-sm text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full">
-                {appointments.length}x Serie
+              <span className="font-medium text-gray-900 truncate">{seriesSubject}</span>
+              <span className="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded shrink-0">
+                {appointments.length}x
               </span>
-              <span className="text-sm text-gray-500">
-                ({hours}h {minutes}min gesamt)
+              <span className="text-xs text-gray-400 shrink-0">
+                {hours}h {minutes > 0 ? `${minutes}m` : ""}
               </span>
               {firstAppointment.organizer && (
-                <span className="text-sm text-gray-400" title={firstAppointment.organizer.emailAddress.address}>
-                  von {firstAppointment.isOrganizer ? "Dir" : (firstAppointment.organizer.emailAddress.name || firstAppointment.organizer.emailAddress.address.split("@")[0])}
+                <span className="text-xs text-gray-400 truncate" title={firstAppointment.organizer.emailAddress.address}>
+                  • {firstAppointment.isOrganizer ? "Du" : (firstAppointment.organizer.emailAddress.name || firstAppointment.organizer.emailAddress.address.split("@")[0])}
                 </span>
               )}
-              {/* Sync Status Badge */}
-              <span 
-                className={`flex items-center gap-1.5 text-sm px-2 py-0.5 rounded-full ${
-                  syncedCount === appointments.length
-                    ? "bg-green-100 text-green-700"
-                    : syncedCount > 0
-                    ? "bg-yellow-100 text-yellow-700"
-                    : "bg-gray-100 text-gray-600"
-                }`}
-                title={`${syncedCount} von ${appointments.length} Terminen synchronisiert`}
-              >
-                <CheckCircle2 className={`h-3.5 w-3.5 ${
-                  syncedCount === appointments.length
-                    ? "text-green-600"
-                    : syncedCount > 0
-                    ? "text-yellow-600"
-                    : "text-gray-400"
-                }`} />
-                {syncedCount}/{appointments.length} sync
-              </span>
-              {syncReadyCount > 0 && (
-                <span 
-                  className="flex items-center gap-1 text-sm text-amber-600"
-                  title={`${syncReadyCount} Termin${syncReadyCount > 1 ? 'e' : ''} werden beim nächsten Sync übertragen`}
+              {/* Sync Status - compact */}
+              {syncedCount > 0 && (
+                <span
+                  className={`text-xs px-1.5 py-0.5 rounded shrink-0 ${
+                    syncedCount === appointments.length
+                      ? "bg-green-50 text-green-700"
+                      : "bg-yellow-50 text-yellow-700"
+                  }`}
+                  title={`${syncedCount} von ${appointments.length} synchronisiert`}
                 >
-                  <ClockArrowUp className="h-4 w-4 text-amber-500" />
+                  {syncedCount}/{appointments.length} Synced
+                </span>
+              )}
+              {syncReadyCount > 0 && (
+                <span
+                  className="flex items-center gap-1 text-xs text-amber-600 shrink-0"
+                  title={`${syncReadyCount} bereit zum Sync`}
+                >
+                  <ClockArrowUp className="h-3.5 w-3.5" />
                   {syncReadyCount}
                 </span>
               )}
             </div>
 
-            {/* Gebündelte Bearbeitung */}
-            <div className="mt-3 flex items-center gap-4">
-              <button
-                onClick={() => setLinkedEdit(!linkedEdit)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition ${
-                  linkedEdit
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                }`}
-                aria-pressed={linkedEdit}
-                aria-label={linkedEdit ? "Gebündelte Bearbeitung aktiv - klicken für Einzelbearbeitung" : "Einzelbearbeitung aktiv - klicken für gebündelte Bearbeitung"}
-                title={linkedEdit ? "Änderungen werden auf alle Termine angewendet" : "Jeder Termin wird einzeln bearbeitet"}
-              >
-                {linkedEdit ? <Link2 size={14} aria-hidden="true" /> : <Unlink2 size={14} aria-hidden="true" />}
-                {linkedEdit ? "Gebündelt" : "Einzeln"}
-              </button>
-
-              {linkedEdit && (
-                <div className="flex flex-wrap gap-3">
-                  {/* Projekt für Serie */}
-                  <div className="flex flex-col">
-                    <label className="text-xs text-gray-500 mb-1">
-                      Projekt (alle)
-                    </label>
-                    <SearchableSelect
-                      options={projectOptions}
-                      value={seriesProjectId}
-                      onChange={(val) =>
-                        handleSeriesProjectChange(val !== null ? Number(val) : null)
-                      }
-                      placeholder={allSameProject ? "-- Projekt wählen --" : "-- Verschiedene --"}
-                      className="w-full sm:w-80"
-                    />
-                  </div>
-
-                  {/* Task für Serie */}
-                  <div className="flex flex-col">
-                    <label className="text-xs text-gray-500 mb-1">
-                      Task (alle)
-                    </label>
-                    <SearchableSelect
-                      options={taskOptions}
-                      value={seriesTaskId}
-                      onChange={(val) =>
-                        handleSeriesTaskChange(val !== null ? Number(val) : null)
-                      }
-                      placeholder={
-                        !seriesProjectId
-                          ? "Erst Projekt wählen"
-                          : seriesProjectId && loadingTasks?.has(seriesProjectId)
-                          ? "Laden..."
-                          : allSameTask
-                          ? "-- Task wählen --"
-                          : "-- Verschiedene --"
-                      }
-                      disabled={!seriesProjectId && !loadingTasks?.has(seriesProjectId || 0)}
-                      loading={seriesProjectId ? loadingTasks?.has(seriesProjectId) : false}
-                      className="w-full sm:w-80"
-                    />
-                  </div>
-
-                  {/* Activity für Serie */}
-                  <div className="flex flex-col">
-                    <label className="text-xs text-gray-500 mb-1">
-                      Tätigkeit (alle)
-                    </label>
-                    <SearchableSelect
-                      options={activityOptions}
-                      value={seriesActivityId}
-                      onChange={(val) =>
-                        handleSeriesActivityChange(String(val ?? "be"))
-                      }
-                      placeholder={allSameActivity ? "-- Tätigkeit --" : "-- Verschiedene --"}
-                      className="w-full sm:w-56"
-                    />
-                  </div>
-                </div>
-              )}
+            {/* Serien-Bearbeitung - Änderungen gelten für alle Termine */}
+            <div className="mt-2 flex items-center gap-2 flex-wrap">
+              <SearchableSelect
+                options={projectOptions}
+                value={seriesProjectId}
+                onChange={(val) =>
+                  handleSeriesProjectChange(val !== null ? Number(val) : null)
+                }
+                placeholder={allSameProject ? "Projekt" : "Verschiedene"}
+                className="w-48 sm:w-56"
+              />
+              <SearchableSelect
+                options={taskOptions}
+                value={seriesTaskId}
+                onChange={(val) =>
+                  handleSeriesTaskChange(val !== null ? Number(val) : null)
+                }
+                placeholder={
+                  !seriesProjectId
+                    ? "Erst Projekt"
+                    : loadingTasks?.has(seriesProjectId)
+                    ? "Laden..."
+                    : allSameTask
+                    ? "Task"
+                    : "Verschiedene"
+                }
+                disabled={!seriesProjectId}
+                loading={seriesProjectId ? loadingTasks?.has(seriesProjectId) : false}
+                className="w-48 sm:w-56"
+              />
+              <SearchableSelect
+                options={activityOptions}
+                value={seriesActivityId}
+                onChange={(val) =>
+                  handleSeriesActivityChange(String(val ?? "be"))
+                }
+                placeholder={allSameActivity ? "Tätigkeit" : "Verschiedene"}
+                className="w-36"
+              />
             </div>
           </div>
         </div>
@@ -606,16 +576,16 @@ export default function SeriesGroup({
 
       {/* Collapsed: Kompakte Übersicht */}
       {!expanded && (
-        <div className="px-4 py-2 text-sm text-gray-500 bg-white/50">
-          {selectedCount} von {appointments.length} ausgewählt
+        <div className="px-3 py-1.5 text-xs text-gray-400 border-t border-gray-100">
+          {selectedCount}/{appointments.length} ausgewählt
           {allSameProject && seriesProjectId && (
-            <span className="ml-2">
+            <span className="ml-2 text-gray-500">
               • {projects.find((p) => p.id === seriesProjectId)?.name}
             </span>
           )}
           {allSameTask && seriesTaskId && (
-            <span className="ml-1">
-              / {tasks[seriesProjectId!]?.find((t) => t.id === seriesTaskId)?.name}
+            <span className="text-gray-500">
+              {" / "}{tasks[seriesProjectId!]?.find((t) => t.id === seriesTaskId)?.name}
             </span>
           )}
         </div>
