@@ -1308,7 +1308,7 @@ export default function Dashboard() {
   }, [mergedAppointments]);
 
   // Navigation to previous/next day
-  const navigateDay = (direction: 'prev' | 'next') => {
+  const navigateDay = useCallback((direction: 'prev' | 'next') => {
     if (availableDates.length === 0) return;
 
     if (!filterDate) {
@@ -1328,10 +1328,36 @@ export default function Dashboard() {
     if (newIndex >= 0 && newIndex < availableDates.length) {
       setFilterDate(availableDates[newIndex]);
     }
-  };
+  }, [availableDates, filterDate]);
 
   const canNavigatePrev = availableDates.length > 0 && (!filterDate || availableDates.indexOf(filterDate) > 0);
   const canNavigateNext = availableDates.length > 0 && (!filterDate || availableDates.indexOf(filterDate) < availableDates.length - 1);
+
+  // Keyboard navigation for day switching
+  useEffect(() => {
+    const handleArrowKeys = (e: KeyboardEvent) => {
+      // Ignore if user is typing in an input field
+      const target = e.target as HTMLElement;
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) {
+        return;
+      }
+
+      // Arrow Left - previous day
+      if (e.key === "ArrowLeft" && canNavigatePrev) {
+        e.preventDefault();
+        navigateDay('prev');
+      }
+
+      // Arrow Right - next day
+      if (e.key === "ArrowRight" && canNavigateNext) {
+        e.preventDefault();
+        navigateDay('next');
+      }
+    };
+
+    document.addEventListener("keydown", handleArrowKeys);
+    return () => document.removeEventListener("keydown", handleArrowKeys);
+  }, [canNavigatePrev, canNavigateNext, navigateDay]);
 
   // Handler für Preset-Buttons: setzt Datum UND lädt sofort
   const handleDateRangeChange = (newStartDate: string, newEndDate: string) => {
