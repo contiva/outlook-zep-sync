@@ -31,10 +31,32 @@ interface ZepAttendance {
   from: string;
   to: string;
   note: string | null;
+  id: number;
+  project_id: number;
+  project_task_id: number;
+  activity_id: string;
+  billable: boolean;
+}
+
+// Modified entry for tracking changes to synced entries
+interface ModifiedEntry {
+  zepId: number;
+  outlookEventId: string;
+  originalProjectId: number;
+  originalTaskId: number;
+  originalActivityId: string;
+  originalBillable: boolean;
+  newProjectId: number;
+  newTaskId: number;
+  newActivityId: string;
+  newBillable: boolean;
+  newVon?: string;
+  newBis?: string;
 }
 
 export interface HeatmapStats {
   synced: number;
+  syncedWithChanges: number;
   edited: number;
   unprocessed: number;
 }
@@ -45,6 +67,7 @@ interface CalendarHeatmapProps {
   appointments: Appointment[];
   syncedEntries: ZepAttendance[];
   submittedIds: Set<string>;
+  modifiedEntries?: Map<string, ModifiedEntry>;
   selectedDate: string | null;
   onDayClick: (date: string | null) => void;
   onSeriesClick: (seriesFilter: boolean) => void;
@@ -54,8 +77,8 @@ interface CalendarHeatmapProps {
   onStatsChange?: (stats: HeatmapStats) => void;
 }
 
-type DayStatus = "empty" | "unprocessed" | "edited" | "synced" | "weekend";
-type AppointmentStatus = "synced" | "edited" | "unprocessed" | "deselected";
+type DayStatus = "empty" | "unprocessed" | "edited" | "synced" | "syncedWithChanges" | "weekend";
+type AppointmentStatus = "synced" | "syncedWithChanges" | "edited" | "unprocessed" | "deselected";
 
 export default function CalendarHeatmap({
   startDate,
@@ -63,6 +86,7 @@ export default function CalendarHeatmap({
   appointments,
   syncedEntries,
   submittedIds,
+  modifiedEntries,
   selectedDate,
   onDayClick,
   onSeriesClick,
@@ -276,6 +300,8 @@ export default function CalendarHeatmap({
     switch (status) {
       case "synced":
         return "Synchronisiert";
+      case "syncedWithChanges":
+        return "Änderung ausstehend";
       case "edited":
         return "Bearbeitet";
       case "unprocessed":
@@ -288,10 +314,39 @@ export default function CalendarHeatmap({
     }
   };
 
+  // Helper: Check if a synced appointment has pending modifications
+  const hasPendingModifications = (apt: Appointment, zepEntries: ZepAttendance[]): boolean => {
+    if (!modifiedEntries || modifiedEntries.size === 0) return false;
+
+    const mod = modifiedEntries.get(apt.id);
+    if (!mod) return false;
+
+    // Find the matching synced entry
+    const syncedEntry = zepEntries.find((entry) => {
+      const entryNote = (entry.note || "").trim();
+      return entryNote === apt.subject.trim();
+    });
+    if (!syncedEntry) return false;
+
+    // Check if there are actual changes
+    const hasProjectChanges =
+      mod.newProjectId !== syncedEntry.project_id ||
+      mod.newTaskId !== syncedEntry.project_task_id ||
+      mod.newActivityId !== syncedEntry.activity_id ||
+      mod.newBillable !== syncedEntry.billable;
+    const hasTimeChanges = mod.newVon !== undefined || mod.newBis !== undefined;
+
+    return hasProjectChanges || hasTimeChanges;
+  };
+
   // Get status for individual appointment
   const getAppointmentStatus = (apt: Appointment, zepEntries: ZepAttendance[]): AppointmentStatus => {
-    // Synced check comes FIRST - synced appointments should always show as green
+    // Synced check comes FIRST
     if (isAppointmentSynced(apt, zepEntries) || submittedIds.has(apt.id)) {
+      // Check if synced but has pending modifications
+      if (hasPendingModifications(apt, zepEntries)) {
+        return "syncedWithChanges";
+      }
       return "synced";
     }
     if (!apt.selected) {
@@ -307,6 +362,8 @@ export default function CalendarHeatmap({
     switch (status) {
       case "synced":
         return "bg-green-500";
+      case "syncedWithChanges":
+        return "bg-amber-500";
       case "edited":
         return "bg-yellow-500";
       case "unprocessed":
@@ -316,22 +373,28 @@ export default function CalendarHeatmap({
     }
   };
 
-  // Count stats
+  // Count stats (per appointment, not per day)
   const stats = useMemo(() => {
     let synced = 0;
+    let syncedWithChanges = 0;
     let edited = 0;
     let unprocessed = 0;
 
-    days.forEach((day) => {
-      const status = getDayStatus(day);
+    filteredAppointments.forEach((apt) => {
+      const dateStr = apt.start.dateTime.split("T")[0];
+      const zepEntries = syncedByDate.get(dateStr) || [];
+      const status = getAppointmentStatus(apt, zepEntries);
+
       if (status === "synced") synced++;
+      else if (status === "syncedWithChanges") syncedWithChanges++;
       else if (status === "edited") edited++;
       else if (status === "unprocessed") unprocessed++;
+      // deselected appointments are not counted
     });
 
-    return { synced, edited, unprocessed };
+    return { synced, syncedWithChanges, edited, unprocessed };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [days, appointmentsByDate, syncedByDate, submittedIds]);
+  }, [filteredAppointments, syncedByDate, submittedIds, modifiedEntries]);
 
   // Notify parent of stats changes
   useEffect(() => {
@@ -471,7 +534,7 @@ export default function CalendarHeatmap({
 }
 
 // Legend component exported separately to be placed outside the container
-export function CalendarHeatmapLegend({ stats }: { stats: { synced: number; edited: number; unprocessed: number } }) {
+export function CalendarHeatmapLegend({ stats }: { stats: HeatmapStats }) {
   return (
     <div className="flex items-center justify-end gap-3 text-[10px] px-1 mt-1">
       <div className="flex items-center gap-1">
@@ -479,6 +542,13 @@ export function CalendarHeatmapLegend({ stats }: { stats: { synced: number; edit
         <span className="text-gray-400">Synchronisiert</span>
         <span className="text-gray-400">{stats.synced}</span>
       </div>
+      {stats.syncedWithChanges > 0 && (
+        <div className="flex items-center gap-1">
+          <div className="w-2 h-2 rounded-sm bg-amber-500/60" />
+          <span className="text-gray-400">Änderung</span>
+          <span className="text-gray-400">{stats.syncedWithChanges}</span>
+        </div>
+      )}
       <div className="flex items-center gap-1">
         <div className="w-2 h-2 rounded-sm bg-yellow-500/60" />
         <span className="text-gray-400">Bearbeitet</span>

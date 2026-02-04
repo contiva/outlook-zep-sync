@@ -3,7 +3,7 @@
 import { useMemo, useState, useRef, useEffect } from "react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
-import { Users, CheckCircle, CloudUpload, AlertTriangle, Pencil, X, Check, HelpCircle, XCircle, Clock, RefreshCw, Ban, Banknote, Upload, Loader2 } from "lucide-react";
+import { Users, CheckCircle, CloudUpload, AlertTriangle, Pencil, X, Check, HelpCircle, XCircle, Clock, RefreshCw, Ban, Banknote, Loader2 } from "lucide-react";
 import SearchableSelect, { SelectOption } from "./SearchableSelect";
 import { DuplicateCheckResult } from "@/lib/zep-api";
 import { ActualDuration } from "@/lib/teams-utils";
@@ -514,6 +514,9 @@ export default function AppointmentRow({
   const startTime = format(startDate, "HH:mm");
   const endTime = format(endDate, "HH:mm");
 
+  // Ref for the editing UI to detect clicks outside
+  const editingRowRef = useRef<HTMLDivElement>(null);
+
 
   // Planned duration (for ZEP - only rounds if duration is not a 15-min multiple)
   const plannedDurationRounded = useMemo(() => {
@@ -770,11 +773,12 @@ export default function AppointmentRow({
   // Check if this entry has been modified (for visual indicator)
   const isModified = useMemo(() => {
     if (!modifiedEntry || !syncedEntry) return false;
-    // Check project/task/activity changes
+    // Check project/task/activity/billable changes
     const hasProjectChanges =
       modifiedEntry.newProjectId !== syncedEntry.project_id ||
       modifiedEntry.newTaskId !== syncedEntry.project_task_id ||
-      modifiedEntry.newActivityId !== syncedEntry.activity_id;
+      modifiedEntry.newActivityId !== syncedEntry.activity_id ||
+      modifiedEntry.newBillable !== syncedEntry.billable;
     // Check time changes
     const hasTimeChanges = modifiedEntry.newVon !== undefined || modifiedEntry.newBis !== undefined;
     return hasProjectChanges || hasTimeChanges;
@@ -788,6 +792,41 @@ export default function AppointmentRow({
     // Complete if has project/task OR if only time changed (time changes keep original project/task)
     return hasProjectAndTask || hasTimeChanges;
   }, [modifiedEntry]);
+
+  // Click outside handler: Cancel editing if no changes were made
+  useEffect(() => {
+    if (!isEditing || isModified) return;
+
+    function handleClickOutside(event: MouseEvent) {
+      const target = event.target as HTMLElement;
+
+      // Check if click is inside the row
+      if (editingRowRef.current?.contains(target)) {
+        return;
+      }
+
+      // Check if click is inside a HeadlessUI portal (dropdown options)
+      // HeadlessUI adds data-headlessui-state attribute to portal elements
+      if (target.closest('[data-headlessui-state]')) {
+        return;
+      }
+
+      // Use setTimeout to allow the click event on other edit buttons to be processed first
+      setTimeout(() => {
+        onCancelEditSynced?.(appointment.id);
+      }, 0);
+    }
+
+    // Small delay to avoid immediate trigger from the edit button click
+    const timer = setTimeout(() => {
+      document.addEventListener("mousedown", handleClickOutside);
+    }, 100);
+
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isEditing, isModified, appointment.id, onCancelEditSynced]);
 
   // Get synced project/task info for display
   const syncedInfo = useMemo(() => {
@@ -820,14 +859,17 @@ export default function AppointmentRow({
 
   return (
     <div
+      ref={editingRowRef}
       className={`px-3 py-2 border-x border-b border-t ${
-        isSynced 
-          ? "border-green-200 bg-linear-to-r from-green-50 via-emerald-50/50 to-white" 
-          : isSyncReady
-            ? "border-amber-200 bg-linear-to-r from-amber-50 via-yellow-50/50 to-white"
-            : appointment.selected 
-              ? "border-gray-200 bg-white" 
-              : "border-gray-200 bg-gray-50/50"
+        isSynced && isModified
+          ? "border-yellow-300 bg-linear-to-r from-amber-50 via-yellow-50/50 to-green-50"
+          : isSynced
+            ? "border-green-200 bg-linear-to-r from-green-50 via-emerald-50/50 to-white"
+            : isSyncReady
+              ? "border-amber-200 bg-linear-to-r from-amber-50 via-yellow-50/50 to-white"
+              : appointment.selected
+                ? "border-gray-200 bg-white"
+                : "border-gray-200 bg-gray-50/50"
       }`}
     >
       <div className="flex items-start gap-3">
@@ -1138,7 +1180,7 @@ export default function AppointmentRow({
         <div className="shrink-0 flex items-center gap-1.5">
           {/* Editing badge */}
           {isSynced && isEditing && (
-            <span className="px-2 py-0.5 text-xs font-medium text-red-700 bg-red-50 rounded">
+            <span className="px-2 py-0.5 text-xs font-medium text-yellow-700 bg-yellow-50 rounded">
               In Bearbeitung
             </span>
           )}
@@ -1298,10 +1340,10 @@ export default function AppointmentRow({
                   ? "bg-gray-100 border-gray-200 text-gray-300 cursor-not-allowed"
                   : !canEditBillableInEditMode
                     ? (modifiedEntry?.newBillable ?? syncedEntry.billable)
-                      ? "bg-green-50 border-green-300 text-green-600 cursor-not-allowed opacity-70"
+                      ? "bg-amber-50 border-amber-300 text-amber-500 cursor-not-allowed opacity-70"
                       : "bg-gray-50 border-gray-300 text-gray-400 cursor-not-allowed opacity-70"
                     : (modifiedEntry?.newBillable ?? syncedEntry.billable)
-                      ? "bg-green-50 border-green-300 text-green-600 hover:bg-green-100"
+                      ? "bg-amber-50 border-amber-300 text-amber-500 hover:bg-amber-100"
                       : "bg-gray-50 border-gray-300 text-gray-400 hover:bg-gray-100"
               }`}
               title={
@@ -1328,8 +1370,8 @@ export default function AppointmentRow({
                 disabled={isSavingModifiedSingle || !onSaveModifiedSingle}
                 className={`flex items-center justify-center w-10 h-9.5 rounded-lg border transition-colors ${
                   isSavingModifiedSingle
-                    ? "bg-blue-50 border-blue-300 text-blue-500 cursor-wait"
-                    : "bg-amber-50 border-amber-300 text-amber-600 hover:bg-amber-100"
+                    ? "bg-green-500 border-green-500 text-white cursor-wait"
+                    : "bg-green-600 border-green-600 text-white hover:bg-green-700 hover:border-green-700"
                 }`}
                 title={isSavingModifiedSingle ? "Wird gespeichert..." : "Änderungen in ZEP speichern"}
               >
@@ -1417,7 +1459,7 @@ export default function AppointmentRow({
                 !appointment.taskId
                   ? "bg-gray-100 border-gray-200 text-gray-300 cursor-not-allowed"
                   : appointment.billable
-                    ? `bg-green-50 border-green-300 text-green-600 ${appointment.canChangeBillable ? "hover:bg-green-100" : "cursor-not-allowed"}`
+                    ? `bg-amber-50 border-amber-300 text-amber-500 ${appointment.canChangeBillable ? "hover:bg-amber-100" : "cursor-not-allowed"}`
                     : `bg-gray-50 border-gray-300 text-gray-400 ${appointment.canChangeBillable ? "hover:bg-gray-100" : "cursor-not-allowed"}`
               }`}
               title={
@@ -1444,10 +1486,10 @@ export default function AppointmentRow({
                 disabled={!isSyncReady || isSyncingSingle}
                 className={`flex items-center justify-center w-10 h-9.5 rounded-lg border transition-colors ${
                   isSyncingSingle
-                    ? "bg-blue-50 border-blue-300 text-blue-500 cursor-wait"
+                    ? "bg-green-500 border-green-500 text-white cursor-wait"
                     : !isSyncReady
-                      ? "bg-gray-100 border-gray-200 text-gray-300 cursor-not-allowed"
-                      : "bg-green-50 border-green-300 text-green-600 hover:bg-green-100"
+                      ? "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed"
+                      : "bg-green-600 border-green-600 text-white hover:bg-green-700 hover:border-green-700"
                 }`}
                 title={
                   isSyncingSingle
@@ -1460,7 +1502,7 @@ export default function AppointmentRow({
                 {isSyncingSingle ? (
                   <Loader2 size={18} className="animate-spin" />
                 ) : (
-                  <Upload size={18} className={!isSyncReady ? "opacity-50" : ""} />
+                  <CloudUpload size={18} className={!isSyncReady ? "opacity-50" : ""} />
                 )}
               </button>
             </div>

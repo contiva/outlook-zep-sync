@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Search, X, RotateCcw } from "lucide-react";
+import { Search, X, RotateCcw, CloudUpload } from "lucide-react";
 import AppointmentRow from "./AppointmentRow";
 import SeriesGroup from "./SeriesGroup";
 import SyncConfirmDialog from "./SyncConfirmDialog";
@@ -255,12 +255,24 @@ export default function AppointmentList({
 }: AppointmentListProps) {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
-  // Count complete modifications (have project and task, or have time changes)
+  // Count complete modifications that have actual changes
   const completeModificationsCount = useMemo(() => {
     if (!modifiedEntries) return 0;
-    return Array.from(modifiedEntries.values()).filter(
-      (mod) => (mod.newProjectId > 0 && mod.newTaskId > 0) || mod.newVon !== undefined || mod.newBis !== undefined
-    ).length;
+    return Array.from(modifiedEntries.values()).filter((mod) => {
+      // Must be complete (have project and task, or have time changes)
+      const isComplete = (mod.newProjectId > 0 && mod.newTaskId > 0) || mod.newVon !== undefined || mod.newBis !== undefined;
+      if (!isComplete) return false;
+
+      // Must have actual changes compared to original
+      const hasProjectChanges =
+        mod.newProjectId !== mod.originalProjectId ||
+        mod.newTaskId !== mod.originalTaskId ||
+        mod.newActivityId !== mod.originalActivityId ||
+        mod.newBillable !== mod.originalBillable;
+      const hasTimeChanges = mod.newVon !== undefined || mod.newBis !== undefined;
+
+      return hasProjectChanges || hasTimeChanges;
+    }).length;
   }, [modifiedEntries]);
 
   // Termine die auswählbar sind (nicht bereits gesynced)
@@ -503,6 +515,7 @@ export default function AppointmentList({
                   "Übertragen..."
                 ) : (
                   <>
+                    <CloudUpload size={18} />
                     <span>ZEP Sync</span>
                     {(syncReadyAppointments.length > 0 || completeModificationsCount > 0) && (
                       <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 text-xs font-medium bg-white/20 rounded-full">
@@ -554,6 +567,7 @@ export default function AppointmentList({
                   "Übertragen..."
                 ) : (
                   <>
+                    <CloudUpload size={18} />
                     <span>ZEP Sync</span>
                     {(syncReadyAppointments.length > 0 || completeModificationsCount > 0) && (
                       <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 text-xs font-medium bg-white/20 rounded-full">

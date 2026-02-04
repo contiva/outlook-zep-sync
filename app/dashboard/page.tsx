@@ -665,7 +665,7 @@ export default function Dashboard() {
   const [filterDate, setFilterDate] = useState<string | null>(initialState.filterDate);
   const [hideSoloMeetings, setHideSoloMeetings] = useState(initialState.hideSoloMeetings);
   const [seriesFilterActive, setSeriesFilterActive] = useState(false);
-  const [heatmapStats, setHeatmapStats] = useState<HeatmapStats>({ synced: 0, edited: 0, unprocessed: 0 });
+  const [heatmapStats, setHeatmapStats] = useState<HeatmapStats>({ synced: 0, syncedWithChanges: 0, edited: 0, unprocessed: 0 });
   const [searchQuery, setSearchQuery] = useState("");
   const [zepEmployee, setZepEmployee] = useState<{ username: string; firstname: string; lastname: string; email: string } | null>(null);
   const [employeeLoading, setEmployeeLoading] = useState(false);
@@ -1574,15 +1574,39 @@ export default function Dashboard() {
         // Load tasks for the project before enabling edit mode
         await loadTasksForProject(syncedEntry.project_id);
 
-        // Check if Outlook time differs from ZEP time
-        const outlookStart = new Date(apt.start.dateTime);
-        const outlookEnd = new Date(apt.end.dateTime);
-        const outlookZepTimes = calculateZepTimes(outlookStart, outlookEnd);
-        const outlookVon = outlookZepTimes.start.slice(0, 5);
-        const outlookBis = outlookZepTimes.end.slice(0, 5);
+        // Get ZEP booked time
         const zepVon = syncedEntry.from.slice(0, 5);
         const zepBis = syncedEntry.to.slice(0, 5);
-        const timesNeedCorrection = outlookVon !== zepVon || outlookBis !== zepBis;
+
+        // Calculate planned time (rounded)
+        const outlookStart = new Date(apt.start.dateTime);
+        const outlookEnd = new Date(apt.end.dateTime);
+        const plannedZepTimes = calculateZepTimes(outlookStart, outlookEnd);
+        const plannedVon = plannedZepTimes.start.slice(0, 5);
+        const plannedBis = plannedZepTimes.end.slice(0, 5);
+
+        // Calculate actual time if available (rounded)
+        let actualVon: string | null = null;
+        let actualBis: string | null = null;
+        if (apt.isOnlineMeeting && apt.onlineMeeting?.joinUrl) {
+          const normalizedUrl = normalizeJoinUrl(apt.onlineMeeting.joinUrl);
+          if (normalizedUrl) {
+            const actualDuration = actualDurations.get(normalizedUrl);
+            if (actualDuration) {
+              const actualZepTimes = calculateZepTimes(
+                new Date(actualDuration.actualStart),
+                new Date(actualDuration.actualEnd)
+              );
+              actualVon = actualZepTimes.start.slice(0, 5);
+              actualBis = actualZepTimes.end.slice(0, 5);
+            }
+          }
+        }
+
+        // Check if ZEP time matches either planned or actual time
+        const matchesPlanned = zepVon === plannedVon && zepBis === plannedBis;
+        const matchesActual = actualVon !== null && actualBis !== null && zepVon === actualVon && zepBis === actualBis;
+        const timesNeedCorrection = !matchesPlanned && !matchesActual;
 
         // Calculate correct billable value based on projekt/vorgang settings
         const project = projects.find((p) => p.id === syncedEntry.project_id);
@@ -1616,8 +1640,8 @@ export default function Dashboard() {
               von: zepVon,
               bis: zepBis,
               bemerkung: syncedEntry.note || undefined,
-              // Only set new times if they need correction
-              ...(timesNeedCorrection ? { newVon: outlookVon, newBis: outlookBis } : {}),
+              // Only set new times if they need correction (use planned time as the correction target)
+              ...(timesNeedCorrection ? { newVon: plannedVon, newBis: plannedBis } : {}),
             });
             return next;
           });
@@ -1626,7 +1650,7 @@ export default function Dashboard() {
     }
 
     setEditingAppointments((prev) => new Set(prev).add(appointmentId));
-  }, [appointments, syncedEntries, loadTasksForProject, projects, tasks]);
+  }, [appointments, syncedEntries, loadTasksForProject, projects, tasks, actualDurations]);
 
   // Cancel editing a synced appointment
   const cancelEditingSyncedAppointment = useCallback((appointmentId: string) => {
@@ -2456,6 +2480,7 @@ export default function Dashboard() {
               appointments={appointments}
               syncedEntries={syncedEntries}
               submittedIds={submittedIds}
+              modifiedEntries={modifiedEntries}
               selectedDate={filterDate}
               hideSoloMeetings={hideSoloMeetings}
               userEmail={session?.user?.email || undefined}
