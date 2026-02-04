@@ -361,11 +361,11 @@ export default function CalendarHeatmap({
   const getAppointmentStatusColor = (status: AppointmentStatus): string => {
     switch (status) {
       case "synced":
-        return "bg-green-500";
+        return "bg-green-600";
       case "syncedWithChanges":
-        return "bg-amber-500";
+        return "bg-yellow-400";
       case "edited":
-        return "bg-yellow-500";
+        return "bg-amber-400";
       case "unprocessed":
         return "bg-red-400";
       case "deselected":
@@ -538,19 +538,19 @@ export function CalendarHeatmapLegend({ stats }: { stats: HeatmapStats }) {
   return (
     <div className="flex items-center justify-end gap-3 text-[10px] px-1 mt-1">
       <div className="flex items-center gap-1">
-        <div className="w-2 h-2 rounded-sm bg-green-500/60" />
+        <div className="w-2 h-2 rounded-sm bg-green-600/60" />
         <span className="text-gray-400">Synchronisiert</span>
         <span className="text-gray-400">{stats.synced}</span>
       </div>
       {stats.syncedWithChanges > 0 && (
         <div className="flex items-center gap-1">
-          <div className="w-2 h-2 rounded-sm bg-amber-500/60" />
+          <div className="w-2 h-2 rounded-sm bg-yellow-400/60" />
           <span className="text-gray-400">Änderung</span>
           <span className="text-gray-400">{stats.syncedWithChanges}</span>
         </div>
       )}
       <div className="flex items-center gap-1">
-        <div className="w-2 h-2 rounded-sm bg-yellow-500/60" />
+        <div className="w-2 h-2 rounded-sm bg-amber-400/60" />
         <span className="text-gray-400">Bearbeitet</span>
         <span className="text-gray-400">{stats.edited}</span>
       </div>

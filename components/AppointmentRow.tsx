@@ -1113,20 +1113,20 @@ export default function AppointmentRow({
     <div
       id={`appointment-${appointment.id}`}
       ref={editingRowRef}
-      className={`px-3 py-2 border-x border-b border-t transition-shadow ${
+      className={`px-3 py-2 border-r border-b border-t border-l-4 transition-shadow ${
         isFocused
           ? "ring-2 ring-blue-400 ring-inset"
           : ""
       } ${
         isSynced && isModified
-          ? "border-yellow-300 bg-linear-to-r from-amber-50 via-yellow-50/50 to-green-50"
+          ? "border-l-yellow-400 border-gray-200 bg-yellow-50/30"
           : isSynced
-            ? "border-green-200 bg-linear-to-r from-green-50 via-emerald-50/50 to-white"
+            ? "border-l-green-600 border-gray-200 bg-green-50/30"
             : isSyncReady
-              ? "border-amber-200 bg-linear-to-r from-amber-50 via-yellow-50/50 to-white"
+              ? "border-l-amber-400 border-gray-200 bg-amber-50/30"
               : appointment.selected
-                ? "border-gray-200 bg-white"
-                : "border-gray-200 bg-gray-50/50"
+                ? "border-l-red-400 border-gray-200 bg-white"
+                : "border-l-gray-300 border-gray-200 bg-gray-50/50"
       }`}
     >
       <div className="flex items-start gap-3">
