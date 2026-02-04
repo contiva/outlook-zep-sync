@@ -659,7 +659,9 @@ export default function Dashboard() {
   const [heatmapStats, setHeatmapStats] = useState<HeatmapStats>({ synced: 0, syncedWithChanges: 0, edited: 0, unprocessed: 0 });
   const [isHeatmapSticky, setIsHeatmapSticky] = useState(false);
   const [isFilterbarSticky, setIsFilterbarSticky] = useState(false);
+  const [headerHeight, setHeaderHeight] = useState(64);
   const [heatmapCardHeight, setHeatmapCardHeight] = useState(0);
+  const headerRef = useRef<HTMLElement>(null);
   const heatmapSentinelRef = useRef<HTMLDivElement>(null);
   const heatmapCardRef = useRef<HTMLDivElement>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -736,7 +738,7 @@ export default function Dashboard() {
         const heatmapSentinel = heatmapSentinelRef.current;
         if (heatmapSentinel) {
           const rect = heatmapSentinel.getBoundingClientRect();
-          const isSticky = rect.top < 64;
+          const isSticky = rect.top < headerHeight;
           // Only update state if changed
           if (isSticky !== lastSticky) {
             lastSticky = isSticky;
@@ -753,25 +755,29 @@ export default function Dashboard() {
       window.removeEventListener("scroll", handleScroll);
       if (rafId) cancelAnimationFrame(rafId);
     };
-  }, []);
+  }, [headerHeight]);
 
-  // Measure heatmap card height for sticky positioning (excludes legend)
+  // Measure header and heatmap card height for sticky positioning
   useEffect(() => {
-    const measureHeight = () => {
+    const measureHeights = () => {
+      const header = headerRef.current;
+      if (header) {
+        setHeaderHeight(header.offsetHeight);
+      }
       const card = heatmapCardRef.current;
       if (card) {
         setHeatmapCardHeight(card.offsetHeight);
       }
     };
 
-    window.addEventListener("resize", measureHeight);
-    measureHeight();
+    window.addEventListener("resize", measureHeights);
+    measureHeights();
 
     // Re-measure after content loads
-    const timeout = setTimeout(measureHeight, 200);
+    const timeout = setTimeout(measureHeights, 200);
 
     return () => {
-      window.removeEventListener("resize", measureHeight);
+      window.removeEventListener("resize", measureHeights);
       clearTimeout(timeout);
     };
   }, [startDate, endDate, appointments.length]);
@@ -2588,7 +2594,7 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-sm sticky top-0 z-40 will-change-transform">
+      <header ref={headerRef} className="bg-white shadow-sm sticky top-0 z-40 will-change-transform">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Image src="/logo.png" alt="Logo" width={32} height={32} className="h-8 w-auto" />
@@ -2642,7 +2648,7 @@ export default function Dashboard() {
         {/* Sentinel element to detect when heatmap becomes sticky */}
         <div ref={heatmapSentinelRef} className="h-0" />
         {/* Combined Date Picker and Calendar Heatmap with Legend */}
-        <div className="sticky top-16 z-30 bg-gray-50 will-change-transform">
+        <div className="sticky z-30 bg-gray-50 will-change-transform" style={{ top: `${headerHeight}px` }}>
           {/* Left navigation arrow - positioned outside the card */}
           <button
             onClick={() => navigateDay('prev')}
@@ -2734,7 +2740,7 @@ export default function Dashboard() {
         {/* Legend - separate sticky element with lower z-index than filterbar */}
         <div
           className="sticky z-20 bg-gray-50"
-          style={{ top: `${64 + heatmapCardHeight}px` }}
+          style={{ top: `${headerHeight + heatmapCardHeight}px` }}
         >
           <CalendarHeatmapLegend stats={heatmapStats} />
         </div>
@@ -2789,7 +2795,7 @@ export default function Dashboard() {
           hideSoloMeetings={hideSoloMeetings}
           onHideSoloMeetingsChange={setHideSoloMeetings}
           focusedAppointmentId={focusedAppointmentId}
-          stickyTop={63 + heatmapCardHeight}
+          stickyTop={headerHeight + heatmapCardHeight}
           onStickyChange={setIsFilterbarSticky}
         />
       </main>
