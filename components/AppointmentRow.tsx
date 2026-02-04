@@ -261,8 +261,21 @@ function AttendeePopover({ attendees, organizer, isOrganizer, isMuted }: Attende
     setIsOpen(!isOpen);
   };
 
-  const attendeeCount = attendees.length;
-  const allDomains = [...new Set(attendees.map(a => a.emailAddress.address.split('@')[1]).filter(Boolean))];
+  // Check if organizer is already in attendees list
+  const organizerInAttendees = organizer && attendees.some(
+    a => a.emailAddress.address.toLowerCase() === organizer.emailAddress.address.toLowerCase()
+  );
+  // Total count includes organizer if not already in attendees
+  const attendeeCount = attendees.length + (organizer && !organizerInAttendees ? 1 : 0);
+
+  // Collect all domains including organizer
+  const attendeeDomainList = attendees.map(a => a.emailAddress.address.split('@')[1]).filter(Boolean);
+  if (organizer && !organizerInAttendees) {
+    const organizerDomain = organizer.emailAddress.address.split('@')[1];
+    if (organizerDomain) attendeeDomainList.push(organizerDomain);
+  }
+  const allDomains = [...new Set(attendeeDomainList)];
+
   // Filter out internal domains from displayed domains
   const domains = allDomains.filter(d => !isInternalDomain(d));
 
