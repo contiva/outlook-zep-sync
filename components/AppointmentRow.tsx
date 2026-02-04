@@ -1243,24 +1243,6 @@ export default function AppointmentRow({
                 <path fill="#FFF" d="M820.211 828.193H630.241v517.297H509.211V828.193H320.123V727.844h500.088v100.349z"/>
               </svg>
             )}
-            {/* Internal/External meeting badge */}
-            {attendeeCount > 0 && (
-              isInternalOnly ? (
-                <span
-                  className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-gray-100 text-gray-600"
-                  title="Internes Meeting - nur Contiva-Teilnehmer"
-                >
-                  Intern
-                </span>
-              ) : (
-                <span
-                  className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-100 text-amber-700"
-                  title="Externes Meeting - externe Teilnehmer"
-                >
-                  Extern
-                </span>
-              )
-            )}
             {/* Call badges */}
             {appointment.type === 'call' && (
               <>
@@ -1511,6 +1493,24 @@ export default function AppointmentRow({
             <span className="px-2 py-0.5 text-xs font-medium text-green-700 bg-green-50 rounded">
               ZEP
             </span>
+          )}
+          {/* Internal/External meeting badge */}
+          {attendeeCount > 0 && (
+            isInternalOnly ? (
+              <span
+                className="px-2 py-0.5 text-xs font-medium rounded bg-gray-100 text-gray-600"
+                title="Internes Meeting - nur Contiva-Teilnehmer"
+              >
+                Intern
+              </span>
+            ) : (
+              <span
+                className="px-2 py-0.5 text-xs font-medium rounded bg-amber-100 text-amber-700"
+                title="Externes Meeting - externe Teilnehmer"
+              >
+                Extern
+              </span>
+            )
           )}
           {duplicateWarning?.hasDuplicate && !isSynced && duplicateWarning.type !== 'rescheduled' && (
             <span className="px-2 py-0.5 text-xs font-medium text-amber-700 bg-amber-50 rounded" title={duplicateWarning.message}>
