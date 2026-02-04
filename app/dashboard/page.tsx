@@ -657,12 +657,6 @@ export default function Dashboard() {
   const [hideSoloMeetings, setHideSoloMeetings] = useState(initialState.hideSoloMeetings);
   const [seriesFilterActive, setSeriesFilterActive] = useState(false);
   const [heatmapStats, setHeatmapStats] = useState<HeatmapStats>({ synced: 0, syncedWithChanges: 0, edited: 0, unprocessed: 0 });
-  const [isHeatmapSticky, setIsHeatmapSticky] = useState(false);
-  const [headerHeight, setHeaderHeight] = useState(64);
-  const [heatmapCardHeight, setHeatmapCardHeight] = useState(0);
-  const headerRef = useRef<HTMLElement>(null);
-  const heatmapSentinelRef = useRef<HTMLDivElement>(null);
-  const heatmapCardRef = useRef<HTMLDivElement>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [zepEmployee, setZepEmployee] = useState<{ username: string; firstname: string; lastname: string; email: string } | null>(null);
   const [employeeLoading, setEmployeeLoading] = useState(false);
@@ -724,85 +718,6 @@ export default function Dashboard() {
     }
   }, [status, router]);
 
-  // Detect when heatmap becomes sticky
-  useEffect(() => {
-    let rafId: number | null = null;
-    let lastSticky = false;
-
-    const handleScroll = () => {
-      if (rafId) return; // Skip if already scheduled
-
-      rafId = requestAnimationFrame(() => {
-        rafId = null;
-
-        // Ignore overscroll (rubber banding) at page boundaries
-        const scrollY = window.scrollY;
-        const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
-        if (scrollY < 0 || scrollY > maxScroll) return;
-
-        const heatmapSentinel = heatmapSentinelRef.current;
-        if (heatmapSentinel) {
-          const rect = heatmapSentinel.getBoundingClientRect();
-          const isSticky = rect.top < headerHeight;
-          // Only update state if changed
-          if (isSticky !== lastSticky) {
-            lastSticky = isSticky;
-            setIsHeatmapSticky(isSticky);
-          }
-        }
-      });
-    };
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    handleScroll();
-
-    return () => {
-      window.removeEventListener("scroll", handleScroll);
-      if (rafId) cancelAnimationFrame(rafId);
-    };
-  }, [headerHeight]);
-
-  // Measure header and heatmap card height for sticky positioning
-  // Heights are measured once on mount and only updated on window resize
-  const heightsInitialized = useRef(false);
-
-  useEffect(() => {
-    const measureHeights = () => {
-      const header = headerRef.current;
-      const card = heatmapCardRef.current;
-
-      if (header && card) {
-        const newHeaderHeight = header.offsetHeight;
-        const newHeatmapHeight = card.offsetHeight;
-
-        // Only update if not yet initialized or significant change (window resize)
-        if (!heightsInitialized.current ||
-            Math.abs(newHeaderHeight - headerHeight) > 5 ||
-            Math.abs(newHeatmapHeight - heatmapCardHeight) > 5) {
-          heightsInitialized.current = true;
-          setHeaderHeight(newHeaderHeight);
-          setHeatmapCardHeight(newHeatmapHeight);
-        }
-      }
-    };
-
-    // Only measure on window resize, not on every content change
-    const handleResize = () => {
-      // Reset initialization flag on resize to allow re-measurement
-      heightsInitialized.current = false;
-      measureHeights();
-    };
-
-    window.addEventListener("resize", handleResize);
-
-    // Initial measurement with a small delay for content to render
-    const timeout = setTimeout(measureHeights, 50);
-
-    return () => {
-      window.removeEventListener("resize", handleResize);
-      clearTimeout(timeout);
-    };
-  }, []);
 
   // Persist state to localStorage whenever it changes
   useEffect(() => {
@@ -2616,7 +2531,7 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header ref={headerRef} className="bg-white shadow-sm sticky top-0 z-40">
+      <header className="bg-white shadow-sm">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Image src="/logo.png" alt="Logo" width={32} height={32} className="h-8 w-auto" />
@@ -2666,11 +2581,9 @@ export default function Dashboard() {
         </div>
       )}
 
-      <main className="max-w-6xl mx-auto px-4 py-8 space-y-4">
-        {/* Sentinel element to detect when heatmap becomes sticky */}
-        <div ref={heatmapSentinelRef} className="h-0" />
+      <main className="max-w-6xl mx-auto px-4 pt-4 pb-8 space-y-1">
         {/* Combined Date Picker and Calendar Heatmap with Legend */}
-        <div className="sticky z-30 bg-gray-50" style={{ top: `${headerHeight}px` }}>
+        <div className="relative">
           {/* Left navigation arrow - positioned outside the card */}
           <button
             onClick={() => navigateDay('prev')}
@@ -2691,7 +2604,7 @@ export default function Dashboard() {
             <ChevronRight size={24} />
           </button>
 
-          <div ref={heatmapCardRef} className={`bg-white border border-gray-200 overflow-hidden ${isHeatmapSticky ? "rounded-none border-t-0" : "rounded-lg"}`}>
+          <div className="bg-white border border-gray-200 overflow-hidden rounded-lg shadow-md">
             <div className="flex items-center">
               <div className="flex-1">
                 <DateRangePicker
@@ -2759,13 +2672,8 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Legend - separate sticky element with lower z-index than filterbar */}
-        <div
-          className="sticky z-20 bg-gray-50"
-          style={{ top: `${headerHeight + heatmapCardHeight}px` }}
-        >
-          <CalendarHeatmapLegend stats={heatmapStats} />
-        </div>
+        {/* Legend */}
+        <CalendarHeatmapLegend stats={heatmapStats} />
 
         <AppointmentList
           appointments={filteredMergedAppointments}
@@ -2817,7 +2725,6 @@ export default function Dashboard() {
           hideSoloMeetings={hideSoloMeetings}
           onHideSoloMeetingsChange={setHideSoloMeetings}
           focusedAppointmentId={focusedAppointmentId}
-          stickyTop={headerHeight + heatmapCardHeight - 1}
         />
       </main>
     </div>
