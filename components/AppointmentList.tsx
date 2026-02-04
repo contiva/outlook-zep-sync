@@ -6,7 +6,7 @@ import AppointmentRow from "./AppointmentRow";
 import SeriesGroup from "./SeriesGroup";
 import SyncConfirmDialog from "./SyncConfirmDialog";
 import { DuplicateCheckResult } from "@/lib/zep-api";
-import { ActualDuration, ActualDurationsMap, normalizeJoinUrl } from "@/lib/teams-utils";
+import { ActualDuration, ActualDurationsMap, normalizeJoinUrl, getDurationKey } from "@/lib/teams-utils";
 
 interface Project {
   id: number;
@@ -204,7 +204,10 @@ function getActualDuration(
   }
   const normalizedUrl = normalizeJoinUrl(apt.onlineMeeting.joinUrl);
   if (!normalizedUrl) return undefined;
-  return actualDurations.get(normalizedUrl);
+  // Use date-specific key for recurring meetings (they share the same joinUrl)
+  const aptDate = new Date(apt.start.dateTime).toISOString().split("T")[0];
+  const durationKey = getDurationKey(normalizedUrl, aptDate);
+  return actualDurations.get(durationKey);
 }
 
 export default function AppointmentList({

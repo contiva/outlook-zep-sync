@@ -12,7 +12,7 @@ import AppointmentList from "@/components/AppointmentList";
 import CalendarHeatmap, { CalendarHeatmapLegend, HeatmapStats } from "@/components/CalendarHeatmap";
 import { saveSyncRecords, SyncRecord } from "@/lib/sync-history";
 import { checkAppointmentsForDuplicates, DuplicateCheckResult, ZepAttendance, calculateZepTimes } from "@/lib/zep-api";
-import { ActualDuration, ActualDurationsMap, normalizeJoinUrl } from "@/lib/teams-utils";
+import { ActualDuration, ActualDurationsMap, normalizeJoinUrl, getDurationKey } from "@/lib/teams-utils";
 import { roundToNearest15Min, timesMatch } from "@/lib/time-utils";
 
 // Helper: Determine billable status from project/task settings
@@ -319,7 +319,7 @@ function isAppointmentSynced(apt: Appointment, syncedEntries: ZepEntry[]): boole
   }
 
   const aptDateStr = new Date(apt.start.dateTime).toISOString().split("T")[0];
-  const aptSubject = apt.subject.trim();
+  const aptSubject = (apt.subject || "").trim();
 
   // Check if any synced entry matches this appointment by subject and date
   // We don't check times strictly because the entry could have been synced with
@@ -346,7 +346,7 @@ function detectSyncedTimePreference(
   }
 
   const aptDateStr = new Date(apt.start.dateTime).toISOString().split("T")[0];
-  const aptSubject = apt.subject.trim();
+  const aptSubject = (apt.subject || "").trim();
 
   // Find the matching synced entry
   const syncedEntry = syncedEntries.find((entry) => {
@@ -1150,8 +1150,11 @@ export default function Dashboard() {
               // Check if this appointment has actual duration data
               if (apt.isOnlineMeeting && apt.onlineMeeting?.joinUrl) {
                 const normalizedUrl = normalizeJoinUrl(apt.onlineMeeting.joinUrl);
-                if (normalizedUrl && durationsMap.has(normalizedUrl)) {
-                  const actual = durationsMap.get(normalizedUrl)!;
+                // Use date-specific key for recurring meetings (they share the same joinUrl)
+                const aptDate = new Date(apt.start.dateTime).toISOString().split("T")[0];
+                const durationKey = normalizedUrl ? getDurationKey(normalizedUrl, aptDate) : null;
+                if (durationKey && durationsMap.has(durationKey)) {
+                  const actual = durationsMap.get(durationKey)!;
 
                   // First, check if this appointment is already synced
                   // and detect which time was used
@@ -1712,7 +1715,10 @@ export default function Dashboard() {
         if (apt.isOnlineMeeting && apt.onlineMeeting?.joinUrl) {
           const normalizedUrl = normalizeJoinUrl(apt.onlineMeeting.joinUrl);
           if (normalizedUrl) {
-            const actualDuration = actualDurations.get(normalizedUrl);
+            // Use date-specific key for recurring meetings (they share the same joinUrl)
+            const aptDate = new Date(apt.start.dateTime).toISOString().split("T")[0];
+            const durationKey = getDurationKey(normalizedUrl, aptDate);
+            const actualDuration = actualDurations.get(durationKey);
             if (actualDuration) {
               // Use planned start + ROUNDED actual duration (so only end time changes)
               // First, calculate rounded duration from actual times
@@ -1978,7 +1984,10 @@ export default function Dashboard() {
 
     if (useActualTime && apt.isOnlineMeeting && apt.onlineMeeting?.joinUrl) {
       const normalizedUrl = normalizeJoinUrl(apt.onlineMeeting.joinUrl);
-      const actualDuration = normalizedUrl ? actualDurations.get(normalizedUrl) : undefined;
+      // Use date-specific key for recurring meetings (they share the same joinUrl)
+      const aptDate = new Date(apt.start.dateTime).toISOString().split("T")[0];
+      const durationKey = normalizedUrl ? getDurationKey(normalizedUrl, aptDate) : null;
+      const actualDuration = durationKey ? actualDurations.get(durationKey) : undefined;
 
       if (actualDuration) {
         // Use planned start time + ROUNDED actual duration (so only end time changes, not start)
@@ -2218,7 +2227,10 @@ export default function Dashboard() {
     if (apt.useActualTime && apt.isOnlineMeeting && apt.onlineMeeting?.joinUrl) {
       const normalizedUrl = normalizeJoinUrl(apt.onlineMeeting.joinUrl);
       if (normalizedUrl) {
-        const actualDuration = actualDurations.get(normalizedUrl);
+        // Use date-specific key for recurring meetings (they share the same joinUrl)
+        const aptDate = new Date(apt.start.dateTime).toISOString().split("T")[0];
+        const durationKey = getDurationKey(normalizedUrl, aptDate);
+        const actualDuration = actualDurations.get(durationKey);
         if (actualDuration) {
           // Use planned start + ROUNDED actual duration (so only end time changes)
           // First, calculate rounded duration from actual times

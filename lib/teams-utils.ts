@@ -26,6 +26,35 @@ export interface ActualDuration {
 }
 
 /**
- * Map of normalized join URLs to their actual durations
+ * Map of duration keys (normalizedUrl + date) to their actual durations
  */
 export type ActualDurationsMap = Map<string, ActualDuration>;
+
+/**
+ * Create a unique key for duration lookup combining meeting URL and date.
+ * This is necessary because recurring meetings share the same joinUrl,
+ * but each occurrence has a different actual duration.
+ *
+ * @param normalizedUrl - The normalized meeting URL
+ * @param date - The date string (YYYY-MM-DD format)
+ * @returns Combined key for duration lookup
+ */
+export function getDurationKey(normalizedUrl: string, date: string): string {
+  return `${normalizedUrl}_${date}`;
+}
+
+/**
+ * Extract the date from a duration key.
+ *
+ * @param key - The duration key (normalizedUrl_YYYY-MM-DD)
+ * @returns The date part (YYYY-MM-DD) or null if invalid
+ */
+export function getDateFromDurationKey(key: string): string | null {
+  const parts = key.split("_");
+  const datePart = parts[parts.length - 1];
+  // Validate it looks like a date
+  if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+    return datePart;
+  }
+  return null;
+}

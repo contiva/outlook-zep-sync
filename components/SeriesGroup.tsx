@@ -5,7 +5,7 @@ import { ChevronDown, ChevronRight, Repeat, Link2, Unlink2, ClockArrowUp, CheckC
 import AppointmentRow from "./AppointmentRow";
 import SearchableSelect, { SelectOption } from "./SearchableSelect";
 import { DuplicateCheckResult } from "@/lib/zep-api";
-import { ActualDuration, ActualDurationsMap, normalizeJoinUrl } from "@/lib/teams-utils";
+import { ActualDuration, ActualDurationsMap, normalizeJoinUrl, getDurationKey } from "@/lib/teams-utils";
 
 // Zugeordnete Tätigkeit (zu Projekt oder Vorgang)
 interface AssignedActivity {
@@ -162,7 +162,10 @@ function getActualDuration(
   }
   const normalizedUrl = normalizeJoinUrl(apt.onlineMeeting.joinUrl);
   if (!normalizedUrl) return undefined;
-  return actualDurations.get(normalizedUrl);
+  // Use date-specific key for recurring meetings (they share the same joinUrl)
+  const aptDate = new Date(apt.start.dateTime).toISOString().split("T")[0];
+  const durationKey = getDurationKey(normalizedUrl, aptDate);
+  return actualDurations.get(durationKey);
 }
 
 export default function SeriesGroup({

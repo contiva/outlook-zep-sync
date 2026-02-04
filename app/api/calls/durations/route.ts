@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import { authOptions } from "@/lib/auth";
-import { normalizeJoinUrl } from "@/lib/teams-utils";
+import { normalizeJoinUrl, getDurationKey } from "@/lib/teams-utils";
 
 // Azure AD credentials for Application permissions (CallRecords.Read.All requires this)
 const TENANT_ID = process.env.AZURE_AD_TENANT_ID;
@@ -156,9 +156,14 @@ export async function GET(
         if (record.type === "groupCall" && record.joinWebUrl) {
           const normalizedUrl = normalizeJoinUrl(record.joinWebUrl);
           if (normalizedUrl) {
-            // If we already have this meeting, keep the one with the longest duration
+            // Use date from the call record's start time to create unique key per occurrence
+            // This is critical for recurring meetings which share the same joinWebUrl
+            const callDate = record.startDateTime.split("T")[0];
+            const durationKey = getDurationKey(normalizedUrl, callDate);
+
+            // If we already have this meeting on this day, keep the one with the longest duration
             // (in case a meeting was restarted)
-            const existing = durations[normalizedUrl];
+            const existing = durations[durationKey];
             if (existing) {
               const existingDuration =
                 new Date(existing.actualEnd).getTime() -
@@ -167,13 +172,13 @@ export async function GET(
                 new Date(record.endDateTime).getTime() -
                 new Date(record.startDateTime).getTime();
               if (newDuration > existingDuration) {
-                durations[normalizedUrl] = {
+                durations[durationKey] = {
                   actualStart: record.startDateTime,
                   actualEnd: record.endDateTime,
                 };
               }
             } else {
-              durations[normalizedUrl] = {
+              durations[durationKey] = {
                 actualStart: record.startDateTime,
                 actualEnd: record.endDateTime,
               };
