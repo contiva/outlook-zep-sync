@@ -658,7 +658,6 @@ export default function Dashboard() {
   const [seriesFilterActive, setSeriesFilterActive] = useState(false);
   const [heatmapStats, setHeatmapStats] = useState<HeatmapStats>({ synced: 0, syncedWithChanges: 0, edited: 0, unprocessed: 0 });
   const [isHeatmapSticky, setIsHeatmapSticky] = useState(false);
-  const [isFilterbarSticky, setIsFilterbarSticky] = useState(false);
   const [headerHeight, setHeaderHeight] = useState(64);
   const [heatmapCardHeight, setHeatmapCardHeight] = useState(0);
   const headerRef = useRef<HTMLElement>(null);
@@ -735,6 +734,12 @@ export default function Dashboard() {
 
       rafId = requestAnimationFrame(() => {
         rafId = null;
+
+        // Ignore overscroll (rubber banding) at page boundaries
+        const scrollY = window.scrollY;
+        const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+        if (scrollY < 0 || scrollY > maxScroll) return;
+
         const heatmapSentinel = heatmapSentinelRef.current;
         if (heatmapSentinel) {
           const rect = heatmapSentinel.getBoundingClientRect();
@@ -758,31 +763,46 @@ export default function Dashboard() {
   }, [headerHeight]);
 
   // Measure header and heatmap card height for sticky positioning
+  // Heights are measured once on mount and only updated on window resize
+  const heightsInitialized = useRef(false);
+
   useEffect(() => {
     const measureHeights = () => {
       const header = headerRef.current;
-      if (header) {
-        setHeaderHeight(header.offsetHeight);
-      }
       const card = heatmapCardRef.current;
-      if (card) {
-        setHeatmapCardHeight(card.offsetHeight);
+
+      if (header && card) {
+        const newHeaderHeight = header.offsetHeight;
+        const newHeatmapHeight = card.offsetHeight;
+
+        // Only update if not yet initialized or significant change (window resize)
+        if (!heightsInitialized.current ||
+            Math.abs(newHeaderHeight - headerHeight) > 5 ||
+            Math.abs(newHeatmapHeight - heatmapCardHeight) > 5) {
+          heightsInitialized.current = true;
+          setHeaderHeight(newHeaderHeight);
+          setHeatmapCardHeight(newHeatmapHeight);
+        }
       }
     };
 
-    window.addEventListener("resize", measureHeights);
-    measureHeights();
+    // Only measure on window resize, not on every content change
+    const handleResize = () => {
+      // Reset initialization flag on resize to allow re-measurement
+      heightsInitialized.current = false;
+      measureHeights();
+    };
 
-    // Re-measure after content loads (multiple times to catch late renders)
-    const timeout1 = setTimeout(measureHeights, 100);
-    const timeout2 = setTimeout(measureHeights, 300);
+    window.addEventListener("resize", handleResize);
+
+    // Initial measurement with a small delay for content to render
+    const timeout = setTimeout(measureHeights, 50);
 
     return () => {
-      window.removeEventListener("resize", measureHeights);
-      clearTimeout(timeout1);
-      clearTimeout(timeout2);
+      window.removeEventListener("resize", handleResize);
+      clearTimeout(timeout);
     };
-  }, [startDate, endDate, appointments.length]);
+  }, []);
 
   // Persist state to localStorage whenever it changes
   useEffect(() => {
@@ -2596,7 +2616,7 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header ref={headerRef} className="bg-white shadow-sm sticky top-0 z-40 will-change-transform">
+      <header ref={headerRef} className="bg-white shadow-sm sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Image src="/logo.png" alt="Logo" width={32} height={32} className="h-8 w-auto" />
@@ -2650,7 +2670,7 @@ export default function Dashboard() {
         {/* Sentinel element to detect when heatmap becomes sticky */}
         <div ref={heatmapSentinelRef} className="h-0" />
         {/* Combined Date Picker and Calendar Heatmap with Legend */}
-        <div className="sticky z-30 bg-gray-50 will-change-transform" style={{ top: `${headerHeight}px` }}>
+        <div className="sticky z-30 bg-gray-50" style={{ top: `${headerHeight}px` }}>
           {/* Left navigation arrow - positioned outside the card */}
           <button
             onClick={() => navigateDay('prev')}
@@ -2671,7 +2691,7 @@ export default function Dashboard() {
             <ChevronRight size={24} />
           </button>
 
-          <div ref={heatmapCardRef} className={`bg-white border border-gray-200 overflow-hidden transition-[border-radius] ${isHeatmapSticky ? "rounded-t-none border-t-0" : "rounded-t-lg"} ${isFilterbarSticky ? "rounded-b-none" : "rounded-b-lg"}`}>
+          <div ref={heatmapCardRef} className={`bg-white border border-gray-200 overflow-hidden ${isHeatmapSticky ? "rounded-none border-t-0" : "rounded-lg"}`}>
             <div className="flex items-center">
               <div className="flex-1">
                 <DateRangePicker
@@ -2798,7 +2818,6 @@ export default function Dashboard() {
           onHideSoloMeetingsChange={setHideSoloMeetings}
           focusedAppointmentId={focusedAppointmentId}
           stickyTop={headerHeight + heatmapCardHeight - 1}
-          onStickyChange={setIsFilterbarSticky}
         />
       </main>
     </div>

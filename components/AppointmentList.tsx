@@ -303,6 +303,12 @@ export default function AppointmentList({
 
       rafId = requestAnimationFrame(() => {
         rafId = null;
+
+        // Ignore overscroll (rubber banding) at page boundaries
+        const scrollY = window.scrollY;
+        const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+        if (scrollY < 0 || scrollY > maxScroll) return;
+
         const sentinel = filterbarSentinelRef.current;
         if (!sentinel) return;
 
@@ -476,7 +482,7 @@ export default function AppointmentList({
       <div ref={filterbarSentinelRef} className="h-0" />
       {/* Header mit "Alle auswählen" Checkbox und Filter */}
       <div
-        className={`relative bg-white border border-gray-200 z-[25] transition-[border-radius] will-change-transform ${
+        className={`relative bg-white border border-gray-200 z-[25] ${
           stickyTop !== undefined ? "sticky" : ""
         } ${isFilterbarSticky ? "rounded-none border-t-0" : "rounded-t-lg"}`}
         style={stickyTop !== undefined ? { top: `${stickyTop}px` } : undefined}
