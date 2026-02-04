@@ -3,7 +3,7 @@
 import { useMemo, useState, useRef, useEffect } from "react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
-import { Users, ClockCheck, ClockArrowUp, AlertTriangle, Pencil, X, Check, HelpCircle, XCircle, Clock, RefreshCw, Ban, Banknote, Loader2 } from "lucide-react";
+import { Users, ClockCheck, ClockArrowUp, AlertTriangle, Pencil, X, Check, RefreshCw, RotateCcw, Ban, Banknote, Loader2 } from "lucide-react";
 import SearchableSelect, { SelectOption } from "./SearchableSelect";
 import { DuplicateCheckResult } from "@/lib/zep-api";
 import { ActualDuration } from "@/lib/teams-utils";
@@ -195,13 +195,13 @@ function AttendeeStatusIcon({ response }: { response: string }) {
     case "accepted":
       return <Check size={12} className="text-green-600" />;
     case "tentativelyAccepted":
-      return <HelpCircle size={12} className="text-amber-500" />;
+      return <span className="text-amber-500 text-[10px]">?</span>;
     case "declined":
-      return <XCircle size={12} className="text-red-500" />;
+      return <X size={12} className="text-red-500" />;
     case "organizer":
       return <span className="text-blue-600 text-xs font-medium">★</span>;
     default:
-      return <Clock size={12} className="text-gray-400" />;
+      return <span className="text-gray-400 text-[10px]">–</span>;
   }
 }
 
@@ -263,11 +263,10 @@ function AttendeePopover({ attendees, organizer, isOrganizer, isMuted }: Attende
 
   return (
     <div className="relative inline-flex items-center">
-      <span className={isMuted ? "text-gray-200" : "text-gray-300"}>•</span>
       <button
         ref={triggerRef}
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-1.5 ml-2 hover:text-gray-700 transition-colors"
+        className={`flex items-center gap-1 text-xs hover:text-gray-700 transition-colors ${isMuted ? "text-gray-400" : "text-gray-500"}`}
         title="Teilnehmer anzeigen"
       >
         <Users size={11} />
@@ -282,12 +281,12 @@ function AttendeePopover({ attendees, organizer, isOrganizer, isMuted }: Attende
       {isOpen && (
         <div
           ref={popoverRef}
-          className="absolute left-0 top-full mt-1 z-50 bg-white rounded-lg shadow-lg border border-gray-200 p-3 min-w-70 max-w-90"
+          className="absolute left-0 top-full mt-1 z-50 bg-white rounded-lg shadow-lg border border-gray-200 p-3 min-w-70 max-w-90 font-[Inter]"
         >
           <div className="text-xs font-medium text-gray-700 mb-2">
             {attendeeCount} Teilnehmer
           </div>
-          
+
           {/* Organizer - highlighted at top */}
           {organizer && (
             <div className="mb-3 p-2 bg-blue-50 rounded-lg border border-blue-100">
@@ -305,7 +304,7 @@ function AttendeePopover({ attendees, organizer, isOrganizer, isMuted }: Attende
               </div>
             </div>
           )}
-          
+
           <div className="space-y-2 max-h-75 overflow-y-auto">
             {/* Accepted */}
             {accepted.length > 0 && (
@@ -384,28 +383,68 @@ function AttendeeItem({ attendee }: { attendee: Attendee }) {
   );
 }
 
-// Time Deviation Popover Component
-interface TimeDeviationPopoverProps {
-  outlookStart: string;  // Original Outlook start time (HH:mm)
-  outlookEnd: string;    // Original Outlook end time (HH:mm)
-  zepStart: string;      // ZEP start time (HH:mm) - rounded or actual
-  zepEnd: string;        // ZEP end time (HH:mm) - rounded or actual
-  reason: 'rounded' | 'actual' | 'both';  // Why times differ
-  actualStart?: string;  // Actual meeting start (HH:mm) if available
-  actualEnd?: string;    // Actual meeting end (HH:mm) if available
-  children: React.ReactNode;  // The date/time content to wrap
+// Duration Info Popover Component - explains Plan vs Ist times with rounding details
+interface DurationInfoPopoverProps {
+  // Original times from Outlook (unrounded)
+  originalStart: string;
+  originalEnd: string;
+  originalDurationMinutes: number;
+  // Rounded times for ZEP
+  plannedStart: string;
+  plannedEnd: string;
+  plannedDurationMinutes: number;
+  // Actual times from call records (if available)
+  originalActualStart?: string;
+  originalActualEnd?: string;
+  originalActualDurationMinutes?: number;
+  // Rounded actual times for ZEP
+  actualStart?: string;
+  actualEnd?: string;
+  actualDurationMinutes?: number;
+  hasActualData: boolean;
+  // Time deviation indicator
+  hasDeviation?: boolean;
+  // Currently selected time type (for non-synced entries)
+  useActualTime?: boolean;
+  // Synced time type (for synced entries) - 'planned', 'actual', 'other', or null
+  syncedTimeType?: 'planned' | 'actual' | 'other' | null;
+  // Callback to change time type (useActualTime: true = Ist, false = Plan)
+  onTimeTypeChange?: (useActualTime: boolean) => void;
+  // Whether switching is allowed (e.g., disabled for synced entries not in edit mode)
+  canSwitch?: boolean;
+  // Optional children to wrap (e.g., date/time display)
+  children?: React.ReactNode;
 }
 
-function TimeDeviationPopover({
-  outlookStart,
-  outlookEnd,
-  zepStart,
-  zepEnd,
-  reason,
+function formatDuration(minutes: number): string {
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  if (hours > 0 && mins > 0) return `${hours}h ${mins}min`;
+  if (hours > 0) return `${hours}h`;
+  return `${mins}min`;
+}
+
+function DurationInfoPopover({
+  originalStart,
+  originalEnd,
+  originalDurationMinutes,
+  plannedStart,
+  plannedEnd,
+  plannedDurationMinutes,
+  originalActualStart,
+  originalActualEnd,
+  originalActualDurationMinutes,
   actualStart,
   actualEnd,
-  children
-}: TimeDeviationPopoverProps) {
+  actualDurationMinutes,
+  hasActualData,
+  hasDeviation,
+  useActualTime,
+  syncedTimeType,
+  onTimeTypeChange,
+  canSwitch = false,
+  children,
+}: DurationInfoPopoverProps) {
   const [isOpen, setIsOpen] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -429,54 +468,168 @@ function TimeDeviationPopover({
     }
   }, [isOpen]);
 
+  const plannedWasRounded = originalStart !== plannedStart || originalEnd !== plannedEnd;
+  const actualWasRounded = hasActualData && originalActualStart && actualStart &&
+    (originalActualStart !== actualStart || originalActualEnd !== actualEnd);
+
+  // Determine which time is selected
+  // For synced entries: use syncedTimeType
+  // For non-synced entries: use useActualTime
+  const isIstSelected = syncedTimeType
+    ? syncedTimeType === 'actual'
+    : (useActualTime === true && hasActualData);
+  const isPlanSelected = syncedTimeType
+    ? syncedTimeType === 'planned'
+    : !isIstSelected;
+
   return (
     <span className="relative inline-flex items-center">
-      <button
-        ref={triggerRef}
-        onClick={() => setIsOpen(!isOpen)}
-        className="hover:text-gray-700 transition-colors cursor-pointer"
-        title="Zeitabweichung - klicken für Details"
-      >
-        {children}
-        <sup className="ml-0.5 text-[8px] text-amber-500">✱</sup>
-      </button>
+      {children && (
+        <button
+          ref={triggerRef}
+          onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen); }}
+          className="hover:text-gray-700 transition-colors cursor-pointer"
+          title="Zeitoptionen anzeigen"
+        >
+          {children}
+        </button>
+      )}
+      {!children && (
+        <button
+          ref={triggerRef}
+          onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen); }}
+          className="text-gray-500 px-1.5 py-0.5 hover:text-gray-700 transition-colors cursor-pointer"
+          title="Klicken für Details"
+        >
+          Dauer:
+        </button>
+      )}
 
       {isOpen && (
         <div
           ref={popoverRef}
-          className="absolute left-0 top-full mt-1 z-50 bg-white rounded-lg shadow-lg border border-gray-200 p-3 min-w-48"
+          className="absolute left-0 top-full mt-1 z-50 bg-white rounded-lg shadow-lg border border-gray-200 p-3 min-w-64 font-[Inter]"
         >
           <div className="text-xs font-medium text-gray-700 mb-2">
-            Zeitabweichung
+            Zeitoptionen für ZEP
           </div>
 
-          <div className="space-y-1.5 text-xs">
-            {/* Original Outlook time */}
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-gray-500">Outlook:</span>
-              <span className="font-mono text-gray-700">{outlookStart}–{outlookEnd}</span>
-            </div>
-
-            {/* Actual time if available and different */}
-            {actualStart && actualEnd && (actualStart !== outlookStart || actualEnd !== outlookEnd) && (
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-gray-500">Tatsächlich:</span>
-                <span className="font-mono text-gray-700">{actualStart}–{actualEnd}</span>
+          <div className="space-y-2 text-xs">
+            {/* Plan time explanation */}
+            <button
+              type="button"
+              onClick={() => canSwitch && onTimeTypeChange?.(false)}
+              disabled={!canSwitch || isPlanSelected}
+              className={`w-full text-left p-2 rounded-lg border transition-all ${
+                isPlanSelected
+                  ? "bg-blue-50 border-blue-200 ring-1 ring-blue-300"
+                  : canSwitch
+                    ? "bg-blue-50/50 border-blue-100 hover:bg-blue-50 hover:border-blue-200 cursor-pointer"
+                    : "bg-blue-50/50 border-blue-100"
+              }`}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${isPlanSelected ? "bg-blue-200 text-blue-800" : "bg-blue-100 text-blue-700"}`}>
+                  {isPlanSelected && <Check size={10} />}
+                  Plan
+                </span>
+                <span className="text-[10px] text-gray-500">Geplante Dauer laut Outlook-Termin</span>
+                {isPlanSelected && <span className="ml-auto text-[10px] text-blue-600 font-medium">Aktiv</span>}
+                {!isPlanSelected && canSwitch && <span className="ml-auto text-[10px] text-blue-500">Auswählen</span>}
               </div>
-            )}
+              <div className="space-y-0.5">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-500">Outlook:</span>
+                  <span className="text-gray-600 tabular-nums">
+                    {originalStart}–{originalEnd} ({formatDuration(originalDurationMinutes)})
+                  </span>
+                </div>
+                {plannedWasRounded && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-500">Für ZEP:</span>
+                    <span className="text-blue-600 font-medium tabular-nums">
+                      {plannedStart}–{plannedEnd} ({formatDuration(plannedDurationMinutes)})
+                    </span>
+                  </div>
+                )}
+              </div>
+              {plannedWasRounded && (
+                <div className="text-[10px] text-gray-400 mt-1">
+                  ↳ Auf 15-Minuten-Raster gerundet
+                </div>
+              )}
+            </button>
 
-            {/* ZEP time */}
-            <div className="flex items-center justify-between gap-4 pt-1 border-t border-gray-100">
-              <span className="text-gray-500 font-medium">Für ZEP:</span>
-              <span className="font-mono text-amber-600 font-medium">{zepStart}–{zepEnd}</span>
-            </div>
+            {/* Actual time explanation */}
+            <button
+              type="button"
+              onClick={() => canSwitch && hasActualData && onTimeTypeChange?.(true)}
+              disabled={!canSwitch || !hasActualData || isIstSelected}
+              className={`w-full text-left p-2 rounded-lg border transition-all ${
+                isIstSelected
+                  ? "bg-orange-50 border-orange-200 ring-1 ring-orange-300"
+                  : hasActualData && canSwitch
+                    ? "bg-orange-50/50 border-orange-100 hover:bg-orange-50 hover:border-orange-200 cursor-pointer"
+                    : hasActualData
+                      ? "bg-orange-50/50 border-orange-100"
+                      : "bg-gray-50 border-gray-200"
+              }`}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                  isIstSelected
+                    ? "bg-orange-200 text-orange-800"
+                    : hasActualData
+                      ? "bg-orange-100 text-orange-700"
+                      : "bg-gray-100 text-gray-400"
+                }`}>
+                  {isIstSelected && <Check size={10} />}
+                  Ist
+                </span>
+                <span className={`text-[10px] ${hasActualData ? "text-gray-500" : "text-gray-400"}`}>
+                  {hasActualData
+                    ? "Tatsächliche Dauer aus Teams-Anrufdaten"
+                    : "Keine Anrufdaten verfügbar"
+                  }
+                </span>
+                {isIstSelected && <span className="ml-auto text-[10px] text-orange-600 font-medium">Aktiv</span>}
+                {!isIstSelected && hasActualData && canSwitch && <span className="ml-auto text-[10px] text-orange-500">Auswählen</span>}
+              </div>
+              {hasActualData && originalActualStart && originalActualEnd && originalActualDurationMinutes !== undefined && (
+                <div className="space-y-0.5">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-500">Teams:</span>
+                    <span className="text-gray-600 tabular-nums">
+                      {originalActualStart}–{originalActualEnd} ({formatDuration(originalActualDurationMinutes)})
+                    </span>
+                  </div>
+                  {actualWasRounded && actualStart && actualEnd && actualDurationMinutes !== undefined && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-500">Für ZEP:</span>
+                      <span className="text-orange-600 font-medium tabular-nums">
+                        {actualStart}–{actualEnd} ({formatDuration(actualDurationMinutes)})
+                      </span>
+                    </div>
+                  )}
+                  {actualWasRounded && (
+                    <div className="text-[10px] text-gray-400 mt-1">
+                      ↳ Auf 15-Minuten-Raster gerundet
+                    </div>
+                  )}
+                </div>
+              )}
+            </button>
           </div>
 
-          {/* Reason explanation */}
-          <div className="mt-2 pt-2 border-t border-gray-100 text-[10px] text-gray-400">
-            {reason === 'rounded' && "Auf 15-Minuten-Raster gerundet"}
-            {reason === 'actual' && "Tatsächliche Meeting-Dauer verwendet"}
-            {reason === 'both' && "Tatsächliche Dauer + Rundung auf 15min"}
+          {hasDeviation && (
+            <div className="mt-2 pt-2 border-t border-gray-100 flex items-center gap-1.5 text-[10px] text-amber-600">
+              <span className="text-amber-500">✱</span>
+              <span>Die Zeit für ZEP weicht vom Outlook-Termin ab</span>
+            </div>
+          )}
+
+          <div className={`text-[10px] text-gray-400 ${hasDeviation ? "mt-1.5" : "mt-2 pt-2 border-t border-gray-100"}`}>
+            Wähle die Zeit, die in ZEP gebucht werden soll
           </div>
         </div>
       )}
@@ -525,6 +678,9 @@ export default function AppointmentRow({
   const startTime = format(startDate, "HH:mm");
   const endTime = format(endDate, "HH:mm");
 
+  // Original (unrounded) duration in minutes
+  const originalDurationMinutes = Math.round((endDate.getTime() - startDate.getTime()) / 60000);
+
   // Ref for the editing UI to detect clicks outside
   const editingRowRef = useRef<HTMLDivElement>(null);
 
@@ -550,6 +706,10 @@ export default function AppointmentRow({
     const actualStart = new Date(actualDuration.actualStart);
     const actualEnd = new Date(actualDuration.actualEnd);
 
+    // Calculate original (unrounded) duration
+    const originalDurationMs = actualEnd.getTime() - actualStart.getTime();
+    const originalDurationMinutes = Math.round(originalDurationMs / 60000);
+
     // For DISPLAY: use real call record times (rounded)
     const display = calculateDisplayTimes(actualStart, actualEnd);
     const difference = display.durationMinutes - plannedDurationRounded.totalMinutes;
@@ -570,6 +730,10 @@ export default function AppointmentRow({
       difference,
       // Color based on difference: green if shorter, orange if longer, gray if same
       color: difference < 0 ? "text-green-600" : difference > 0 ? "text-orange-600" : "text-gray-500",
+      // Original times (unrounded from call records)
+      originalStart: formatTime(actualStart),
+      originalEnd: formatTime(actualEnd),
+      originalDurationMinutes,
       // Display times (real call record times, rounded)
       startRounded: display.startFormatted,
       endRounded: display.endFormatted,
@@ -688,15 +852,17 @@ export default function AppointmentRow({
   const attendeeDomains = [...new Set(attendees.map(a => a.emailAddress.address.split('@')[1]).filter(Boolean))];
   const isInternalOnly = attendeeCount > 0 && attendeeDomains.length === 1 && attendeeDomains[0] === "contiva.com";
 
-  // Konvertiere Projekte zu SelectOptions
+  // Konvertiere Projekte zu SelectOptions (nur Projekte mit Tasks anzeigen)
   const projectOptions: SelectOption[] = useMemo(
     () =>
-      projects.map((p) => ({
-        value: p.id,
-        label: p.name,
-        description: p.description || null,
-      })),
-    [projects]
+      projects
+        .filter((p) => allTasks && allTasks[p.id] && allTasks[p.id].length > 0)
+        .map((p) => ({
+          value: p.id,
+          label: p.name,
+          description: p.description || null,
+        })),
+    [projects, allTasks]
   );
 
   // Konvertiere Tasks zu SelectOptions
@@ -956,128 +1122,39 @@ export default function AppointmentRow({
         <div className="flex-1 min-w-0">
           {/* Title row with duration */}
           <div className="flex items-center gap-1.5">
-            {appointment.subject ? (
-              <span className={`font-bold text-sm truncate ${isMuted ? "text-gray-400" : "text-gray-900"}`}>{appointment.subject}</span>
-            ) : (
-              <span className="font-medium text-gray-400 text-sm italic">Kein Titel definiert</span>
-            )}
-            {/* Organizer - inline after title */}
+            {/* Title and organizer grouped with baseline alignment */}
+            <div className="flex items-baseline gap-1.5 min-w-0">
+              {appointment.subject ? (
+                <span className={`font-bold text-sm truncate ${isMuted ? "text-gray-400" : "text-gray-900"}`}>{appointment.subject}</span>
+              ) : (
+                <span className="font-medium text-gray-400 text-sm italic">Kein Titel definiert</span>
+              )}
+              {/* Organizer - inline after title */}
+              {appointment.organizer && (
+                <span
+                  className={`text-xs font-light shrink-0 ${isMuted ? "text-gray-400" : "text-gray-500"}`}
+                  title={appointment.organizer.emailAddress.address}
+                >
+                  {appointment.isOrganizer ? "von Dir" : `von ${formatName(appointment.organizer.emailAddress.name) || appointment.organizer.emailAddress.address}`}
+                </span>
+              )}
+            </div>
+            {/* Separator after organizer */}
             {appointment.organizer && (
-              <span
-                className={`text-xs font-light shrink-0 ${isMuted ? "text-gray-400" : "text-gray-500"}`}
-                title={appointment.organizer.emailAddress.address}
-              >
-                {appointment.isOrganizer ? "von Dir" : `von ${formatName(appointment.organizer.emailAddress.name) || appointment.organizer.emailAddress.address}`}
-              </span>
+              <span className={`text-xs ${isMuted ? "text-gray-200" : "text-gray-300"}`}>•</span>
             )}
-            {/* Duration badge - shows both times for synced entries with checkmark on synced one */}
-            {isSynced && !isEditing && zepBookedDuration ? (
-              // Synced (not editing): Show both times with checkmark on synced one
-              <span
-                className={`inline-flex items-center gap-0.5 text-[10px] rounded ${isMuted ? "bg-gray-100 text-gray-400" : "bg-gray-100"}`}
-                title={`In ZEP gebucht: ${zepBookedDuration.from}–${zepBookedDuration.to}`}
-              >
-                {/* Planned time - with checkmark if synced */}
-                <span
-                  className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-l ${
-                    syncedTimeType === 'planned'
-                      ? "bg-green-100 text-green-700 font-medium"
-                      : "text-gray-400"
-                  }`}
-                  title={`Geplant: ${plannedDurationRounded.startFormatted}–${plannedDurationRounded.endFormatted}${syncedTimeType === 'planned' ? ' ✓ In ZEP gebucht' : ''}`}
-                >
-                  {syncedTimeType === 'planned' && <ClockCheck size={10} className="text-green-600" />}
-                  {plannedDurationRounded.hours > 0 ? `${plannedDurationRounded.hours}h${plannedDurationRounded.minutes > 0 ? plannedDurationRounded.minutes : ''}` : `${plannedDurationRounded.minutes}m`}
-                </span>
-                <span className="text-gray-300">|</span>
-                {/* Actual time - with checkmark if synced */}
-                <span
-                  className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-r ${
-                    syncedTimeType === 'actual'
-                      ? "bg-green-100 text-green-700 font-medium"
-                      : actualDurationInfo
-                        ? actualDurationInfo.color
-                        : "text-gray-300"
-                  }`}
-                  title={actualDurationInfo
-                    ? `Tatsächlich: ${actualDurationInfo.startRounded}–${actualDurationInfo.endRounded}${syncedTimeType === 'actual' ? ' ✓ In ZEP gebucht' : ''}`
-                    : "Keine tatsächliche Zeit verfügbar"
-                  }
-                >
-                  {syncedTimeType === 'actual' && <ClockCheck size={10} className="text-green-600" />}
-                  {actualDurationInfo
-                    ? (actualDurationInfo.hours > 0 ? `${actualDurationInfo.hours}h${actualDurationInfo.minutes > 0 ? actualDurationInfo.minutes : ''}` : `${actualDurationInfo.minutes}m`)
-                    : "--"
-                  }
-                </span>
-              </span>
-            ) : (
-              // Not synced or editing: Show both times as toggle buttons
-              <span
-                className={`inline-flex items-center gap-0.5 text-[10px] rounded ring-1 ${isMuted ? "bg-gray-100 text-gray-400 ring-gray-200" : "bg-gray-100 ring-blue-300"}`}
-                title={actualDurationInfo
-                  ? `Geplant: ${plannedDurationRounded.hours > 0 ? `${plannedDurationRounded.hours}h ${plannedDurationRounded.minutes}min` : `${plannedDurationRounded.minutes}min`} | Tatsächlich: ${actualDurationInfo.hours > 0 ? `${actualDurationInfo.hours}h ${actualDurationInfo.minutes}min` : `${actualDurationInfo.minutes}min`}`
-                  : `Geplant: ${plannedDurationRounded.hours > 0 ? `${plannedDurationRounded.hours}h ${plannedDurationRounded.minutes}min` : `${plannedDurationRounded.minutes}min`} | Tatsächlich: keine Daten`
-                }
-              >
-                {/* Planned time button */}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (!actualDurationInfo) return; // Can't toggle without actual data
-                    if (isEditing && syncedEntry && onModifyTime) {
-                      onModifyTime(appointment.id, appointment, syncedEntry, false);
-                    } else {
-                      onUseActualTimeChange?.(appointment.id, false);
-                    }
-                  }}
-                  disabled={!actualDurationInfo}
-                  className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-l transition-colors ${
-                    !appointment.useActualTime || !actualDurationInfo
-                      ? "bg-blue-100 text-blue-700 font-medium"
-                      : "text-gray-400 hover:text-gray-600 hover:bg-gray-200"
-                  } ${!actualDurationInfo ? "cursor-default" : "cursor-pointer"}`}
-                  title={`Geplant (gerundet): ${plannedDurationRounded.hours > 0 ? `${plannedDurationRounded.hours}h ${plannedDurationRounded.minutes}min` : `${plannedDurationRounded.minutes}min`} - für ZEP verwenden`}
-                >
-                  {(!appointment.useActualTime || !actualDurationInfo) && <Check size={10} />}
-                  {plannedDurationRounded.hours > 0 ? `${plannedDurationRounded.hours}h${plannedDurationRounded.minutes > 0 ? plannedDurationRounded.minutes : ''}` : `${plannedDurationRounded.minutes}m`}
-                </button>
-                <span className="text-gray-300">|</span>
-                {/* Actual time button - disabled if no actual data or if times are equal */}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (!actualDurationInfo || actualDurationInfo.difference === 0) return;
-                    if (isEditing && syncedEntry && onModifyTime) {
-                      onModifyTime(appointment.id, appointment, syncedEntry, true);
-                    } else {
-                      onUseActualTimeChange?.(appointment.id, true);
-                    }
-                  }}
-                  disabled={!actualDurationInfo || actualDurationInfo.difference === 0}
-                  className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-r transition-colors ${
-                    !actualDurationInfo || actualDurationInfo.difference === 0
-                      ? "text-gray-300 cursor-default"
-                      : appointment.useActualTime
-                        ? `bg-blue-100 font-medium ${actualDurationInfo.color}`
-                        : `${actualDurationInfo.color} hover:bg-gray-200`
-                  }`}
-                  title={!actualDurationInfo
-                    ? "Keine tatsächliche Zeit verfügbar"
-                    : actualDurationInfo.difference === 0
-                      ? "Tatsächliche Zeit entspricht der geplanten Zeit"
-                      : `Tatsächlich (gerundet): ${actualDurationInfo.hours > 0 ? `${actualDurationInfo.hours}h ${actualDurationInfo.minutes}min` : `${actualDurationInfo.minutes}min`} - für ZEP verwenden`
-                  }
-                >
-                  {actualDurationInfo && appointment.useActualTime && actualDurationInfo.difference !== 0 && <Check size={10} />}
-                  {actualDurationInfo
-                    ? (actualDurationInfo.hours > 0 ? `${actualDurationInfo.hours}h${actualDurationInfo.minutes > 0 ? actualDurationInfo.minutes : ''}` : `${actualDurationInfo.minutes}m`)
-                    : "--"
-                  }
-                </button>
-              </span>
+            {/* Attendees with Popover */}
+            {attendeeCount > 0 && (
+              <AttendeePopover
+                attendees={attendees}
+                organizer={appointment.organizer}
+                isOrganizer={appointment.isOrganizer}
+                isMuted={isMuted}
+              />
+            )}
+            {/* Separator after attendees */}
+            {attendeeCount > 0 && (
+              <span className={`text-xs ${isMuted ? "text-gray-200" : "text-gray-300"}`}>•</span>
             )}
             {/* Cancelled badge */}
             {appointment.isCancelled && (
@@ -1164,53 +1241,209 @@ export default function AppointmentRow({
           
           {/* Details row - Date/Time, Organizer, Attendee Domains */}
           <div className={`flex items-center gap-2 text-xs mt-0.5 ${isMuted ? "text-gray-400" : "text-gray-500"}`}>
-            {/* Date and Time - show ZEP booked time for synced (not editing), rounded times otherwise */}
-            {(() => {
-              // Build the time display content
-              const timeContent = (
-                <>
-                  {isSynced && !isEditing && zepBookedDuration ? (
-                    <span className={`font-semibold ${isMuted ? "text-gray-400" : "text-gray-700"}`}>{zepBookedDuration.from}–{zepBookedDuration.to}</span>
-                  ) : actualDurationInfo ? (
-                    <span className={`font-semibold ${isMuted ? "text-gray-400" : "text-gray-700"}`}>
-                      {appointment.useActualTime
-                        ? `${actualDurationInfo.zepStart}–${actualDurationInfo.zepEnd}`
-                        : `${plannedDurationRounded.startFormatted}–${plannedDurationRounded.endFormatted}`
-                      }
-                    </span>
-                  ) : (
-                    <span className={`font-semibold ${isMuted ? "text-gray-400" : "text-gray-700"}`}>{plannedDurationRounded.startFormatted}–{plannedDurationRounded.endFormatted}</span>
-                  )}
-                  <span className={`ml-1 font-medium ${isMuted ? "text-gray-400" : "text-gray-500"}`}>{dayLabel}</span>
-                </>
-              );
+            {/* Date and Time - clickable to show time options popover */}
+            <DurationInfoPopover
+              originalStart={startTime}
+              originalEnd={endTime}
+              originalDurationMinutes={originalDurationMinutes}
+              plannedStart={plannedDurationRounded.startFormatted}
+              plannedEnd={plannedDurationRounded.endFormatted}
+              plannedDurationMinutes={plannedDurationRounded.totalMinutes}
+              originalActualStart={actualDurationInfo?.originalStart}
+              originalActualEnd={actualDurationInfo?.originalEnd}
+              originalActualDurationMinutes={actualDurationInfo?.originalDurationMinutes}
+              actualStart={actualDurationInfo?.zepStart}
+              actualEnd={actualDurationInfo?.zepEnd}
+              actualDurationMinutes={actualDurationInfo?.totalMinutes}
+              hasActualData={!!actualDurationInfo}
+              hasDeviation={!!timeDeviation}
+              useActualTime={appointment.useActualTime}
+              syncedTimeType={syncedTimeType}
+              canSwitch={(!isSynced || isEditing) && !!actualDurationInfo && actualDurationInfo.difference !== 0}
+              onTimeTypeChange={(useActual) => {
+                if (isEditing && syncedEntry && onModifyTime) {
+                  onModifyTime(appointment.id, appointment, syncedEntry, useActual);
+                } else if (!isSynced) {
+                  onUseActualTimeChange?.(appointment.id, useActual);
+                }
+              }}
+            >
+              <span className="relative pr-2">
+                {isSynced && !isEditing && zepBookedDuration ? (
+                  <span className={`font-semibold ${isMuted ? "text-gray-400" : "text-gray-700"}`}>{zepBookedDuration.from}–{zepBookedDuration.to}</span>
+                ) : actualDurationInfo ? (
+                  <span className={`font-semibold ${isMuted ? "text-gray-400" : "text-gray-700"}`}>
+                    {appointment.useActualTime
+                      ? `${actualDurationInfo.zepStart}–${actualDurationInfo.zepEnd}`
+                      : `${plannedDurationRounded.startFormatted}–${plannedDurationRounded.endFormatted}`
+                    }
+                  </span>
+                ) : (
+                  <span className={`font-semibold ${isMuted ? "text-gray-400" : "text-gray-700"}`}>{plannedDurationRounded.startFormatted}–{plannedDurationRounded.endFormatted}</span>
+                )}
+                <span className={`ml-1 font-medium ${isMuted ? "text-gray-400" : "text-gray-500"}`}>{dayLabel}</span>
+                {timeDeviation && (
+                  <sup className="absolute right-0.5 top-1 text-[8px] text-amber-500">✱</sup>
+                )}
+              </span>
+            </DurationInfoPopover>
 
-              // Wrap in popover if there's a deviation, otherwise just show the content
-              return timeDeviation ? (
-                <TimeDeviationPopover
-                  outlookStart={timeDeviation.outlookStart}
-                  outlookEnd={timeDeviation.outlookEnd}
-                  zepStart={timeDeviation.zepStart}
-                  zepEnd={timeDeviation.zepEnd}
-                  reason={timeDeviation.reason}
-                  actualStart={timeDeviation.actualStart}
-                  actualEnd={timeDeviation.actualEnd}
+            {/* Separator before duration badge */}
+            <span className={`text-xs ${isMuted ? "text-gray-200" : "text-gray-300"}`}>•</span>
+
+            {/* Duration badge - shows both times for synced entries with checkmark on synced one */}
+            {isSynced && !isEditing && zepBookedDuration ? (
+              // Synced (not editing): Show both times with checkmark on synced one
+              <span
+                className={`inline-flex items-center gap-0.5 text-[11px] rounded ${isMuted ? "bg-gray-100 text-gray-400" : "bg-gray-100"}`}
+                title={`In ZEP gebucht: ${zepBookedDuration.from}–${zepBookedDuration.to}`}
+              >
+                <DurationInfoPopover
+                  originalStart={startTime}
+                  originalEnd={endTime}
+                  originalDurationMinutes={originalDurationMinutes}
+                  plannedStart={plannedDurationRounded.startFormatted}
+                  plannedEnd={plannedDurationRounded.endFormatted}
+                  plannedDurationMinutes={plannedDurationRounded.totalMinutes}
+                  originalActualStart={actualDurationInfo?.originalStart}
+                  originalActualEnd={actualDurationInfo?.originalEnd}
+                  originalActualDurationMinutes={actualDurationInfo?.originalDurationMinutes}
+                  actualStart={actualDurationInfo?.zepStart}
+                  actualEnd={actualDurationInfo?.zepEnd}
+                  actualDurationMinutes={actualDurationInfo?.totalMinutes}
+                  hasActualData={!!actualDurationInfo}
+                  hasDeviation={!!timeDeviation}
+                  useActualTime={appointment.useActualTime}
+                  syncedTimeType={syncedTimeType}
+                  canSwitch={false}
+                />
+                {/* Planned time - with checkmark if synced */}
+                <span
+                  className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-l ${
+                    syncedTimeType === 'planned'
+                      ? "bg-green-100 text-green-700 font-medium"
+                      : "text-gray-400"
+                  }`}
+                  title={`Geplant: ${plannedDurationRounded.startFormatted}–${plannedDurationRounded.endFormatted}${syncedTimeType === 'planned' ? ' ✓ In ZEP gebucht' : ''}`}
                 >
-                  {timeContent}
-                </TimeDeviationPopover>
-              ) : (
-                <span>{timeContent}</span>
-              );
-            })()}
-            
-            {/* Attendees with Popover */}
-            {attendeeCount > 0 && (
-              <AttendeePopover
-                attendees={attendees}
-                organizer={appointment.organizer}
-                isOrganizer={appointment.isOrganizer}
-                isMuted={isMuted}
-              />
+                  {syncedTimeType === 'planned' && <ClockCheck size={10} className="text-green-600" />}
+                  {plannedDurationRounded.hours > 0 ? `${plannedDurationRounded.hours}h${plannedDurationRounded.minutes > 0 ? plannedDurationRounded.minutes : ''}` : `${plannedDurationRounded.minutes}m`}
+                </span>
+                <span className="text-gray-300">|</span>
+                {/* Actual time - with checkmark if synced */}
+                <span
+                  className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-r ${
+                    syncedTimeType === 'actual'
+                      ? "bg-green-100 text-green-700 font-medium"
+                      : actualDurationInfo
+                        ? actualDurationInfo.color
+                        : "text-gray-300"
+                  }`}
+                  title={actualDurationInfo
+                    ? `Tatsächlich: ${actualDurationInfo.startRounded}–${actualDurationInfo.endRounded}${syncedTimeType === 'actual' ? ' ✓ In ZEP gebucht' : ''}`
+                    : "Keine tatsächliche Zeit verfügbar"
+                  }
+                >
+                  {syncedTimeType === 'actual' && <ClockCheck size={10} className="text-green-600" />}
+                  {actualDurationInfo
+                    ? (actualDurationInfo.hours > 0 ? `${actualDurationInfo.hours}h${actualDurationInfo.minutes > 0 ? actualDurationInfo.minutes : ''}` : `${actualDurationInfo.minutes}m`)
+                    : "--"
+                  }
+                </span>
+              </span>
+            ) : (
+              // Not synced or editing: Show both times as toggle buttons
+              <span
+                className={`inline-flex items-center gap-0.5 text-[11px] rounded ring-1 ${isMuted ? "bg-gray-100 text-gray-400 ring-gray-200" : "bg-gray-100 ring-blue-300"}`}
+                title={actualDurationInfo
+                  ? `Geplant: ${plannedDurationRounded.hours > 0 ? `${plannedDurationRounded.hours}h ${plannedDurationRounded.minutes}min` : `${plannedDurationRounded.minutes}min`} | Tatsächlich: ${actualDurationInfo.hours > 0 ? `${actualDurationInfo.hours}h ${actualDurationInfo.minutes}min` : `${actualDurationInfo.minutes}min`}`
+                  : `Geplant: ${plannedDurationRounded.hours > 0 ? `${plannedDurationRounded.hours}h ${plannedDurationRounded.minutes}min` : `${plannedDurationRounded.minutes}min`} | Tatsächlich: keine Daten`
+                }
+              >
+                <DurationInfoPopover
+                  originalStart={startTime}
+                  originalEnd={endTime}
+                  originalDurationMinutes={originalDurationMinutes}
+                  plannedStart={plannedDurationRounded.startFormatted}
+                  plannedEnd={plannedDurationRounded.endFormatted}
+                  plannedDurationMinutes={plannedDurationRounded.totalMinutes}
+                  originalActualStart={actualDurationInfo?.originalStart}
+                  originalActualEnd={actualDurationInfo?.originalEnd}
+                  originalActualDurationMinutes={actualDurationInfo?.originalDurationMinutes}
+                  actualStart={actualDurationInfo?.zepStart}
+                  actualEnd={actualDurationInfo?.zepEnd}
+                  actualDurationMinutes={actualDurationInfo?.totalMinutes}
+                  hasActualData={!!actualDurationInfo}
+                  hasDeviation={!!timeDeviation}
+                  useActualTime={appointment.useActualTime}
+                  syncedTimeType={syncedTimeType}
+                  canSwitch={!!actualDurationInfo && actualDurationInfo.difference !== 0}
+                  onTimeTypeChange={(useActual) => {
+                    if (isEditing && syncedEntry && onModifyTime) {
+                      onModifyTime(appointment.id, appointment, syncedEntry, useActual);
+                    } else {
+                      onUseActualTimeChange?.(appointment.id, useActual);
+                    }
+                  }}
+                />
+                {/* Planned time button */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!actualDurationInfo) return; // Can't toggle without actual data
+                    if (isEditing && syncedEntry && onModifyTime) {
+                      onModifyTime(appointment.id, appointment, syncedEntry, false);
+                    } else {
+                      onUseActualTimeChange?.(appointment.id, false);
+                    }
+                  }}
+                  disabled={!actualDurationInfo}
+                  className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-l transition-colors ${
+                    !appointment.useActualTime || !actualDurationInfo
+                      ? "bg-blue-100 text-blue-700 font-medium"
+                      : "text-gray-400 hover:text-gray-600 hover:bg-gray-200"
+                  } ${!actualDurationInfo ? "cursor-default" : "cursor-pointer"}`}
+                  title={`Geplant (gerundet): ${plannedDurationRounded.hours > 0 ? `${plannedDurationRounded.hours}h ${plannedDurationRounded.minutes}min` : `${plannedDurationRounded.minutes}min`} - für ZEP verwenden`}
+                >
+                  {(!appointment.useActualTime || !actualDurationInfo) && <Check size={10} />}
+                  {plannedDurationRounded.hours > 0 ? `${plannedDurationRounded.hours}h${plannedDurationRounded.minutes > 0 ? plannedDurationRounded.minutes : ''}` : `${plannedDurationRounded.minutes}m`}
+                </button>
+                <span className="text-gray-300">|</span>
+                {/* Actual time button - disabled if no actual data or if times are equal */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!actualDurationInfo || actualDurationInfo.difference === 0) return;
+                    if (isEditing && syncedEntry && onModifyTime) {
+                      onModifyTime(appointment.id, appointment, syncedEntry, true);
+                    } else {
+                      onUseActualTimeChange?.(appointment.id, true);
+                    }
+                  }}
+                  disabled={!actualDurationInfo || actualDurationInfo.difference === 0}
+                  className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-r transition-colors ${
+                    !actualDurationInfo || actualDurationInfo.difference === 0
+                      ? "text-gray-300 cursor-default"
+                      : appointment.useActualTime
+                        ? `bg-blue-100 font-medium ${actualDurationInfo.color}`
+                        : `${actualDurationInfo.color} hover:bg-gray-200`
+                  }`}
+                  title={!actualDurationInfo
+                    ? "Keine tatsächliche Zeit verfügbar"
+                    : actualDurationInfo.difference === 0
+                      ? "Tatsächliche Zeit entspricht der geplanten Zeit"
+                      : `Tatsächlich (gerundet): ${actualDurationInfo.hours > 0 ? `${actualDurationInfo.hours}h ${actualDurationInfo.minutes}min` : `${actualDurationInfo.minutes}min`} - für ZEP verwenden`
+                  }
+                >
+                  {actualDurationInfo && appointment.useActualTime && actualDurationInfo.difference !== 0 && <Check size={10} />}
+                  {actualDurationInfo
+                    ? (actualDurationInfo.hours > 0 ? `${actualDurationInfo.hours}h${actualDurationInfo.minutes > 0 ? actualDurationInfo.minutes : ''}` : `${actualDurationInfo.minutes}m`)
+                    : "--"
+                  }
+                </button>
+              </span>
             )}
           </div>
         </div>
@@ -1246,16 +1479,27 @@ export default function AppointmentRow({
             </button>
           )}
           
+          {/* Reset button for unsynchronized entries being edited */}
+          {!isSynced && appointment.selected && appointment.projectId && (
+            <button
+              onClick={() => onProjectChange(appointment.id, null)}
+              className="p-1 rounded transition text-gray-400 hover:text-red-600 hover:bg-red-50"
+              title="Auswahl zurücksetzen"
+            >
+              <RotateCcw size={12} />
+            </button>
+          )}
+
           {/* Edit/Cancel button for synced */}
           {isSynced && onStartEditSynced && onCancelEditSynced && (
             <button
-              onClick={() => isEditing 
-                ? onCancelEditSynced(appointment.id) 
+              onClick={() => isEditing
+                ? onCancelEditSynced(appointment.id)
                 : onStartEditSynced(appointment.id)
               }
               className={`p-1 rounded transition ${
-                isEditing 
-                  ? "text-blue-600 hover:text-blue-800 hover:bg-blue-100" 
+                isEditing
+                  ? "text-blue-600 hover:text-blue-800 hover:bg-blue-100"
                   : "text-gray-400 hover:text-blue-600 hover:bg-blue-50"
               }`}
               title={isEditing ? "Bearbeitung abbrechen" : "Bearbeiten"}
@@ -1268,7 +1512,7 @@ export default function AppointmentRow({
 
       {/* Synced entry info - compact inline */}
       {isSynced && syncedInfo && !isEditing && (
-        <div className="mt-1 ml-8 flex items-center gap-2 text-xs text-gray-500">
+        <div className="mt-2 pt-2 ml-8 border-t border-gray-100 flex items-center gap-2 text-xs text-gray-500">
           <span className="font-medium text-gray-600">{syncedInfo.projectName}</span>
           {syncedInfo.taskName && (
             <>
@@ -1278,7 +1522,6 @@ export default function AppointmentRow({
               </span>
             </>
           )}
-          <span className="text-gray-300">•</span>
           <span title={syncedInfo.billable ? "Fakturierbar" : "Nicht fakturierbar (intern)"}>
             <Banknote
               size={14}
@@ -1309,7 +1552,7 @@ export default function AppointmentRow({
 
       {/* Editing UI for synced entries - inline like normal appointments */}
       {isSynced && isEditing && syncedEntry && (
-        <div className="mt-3 ml-8 flex flex-wrap items-end gap-3">
+        <div className="mt-3 pt-3 ml-8 border-t border-gray-100 flex flex-wrap items-end gap-3">
           {/* Projekt-Dropdown */}
           <div className="flex flex-col min-w-0">
             <label className="text-xs text-gray-500 mb-1">Projekt</label>
@@ -1399,6 +1642,53 @@ export default function AppointmentRow({
             </button>
           </div>
 
+          {/* Time Type Toggle (Plan/Ist) */}
+          <div className="flex flex-col">
+            <label className={`text-xs mb-1 ${!(modifiedEntry?.newTaskId || syncedEntry.project_task_id) ? "text-gray-300" : "text-gray-500"}`}>Zeit</label>
+            <div className={`inline-flex items-center h-9.5 rounded-lg border text-xs overflow-hidden ${
+              !(modifiedEntry?.newTaskId || syncedEntry.project_task_id) ? "border-gray-200 bg-gray-50 opacity-40" : "border-gray-300 bg-gray-50"
+            }`}>
+              <button
+                type="button"
+                onClick={() => (modifiedEntry?.newTaskId || syncedEntry.project_task_id) && onModifyTime?.(appointment.id, appointment, syncedEntry, false)}
+                disabled={!(modifiedEntry?.newTaskId || syncedEntry.project_task_id)}
+                className={`px-2.5 h-full transition-colors ${
+                  !(modifiedEntry?.newTaskId || syncedEntry.project_task_id)
+                    ? "text-gray-300 cursor-not-allowed"
+                    : !appointment.useActualTime
+                      ? "bg-blue-100 text-blue-700 font-medium"
+                      : "text-gray-500 hover:bg-gray-100"
+                }`}
+                title={!(modifiedEntry?.newTaskId || syncedEntry.project_task_id) ? "Erst Task wählen" : `Plan-Zeit: ${plannedDurationRounded.startFormatted}–${plannedDurationRounded.endFormatted}`}
+              >
+                Plan
+              </button>
+              <span className="w-px h-5 bg-gray-300" />
+              <button
+                type="button"
+                onClick={() => (modifiedEntry?.newTaskId || syncedEntry.project_task_id) && actualDurationInfo && actualDurationInfo.difference !== 0 && onModifyTime?.(appointment.id, appointment, syncedEntry, true)}
+                disabled={!(modifiedEntry?.newTaskId || syncedEntry.project_task_id) || !actualDurationInfo || actualDurationInfo.difference === 0}
+                className={`px-2.5 h-full transition-colors ${
+                  !(modifiedEntry?.newTaskId || syncedEntry.project_task_id) || !actualDurationInfo || actualDurationInfo.difference === 0
+                    ? "text-gray-300 cursor-not-allowed"
+                    : appointment.useActualTime
+                      ? "bg-blue-100 text-blue-700 font-medium"
+                      : "text-gray-500 hover:bg-gray-100"
+                }`}
+                title={!(modifiedEntry?.newTaskId || syncedEntry.project_task_id)
+                  ? "Erst Task wählen"
+                  : actualDurationInfo
+                    ? actualDurationInfo.difference === 0
+                      ? "Ist-Zeit entspricht Plan-Zeit"
+                      : `Ist-Zeit: ${actualDurationInfo.zepStart}–${actualDurationInfo.zepEnd}`
+                    : "Keine Ist-Zeit verfügbar"
+                }
+              >
+                Ist
+              </button>
+            </div>
+          </div>
+
           {/* Sync button for pending changes */}
           <div className="flex flex-col">
             <label className={`text-xs mb-1 ${!isModified ? "text-gray-300" : "text-gray-500"}`}>Sync</label>
@@ -1427,7 +1717,7 @@ export default function AppointmentRow({
 
       {/* Dropdowns for selected unsynchronized appointments */}
       {appointment.selected && !isSynced && (
-        <div className="mt-3 ml-8 flex flex-wrap items-end gap-3">
+        <div className="mt-3 pt-3 ml-8 border-t border-gray-100 flex flex-wrap items-end gap-3">
           {/* Projekt-Dropdown */}
           <div className="flex flex-col min-w-0">
             <label className="text-xs text-gray-500 mb-1">Projekt</label>
@@ -1513,6 +1803,53 @@ export default function AppointmentRow({
             >
               <Banknote size={18} className={!appointment.taskId || (!appointment.billable && appointment.canChangeBillable) ? "opacity-50" : ""} />
             </button>
+          </div>
+
+          {/* Time Type Toggle (Plan/Ist) */}
+          <div className="flex flex-col">
+            <label className={`text-xs mb-1 ${!appointment.taskId ? "text-gray-300" : "text-gray-500"}`}>Zeit</label>
+            <div className={`inline-flex items-center h-9.5 rounded-lg border text-xs overflow-hidden ${
+              !appointment.taskId ? "border-gray-200 bg-gray-50 opacity-40" : "border-gray-300 bg-gray-50"
+            }`}>
+              <button
+                type="button"
+                onClick={() => appointment.taskId && onUseActualTimeChange?.(appointment.id, false)}
+                disabled={!appointment.taskId}
+                className={`px-2.5 h-full transition-colors ${
+                  !appointment.taskId
+                    ? "text-gray-300 cursor-not-allowed"
+                    : !appointment.useActualTime
+                      ? "bg-blue-100 text-blue-700 font-medium"
+                      : "text-gray-500 hover:bg-gray-100"
+                }`}
+                title={!appointment.taskId ? "Erst Task wählen" : `Plan-Zeit: ${plannedDurationRounded.startFormatted}–${plannedDurationRounded.endFormatted}`}
+              >
+                Plan
+              </button>
+              <span className="w-px h-5 bg-gray-300" />
+              <button
+                type="button"
+                onClick={() => appointment.taskId && actualDurationInfo && actualDurationInfo.difference !== 0 && onUseActualTimeChange?.(appointment.id, true)}
+                disabled={!appointment.taskId || !actualDurationInfo || actualDurationInfo.difference === 0}
+                className={`px-2.5 h-full transition-colors ${
+                  !appointment.taskId || !actualDurationInfo || actualDurationInfo.difference === 0
+                    ? "text-gray-300 cursor-not-allowed"
+                    : appointment.useActualTime
+                      ? "bg-blue-100 text-blue-700 font-medium"
+                      : "text-gray-500 hover:bg-gray-100"
+                }`}
+                title={!appointment.taskId
+                  ? "Erst Task wählen"
+                  : actualDurationInfo
+                    ? actualDurationInfo.difference === 0
+                      ? "Ist-Zeit entspricht Plan-Zeit"
+                      : `Ist-Zeit: ${actualDurationInfo.zepStart}–${actualDurationInfo.zepEnd}`
+                    : "Keine Ist-Zeit verfügbar"
+                }
+              >
+                Ist
+              </button>
+            </div>
           </div>
 
           {/* Single Sync Button */}
