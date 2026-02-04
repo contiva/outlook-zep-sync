@@ -9,6 +9,11 @@ import { DuplicateCheckResult } from "@/lib/zep-api";
 import { ActualDuration } from "@/lib/teams-utils";
 import { calculateDisplayTimes, roundToNearest15Min } from "@/lib/time-utils";
 
+// Helper: Check if domain is internal (contiva.com or subdomains)
+function isInternalDomain(domain: string): boolean {
+  return domain === "contiva.com" || domain.endsWith(".contiva.com");
+}
+
 // Helper: Format name from "Nachname, Vorname" to "Vorname Nachname"
 function formatName(name?: string | null): string | null {
   if (!name) return null;
@@ -258,11 +263,11 @@ function AttendeePopover({ attendees, organizer, isOrganizer, isMuted }: Attende
 
   const attendeeCount = attendees.length;
   const allDomains = [...new Set(attendees.map(a => a.emailAddress.address.split('@')[1]).filter(Boolean))];
-  // Filter out contiva.com from displayed domains
-  const domains = allDomains.filter(d => d !== "contiva.com");
+  // Filter out internal domains from displayed domains
+  const domains = allDomains.filter(d => !isInternalDomain(d));
 
-  // Check if all attendees are from contiva.com
-  const isInternalOnly = attendeeCount > 0 && allDomains.length === 1 && allDomains[0] === "contiva.com";
+  // Check if all attendees are from internal domains
+  const isInternalOnly = attendeeCount > 0 && allDomains.every(d => isInternalDomain(d));
 
   // Group attendees by status
   const accepted = attendees.filter(a => a.status.response === "accepted");
@@ -915,9 +920,9 @@ export default function AppointmentRow({
   const attendees = appointment.attendees || [];
   const attendeeCount = attendees.length;
   
-  // Check if all attendees are from contiva.com (internal meeting)
+  // Check if all attendees are from internal domains (contiva.com or subdomains)
   const attendeeDomains = [...new Set(attendees.map(a => a.emailAddress.address.split('@')[1]).filter(Boolean))];
-  const isInternalOnly = attendeeCount > 0 && attendeeDomains.length === 1 && attendeeDomains[0] === "contiva.com";
+  const isInternalOnly = attendeeCount > 0 && attendeeDomains.every(d => isInternalDomain(d));
 
   // Konvertiere Projekte zu SelectOptions (nur Projekte mit Tasks anzeigen)
   const projectOptions: SelectOption[] = useMemo(
