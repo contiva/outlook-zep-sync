@@ -773,12 +773,14 @@ export default function Dashboard() {
     window.addEventListener("resize", measureHeights);
     measureHeights();
 
-    // Re-measure after content loads
-    const timeout = setTimeout(measureHeights, 200);
+    // Re-measure after content loads (multiple times to catch late renders)
+    const timeout1 = setTimeout(measureHeights, 100);
+    const timeout2 = setTimeout(measureHeights, 300);
 
     return () => {
       window.removeEventListener("resize", measureHeights);
-      clearTimeout(timeout);
+      clearTimeout(timeout1);
+      clearTimeout(timeout2);
     };
   }, [startDate, endDate, appointments.length]);
 
@@ -2795,7 +2797,7 @@ export default function Dashboard() {
           hideSoloMeetings={hideSoloMeetings}
           onHideSoloMeetingsChange={setHideSoloMeetings}
           focusedAppointmentId={focusedAppointmentId}
-          stickyTop={headerHeight + heatmapCardHeight}
+          stickyTop={headerHeight + heatmapCardHeight - 1}
           onStickyChange={setIsFilterbarSticky}
         />
       </main>
