@@ -1556,7 +1556,7 @@ export default function AppointmentRow({
           )}
           {isSynced && (
             <span className="px-2 py-0.5 text-xs font-medium text-green-700 bg-green-50 rounded">
-              ZEP
+              Synced
             </span>
           )}
           {/* Internal/External meeting badge */}
