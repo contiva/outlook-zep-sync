@@ -4,7 +4,8 @@ import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { format, startOfMonth, endOfMonth, subMonths, isWeekend, addDays } from "date-fns";
-import { LogOut, X, Keyboard, Loader2, Phone, CheckCircle2, AlertCircle } from "lucide-react";
+import { LogOut, Keyboard, Loader2, Phone } from "lucide-react";
+import { useToast } from "@/components/Toast";
 import Image from "next/image";
 import DateRangePicker from "@/components/DateRangePicker";
 import AppointmentList from "@/components/AppointmentList";
@@ -648,17 +649,7 @@ export default function Dashboard() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [message, setMessage] = useState<{ text: string; type: "success" | "error"; details?: string[] } | null>(null);
-
-  // Auto-dismiss message after 60 seconds
-  useEffect(() => {
-    if (message) {
-      const timer = setTimeout(() => {
-        setMessage(null);
-      }, 60000);
-      return () => clearTimeout(timer);
-    }
-  }, [message]);
+  const { toast } = useToast();
 
   const [syncedEntries, setSyncedEntries] = useState<ZepEntry[]>(initialState.syncedEntries);
   const [submittedIds, setSubmittedIds] = useState<Set<string>>(new Set());
@@ -925,7 +916,6 @@ export default function Dashboard() {
     const effectiveEndDate = overrideEndDate ?? endDate;
     
     setLoading(true);
-    setMessage(null);
     try {
       // Build projects URL with today's date for filtering bookable projects
       const today = new Date().toISOString().split("T")[0];
@@ -1050,7 +1040,7 @@ export default function Dashboard() {
       setLastLoadedAt(new Date());
     } catch (error) {
       console.error("Failed to load appointments:", error);
-      setMessage({ text: "Fehler beim Laden der Termine", type: "error" });
+      toast({ text: "Fehler beim Laden der Termine", type: "error" });
     }
     setLoading(false);
   };
@@ -1103,11 +1093,11 @@ export default function Dashboard() {
       }
     } catch (error) {
       console.error("Failed to load calls:", error);
-      setMessage({ text: "Fehler beim Laden der Anrufe", type: "error" });
+      toast({ text: "Fehler beim Laden der Anrufe", type: "error" });
     } finally {
       setCallsLoading(false);
     }
-  }, [startDate, endDate]);
+  }, [startDate, endDate, toast]);
 
   // Load/clear calls when toggle changes
   useEffect(() => {
@@ -1400,7 +1390,6 @@ export default function Dashboard() {
     // Auch Editing-State zurücksetzen
     setEditingAppointments(new Set());
     setModifiedEntries(new Map());
-    setMessage(null);
   };
 
   const changeProject = async (id: string, projectId: number | null) => {
@@ -1972,7 +1961,7 @@ export default function Dashboard() {
     duplicateWarning: DuplicateCheckResult
   ) => {
     if (!duplicateWarning.zepEntryId || !duplicateWarning.existingEntry || !duplicateWarning.newTime) {
-      setMessage({ text: "Fehlende Daten für Zeit-Korrektur", type: "error" });
+      toast({ text: "Fehlende Daten für Zeit-Korrektur", type: "error" });
       return;
     }
 
@@ -2016,15 +2005,15 @@ export default function Dashboard() {
         return next;
       });
 
-      setMessage({ 
-        text: `Zeit-Korrektur erfolgreich: ${duplicateWarning.newTime.from.slice(0, 5)}-${duplicateWarning.newTime.to.slice(0, 5)}`, 
-        type: "success" 
+      toast({
+        text: `Zeit-Korrektur erfolgreich: ${duplicateWarning.newTime.from.slice(0, 5)}-${duplicateWarning.newTime.to.slice(0, 5)}`,
+        type: "success"
       });
     } catch (error) {
       console.error("Time correction error:", error);
-      setMessage({ 
-        text: `Fehler bei Zeit-Korrektur: ${error instanceof Error ? error.message : "Unbekannter Fehler"}`, 
-        type: "error" 
+      toast({
+        text: `Fehler bei Zeit-Korrektur: ${error instanceof Error ? error.message : "Unbekannter Fehler"}`,
+        type: "error"
       });
     } finally {
       setCorrectingTimeIds((prev) => {
@@ -2033,7 +2022,7 @@ export default function Dashboard() {
         return next;
       });
     }
-  }, [loadSyncedEntries]);
+  }, [loadSyncedEntries, toast]);
 
   // Save a single modified entry (for inline sync button)
   const saveModifiedSingle = useCallback(async (modifiedEntry: ModifiedEntry) => {
@@ -2080,17 +2069,17 @@ export default function Dashboard() {
       // Reload synced entries
       await loadSyncedEntries();
 
-      setMessage({ text: "Änderung gespeichert", type: "success" });
+      toast({ text: "Änderung gespeichert", type: "success" });
     } catch (error) {
       console.error("Save modified entry error:", error);
-      setMessage({
+      toast({
         text: `Fehler beim Speichern: ${error instanceof Error ? error.message : "Unbekannter Fehler"}`,
         type: "error",
       });
     } finally {
       setSavingModifiedSingleId(null);
     }
-  }, [loadSyncedEntries]);
+  }, [loadSyncedEntries, toast]);
 
   // Helper to get effective start/end times for an appointment
   // Uses actual time from call records if useActualTime is true and data is available
@@ -2130,7 +2119,7 @@ export default function Dashboard() {
   // Sync a single appointment directly
   const syncSingleAppointment = async (appointment: Appointment) => {
     if (!appointment.projectId || !appointment.taskId || !employeeId) {
-      setMessage({ text: "Projekt und Task müssen ausgewählt sein.", type: "error" });
+      toast({ text: "Projekt und Task müssen ausgewählt sein.", type: "error" });
       return;
     }
 
@@ -2210,17 +2199,17 @@ export default function Dashboard() {
           )
         );
 
-        setMessage({ text: "Termin erfolgreich synchronisiert", type: "success" });
+        toast({ text: "Termin erfolgreich synchronisiert", type: "success" });
 
         // Reload synced entries
         await loadSyncedEntries();
       } else {
         const errorMsg = result.errors?.[0] ? parseErrorMessage(result.errors[0]) : "Unbekannter Fehler";
-        setMessage({ text: `Fehler: ${errorMsg}`, type: "error" });
+        toast({ text: `Fehler: ${errorMsg}`, type: "error" });
       }
     } catch (error) {
       console.error("Single sync error:", error);
-      setMessage({ text: "Fehler bei der Synchronisierung", type: "error" });
+      toast({ text: "Fehler bei der Synchronisierung", type: "error" });
     } finally {
       setSyncingSingleId(null);
     }
@@ -2234,7 +2223,7 @@ export default function Dashboard() {
     );
     
     if (syncReadyAppointments.length === 0 && modificationsToSubmit.length === 0) {
-      setMessage({ text: "Keine Termine zum Synchronisieren oder Aktualisieren vorhanden.", type: "error" });
+      toast({ text: "Keine Termine zum Synchronisieren oder Aktualisieren vorhanden.", type: "error" });
       return;
     }
 
@@ -2377,13 +2366,13 @@ export default function Dashboard() {
           parts.push(`${modifySucceeded} aktualisiert`);
         }
         
-        setMessage({
+        toast({
           text: parts.join(", "),
           type: "success",
           details: allErrors.length > 0 ? allErrors : undefined,
         });
       } else if (totalFailed > 0) {
-        setMessage({
+        toast({
           text: `${totalFailed} Fehler bei der Übertragung`,
           type: "error",
           details: allErrors,
@@ -2397,7 +2386,7 @@ export default function Dashboard() {
       }
     } catch (error) {
       console.error("Submit error:", error);
-      setMessage({ text: "Fehler bei der Übertragung", type: "error" });
+      toast({ text: "Fehler bei der Übertragung", type: "error" });
     }
     setSubmitting(false);
   };
@@ -2530,52 +2519,6 @@ export default function Dashboard() {
           {/* Legend directly below */}
           <CalendarHeatmapLegend stats={heatmapStats} />
         </div>
-
-        {/* Toast Message - fixed position top center */}
-        {message && (
-          <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50">
-            <div
-              className={`flex items-start gap-3 px-5 py-4 rounded-xl shadow-2xl min-w-80 max-w-lg ${
-                message.type === "error"
-                  ? "bg-red-600 text-white"
-                  : "bg-emerald-600 text-white"
-              }`}
-            >
-              {/* Icon */}
-              <div className="shrink-0 mt-0.5 text-white/90">
-                {message.type === "error" ? (
-                  <AlertCircle size={22} />
-                ) : (
-                  <CheckCircle2 size={22} />
-                )}
-              </div>
-
-              {/* Content */}
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold">{message.text}</p>
-                {message.details && message.details.length > 0 && (
-                  <ul className="mt-2 text-sm space-y-1 text-white/85">
-                    {message.details.map((detail, idx) => (
-                      <li key={idx} className="flex items-start gap-2">
-                        <span className="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full bg-white/60" />
-                        <span>{detail}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-
-              {/* Close button */}
-              <button
-                onClick={() => setMessage(null)}
-                className="shrink-0 p-1.5 -mr-1.5 -mt-1 rounded-lg transition text-white/70 hover:text-white hover:bg-white/20"
-                aria-label="Meldung schließen"
-              >
-                <X size={18} />
-              </button>
-            </div>
-          </div>
-        )}
 
         <AppointmentList
           appointments={filteredMergedAppointments}
