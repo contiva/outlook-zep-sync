@@ -154,6 +154,9 @@ interface AppointmentListProps {
   hideSoloMeetings?: boolean;
   onHideSoloMeetingsChange?: (hide: boolean) => void;
   focusedAppointmentId?: string | null;
+  // Sticky header props
+  stickyTop?: number;
+  onStickyChange?: (isSticky: boolean) => void;
 }
 
 interface GroupedItem {
@@ -254,9 +257,13 @@ export default function AppointmentList({
   hideSoloMeetings,
   onHideSoloMeetingsChange,
   focusedAppointmentId,
+  stickyTop,
+  onStickyChange,
 }: AppointmentListProps) {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [soloPopoverOpen, setSoloPopoverOpen] = useState(false);
+  const [isFilterbarSticky, setIsFilterbarSticky] = useState(false);
+  const filterbarSentinelRef = useRef<HTMLDivElement>(null);
   const [soloToggleCount, setSoloToggleCount] = useState(() => {
     if (typeof window !== "undefined") {
       return parseInt(localStorage.getItem("soloToggleCount") || "0", 10);
@@ -283,6 +290,29 @@ export default function AppointmentList({
       return () => document.removeEventListener("mousedown", handleClickOutside);
     }
   }, [soloPopoverOpen]);
+
+  // Detect when filterbar becomes sticky
+  useEffect(() => {
+    if (stickyTop === undefined) return;
+
+    const handleScroll = () => {
+      const sentinel = filterbarSentinelRef.current;
+      if (!sentinel) return;
+
+      const rect = sentinel.getBoundingClientRect();
+      // Filterbar is sticky when sentinel goes above its sticky position
+      setIsFilterbarSticky(rect.top < stickyTop);
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    handleScroll();
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [stickyTop]);
+
+  // Notify parent of sticky state changes
+  useEffect(() => {
+    onStickyChange?.(isFilterbarSticky);
+  }, [isFilterbarSticky, onStickyChange]);
 
   // Handle solo toggle with popover logic
   const handleSoloToggle = () => {
@@ -426,8 +456,22 @@ export default function AppointmentList({
 
   return (
     <div>
+      {/* Sentinel to detect when filterbar becomes sticky */}
+      <div ref={filterbarSentinelRef} className="h-0" />
       {/* Header mit "Alle auswählen" Checkbox und Filter */}
-      <div className="bg-white rounded-t-lg border border-gray-200">
+      <div
+        className={`relative bg-white border border-gray-200 z-[25] transition-[border-radius] ${
+          stickyTop !== undefined ? "sticky" : ""
+        } ${isFilterbarSticky ? "rounded-none border-t-0" : "rounded-t-lg"}`}
+        style={stickyTop !== undefined ? { top: `${stickyTop}px` } : undefined}
+      >
+        {/* Gradient shadow when sticky */}
+        <div
+          className={`absolute left-0 right-0 top-full h-1 pointer-events-none transition-opacity duration-500 ${
+            isFilterbarSticky ? "opacity-100" : "opacity-0"
+          }`}
+          style={{ background: "linear-gradient(to bottom, rgb(209 213 219), transparent)" }}
+        />
         <div className="flex items-center">
           {/* Checkbox und Auswahl-Text */}
           <div className="flex items-center gap-3 px-4 py-3">
