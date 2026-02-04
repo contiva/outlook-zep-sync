@@ -2413,18 +2413,19 @@ export default function Dashboard() {
               <span className="font-inter font-light">Sync</span>
             </h1>
           </div>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-600">
-              {session?.user?.email}
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-gray-500">
+              {session?.user?.name || session?.user?.email}
               {employeeLoading && (
                 <span className="ml-1 text-gray-400">(Lade ZEP...)</span>
               )}
             </span>
-            <div 
+            <div className="h-5 w-px bg-gray-200" />
+            <div
               className="relative group"
               title="Tastaturkürzel: Esc = Filter löschen, Strg+R = Neu laden"
             >
-              <Keyboard size={16} className="text-gray-400 cursor-help" />
+              <Keyboard size={16} className="text-gray-300 group-hover:text-blue-500 cursor-help transition-colors" />
               <div className="hidden group-hover:block absolute right-0 top-full mt-1 p-2 bg-gray-900 text-white text-xs rounded shadow-lg whitespace-nowrap z-50">
                 <div className="font-medium mb-1">Tastaturkürzel</div>
                 <div><kbd className="px-1 bg-gray-700 rounded">Esc</kbd> Filter löschen</div>
@@ -2433,10 +2434,10 @@ export default function Dashboard() {
             </div>
             <button
               onClick={() => signOut({ callbackUrl: "/" })}
-              className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700"
+              className="text-gray-300 hover:text-blue-500 transition-colors"
+              title="Abmelden"
             >
               <LogOut size={16} />
-              Abmelden
             </button>
           </div>
         </div>
@@ -2463,7 +2464,7 @@ export default function Dashboard() {
                   onLoad={() => loadAppointments(undefined, undefined, true)}
                   onDateRangeChange={handleDateRangeChange}
                   onFilterDateChange={setFilterDate}
-                  loading={loading}
+                  loading={loading || submitting}
                   lastLoadedAt={lastLoadedAt}
                 />
               </div>
