@@ -153,6 +153,7 @@ interface AppointmentListProps {
   onSeriesFilterClear?: () => void;
   hideSoloMeetings?: boolean;
   onHideSoloMeetingsChange?: (hide: boolean) => void;
+  focusedAppointmentId?: string | null;
 }
 
 interface GroupedItem {
@@ -252,6 +253,7 @@ export default function AppointmentList({
   onSeriesFilterClear,
   hideSoloMeetings,
   onHideSoloMeetingsChange,
+  focusedAppointmentId,
 }: AppointmentListProps) {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [soloPopoverOpen, setSoloPopoverOpen] = useState(false);
@@ -686,6 +688,8 @@ export default function AppointmentList({
                 // Rescheduled time correction
                 onCorrectTime={onCorrectTime}
                 correctingTimeIds={correctingTimeIds}
+                // Keyboard navigation focus
+                focusedAppointmentId={focusedAppointmentId}
               />
             ) : (
               <AppointmentRow
@@ -730,6 +734,8 @@ export default function AppointmentList({
                 // Rescheduled time correction
                 onCorrectTime={onCorrectTime}
                 isCorrectingTime={correctingTimeIds?.has(item.appointments[0].id) || false}
+                // Keyboard navigation focus
+                isFocused={focusedAppointmentId === item.appointments[0].id}
               />
             )
           )}

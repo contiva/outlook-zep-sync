@@ -187,6 +187,8 @@ interface AppointmentRowProps {
   // Rescheduled appointment correction
   onCorrectTime?: (appointmentId: string, duplicateWarning: DuplicateCheckResult) => void;
   isCorrectingTime?: boolean;
+  // Keyboard navigation focus
+  isFocused?: boolean;
 }
 
 // Attendee Status Icon Component
@@ -670,6 +672,7 @@ export default function AppointmentRow({
   isSavingModifiedSingle = false,
   onCorrectTime,
   isCorrectingTime = false,
+  isFocused = false,
 }: AppointmentRowProps) {
   const startDate = new Date(appointment.start.dateTime);
   const endDate = new Date(appointment.end.dateTime);
@@ -1079,8 +1082,13 @@ export default function AppointmentRow({
 
   return (
     <div
+      id={`appointment-${appointment.id}`}
       ref={editingRowRef}
-      className={`px-3 py-2 border-x border-b border-t ${
+      className={`px-3 py-2 border-x border-b border-t transition-shadow ${
+        isFocused
+          ? "ring-2 ring-blue-400 ring-inset"
+          : ""
+      } ${
         isSynced && isModified
           ? "border-yellow-300 bg-linear-to-r from-amber-50 via-yellow-50/50 to-green-50"
           : isSynced

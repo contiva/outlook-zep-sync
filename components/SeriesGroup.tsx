@@ -117,6 +117,8 @@ interface SeriesGroupProps {
   // Rescheduled appointment time correction
   onCorrectTime?: (appointmentId: string, duplicateWarning: DuplicateCheckResult) => void;
   correctingTimeIds?: Set<string>;
+  // Keyboard navigation focus
+  focusedAppointmentId?: string | null;
 }
 
 // Helper: Check if an appointment is synced to ZEP
@@ -185,6 +187,7 @@ export default function SeriesGroup({
   syncingSingleId,
   onCorrectTime,
   correctingTimeIds,
+  focusedAppointmentId,
 }: SeriesGroupProps) {
   const [expanded, setExpanded] = useState(false);
   const [linkedEdit, setLinkedEdit] = useState(true);
@@ -591,6 +594,8 @@ export default function SeriesGroup({
               // Rescheduled time correction
               onCorrectTime={onCorrectTime}
               isCorrectingTime={correctingTimeIds?.has(appointment.id) || false}
+              // Keyboard navigation focus
+              isFocused={focusedAppointmentId === appointment.id}
             />
           ))}
         </div>

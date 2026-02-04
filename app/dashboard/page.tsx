@@ -1333,7 +1333,71 @@ export default function Dashboard() {
   const canNavigatePrev = availableDates.length > 0 && (!filterDate || availableDates.indexOf(filterDate) > 0);
   const canNavigateNext = availableDates.length > 0 && (!filterDate || availableDates.indexOf(filterDate) < availableDates.length - 1);
 
-  // Keyboard navigation for day switching
+  // Focused appointment for keyboard navigation
+  const [focusedAppointmentId, setFocusedAppointmentId] = useState<string | null>(null);
+
+  // Get flat list of appointment IDs for up/down navigation
+  const appointmentIds = useMemo(() => {
+    return filteredMergedAppointments.map(apt => apt.id);
+  }, [filteredMergedAppointments]);
+
+  // Navigate between appointments
+  const navigateAppointment = useCallback((direction: 'up' | 'down') => {
+    if (appointmentIds.length === 0) return;
+
+    if (!focusedAppointmentId) {
+      // No focus - go to first or last
+      setFocusedAppointmentId(direction === 'up' ? appointmentIds[appointmentIds.length - 1] : appointmentIds[0]);
+      return;
+    }
+
+    const currentIndex = appointmentIds.indexOf(focusedAppointmentId);
+    if (currentIndex === -1) {
+      setFocusedAppointmentId(appointmentIds[0]);
+      return;
+    }
+
+    const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (newIndex >= 0 && newIndex < appointmentIds.length) {
+      setFocusedAppointmentId(appointmentIds[newIndex]);
+    }
+  }, [appointmentIds, focusedAppointmentId]);
+
+  // Auto-scroll to focused appointment
+  useEffect(() => {
+    if (focusedAppointmentId) {
+      const element = document.getElementById(`appointment-${focusedAppointmentId}`);
+      element?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [focusedAppointmentId]);
+
+  // Clear focus when appointments change
+  useEffect(() => {
+    if (focusedAppointmentId && !appointmentIds.includes(focusedAppointmentId)) {
+      setFocusedAppointmentId(null);
+    }
+  }, [appointmentIds, focusedAppointmentId]);
+
+  // Toggle appointment selection (moved here for useEffect dependency)
+  const toggleAppointment = useCallback((id: string) => {
+    // Check if this is a call
+    const isCall = calls.some((c) => c.id === id);
+    if (isCall) {
+      setCalls((prev) =>
+        prev.map((call) =>
+          call.id === id ? { ...call, selected: !call.selected } : call
+        )
+      );
+    } else {
+      setAppointments((prev) =>
+        prev.map((apt) =>
+          apt.id === id ? { ...apt, selected: !apt.selected } : apt
+        )
+      );
+    }
+  }, [calls]);
+
+  // Keyboard navigation for day and appointment switching
   useEffect(() => {
     const handleArrowKeys = (e: KeyboardEvent) => {
       // Ignore if user is typing in an input field
@@ -1353,11 +1417,29 @@ export default function Dashboard() {
         e.preventDefault();
         navigateDay('next');
       }
+
+      // Arrow Up - previous appointment
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        navigateAppointment('up');
+      }
+
+      // Arrow Down - next appointment
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        navigateAppointment('down');
+      }
+
+      // Space or Enter - toggle selection of focused appointment
+      if ((e.key === " " || e.key === "Enter") && focusedAppointmentId) {
+        e.preventDefault();
+        toggleAppointment(focusedAppointmentId);
+      }
     };
 
     document.addEventListener("keydown", handleArrowKeys);
     return () => document.removeEventListener("keydown", handleArrowKeys);
-  }, [canNavigatePrev, canNavigateNext, navigateDay]);
+  }, [canNavigatePrev, canNavigateNext, navigateDay, navigateAppointment, focusedAppointmentId, toggleAppointment]);
 
   // Handler für Preset-Buttons: setzt Datum UND lädt sofort
   const handleDateRangeChange = (newStartDate: string, newEndDate: string) => {
@@ -1365,24 +1447,6 @@ export default function Dashboard() {
     setEndDate(newEndDate);
     // Sofort laden mit den neuen Werten (nicht warten auf State-Update)
     loadAppointments(newStartDate, newEndDate);
-  };
-
-  const toggleAppointment = (id: string) => {
-    // Check if this is a call
-    const isCall = calls.some((c) => c.id === id);
-    if (isCall) {
-      setCalls((prev) =>
-        prev.map((call) =>
-          call.id === id ? { ...call, selected: !call.selected } : call
-        )
-      );
-    } else {
-      setAppointments((prev) =>
-        prev.map((apt) =>
-          apt.id === id ? { ...apt, selected: !apt.selected } : apt
-        )
-      );
-    }
   };
 
   // Toggle alle Termine einer Serie
@@ -2491,6 +2555,8 @@ export default function Dashboard() {
               <div className="hidden group-hover:block absolute right-0 top-full mt-1 p-2 bg-gray-900 text-white text-xs rounded shadow-lg whitespace-nowrap z-50">
                 <div className="font-medium mb-1">Tastaturkürzel</div>
                 <div><kbd className="px-1 bg-gray-700 rounded">←</kbd> <kbd className="px-1 bg-gray-700 rounded">→</kbd> Tag wechseln</div>
+                <div><kbd className="px-1 bg-gray-700 rounded">↑</kbd> <kbd className="px-1 bg-gray-700 rounded">↓</kbd> Termin wechseln</div>
+                <div><kbd className="px-1 bg-gray-700 rounded">Space</kbd> Termin auswählen</div>
                 <div><kbd className="px-1 bg-gray-700 rounded">Esc</kbd> Filter löschen</div>
                 <div><kbd className="px-1 bg-gray-700 rounded">Strg+R</kbd> Termine laden</div>
               </div>
@@ -2656,6 +2722,7 @@ export default function Dashboard() {
           onSeriesFilterClear={() => setSeriesFilterActive(false)}
           hideSoloMeetings={hideSoloMeetings}
           onHideSoloMeetingsChange={setHideSoloMeetings}
+          focusedAppointmentId={focusedAppointmentId}
         />
       </main>
     </div>
