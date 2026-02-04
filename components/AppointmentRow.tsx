@@ -674,6 +674,38 @@ export default function AppointmentRow({
   const startDate = new Date(appointment.start.dateTime);
   const endDate = new Date(appointment.end.dateTime);
 
+  // Check if appointment is currently running (live) or starting soon (upcoming)
+  const [isLive, setIsLive] = useState(() => {
+    const now = new Date();
+    return now >= startDate && now <= endDate;
+  });
+  const [isUpcoming, setIsUpcoming] = useState(() => {
+    const now = new Date();
+    const minutesUntilStart = (startDate.getTime() - now.getTime()) / 60000;
+    return minutesUntilStart > 0 && minutesUntilStart <= 30;
+  });
+
+  // Update live/upcoming status every 30 seconds
+  useEffect(() => {
+    const checkStatus = () => {
+      const now = new Date();
+      const start = new Date(appointment.start.dateTime);
+      const end = new Date(appointment.end.dateTime);
+      const minutesUntilStart = (start.getTime() - now.getTime()) / 60000;
+
+      setIsLive(now >= start && now <= end);
+      setIsUpcoming(minutesUntilStart > 0 && minutesUntilStart <= 30);
+    };
+
+    // Check immediately
+    checkStatus();
+
+    // Set up interval to check periodically
+    const interval = setInterval(checkStatus, 30000);
+
+    return () => clearInterval(interval);
+  }, [appointment.start.dateTime, appointment.end.dateTime]);
+
   const dayLabel = format(startDate, "EE dd.MM.", { locale: de });
   const startTime = format(startDate, "HH:mm");
   const endTime = format(endDate, "HH:mm");
@@ -1062,7 +1094,7 @@ export default function AppointmentRow({
     >
       <div className="flex items-start gap-3">
         {/* Status icons: Synced, Ready-to-sync, or Checkbox + duplicate warning below */}
-        <div className="shrink-0 pt-0.5 w-5 flex flex-col items-center gap-1">
+        <div className="shrink-0 w-5 flex flex-col items-center gap-1">
           {/* Primary status icon */}
           <div className="h-5 w-5 flex items-center justify-center">
             {isSynced && isModified ? (
@@ -1094,13 +1126,19 @@ export default function AppointmentRow({
               </div>
             ) : (
               // Not synced, not ready - checkbox
-              <input
-                type="checkbox"
-                checked={appointment.selected}
-                onChange={() => onToggle(appointment.id)}
-                className="h-4 w-4 text-blue-600 rounded"
+              <button
+                type="button"
+                onClick={() => onToggle(appointment.id)}
+                className={`h-4 w-4 rounded border flex items-center justify-center transition-colors ${
+                  appointment.selected
+                    ? "bg-blue-50 border-blue-300 text-blue-500"
+                    : "border-gray-300 bg-white hover:bg-gray-50"
+                }`}
                 aria-label={`Termin auswählen: ${appointment.subject}`}
-              />
+                aria-pressed={appointment.selected}
+              >
+                {appointment.selected && <Check size={12} strokeWidth={2.5} />}
+              </button>
             )}
           </div>
           {/* Duplicate warning indicator */}
@@ -1121,9 +1159,22 @@ export default function AppointmentRow({
         {/* Main content - Title on top, details below */}
         <div className="flex-1 min-w-0">
           {/* Title row with duration */}
-          <div className="flex items-center gap-1.5">
-            {/* Title and organizer grouped with baseline alignment */}
-            <div className="flex items-baseline gap-1.5 min-w-0">
+          <div className="flex items-center gap-1.5 min-h-5">
+            {/* Title and organizer grouped with center alignment */}
+            <div className="flex items-center gap-1.5 min-w-0">
+              {/* Live Badge */}
+              {isLive && (
+                <span className="inline-flex items-center gap-0.5 px-1 rounded text-[10px] font-bold uppercase tracking-wide bg-red-100 text-red-600 shrink-0 leading-4">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                  Live
+                </span>
+              )}
+              {/* Upcoming Badge - subtle */}
+              {!isLive && isUpcoming && (
+                <span className="px-1 rounded text-[10px] text-blue-500 border border-blue-300 shrink-0 leading-4">
+                  Als nächstes
+                </span>
+              )}
               {appointment.subject ? (
                 <span className={`font-bold text-sm truncate ${isMuted ? "text-gray-400" : "text-gray-900"}`}>{appointment.subject}</span>
               ) : (

@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Search, X, RotateCcw, ClockArrowUp } from "lucide-react";
+import { useMemo, useState, useRef, useEffect } from "react";
+import { Search, X, RotateCcw, ClockArrowUp, Check, Minus, User } from "lucide-react";
 import AppointmentRow from "./AppointmentRow";
 import SeriesGroup from "./SeriesGroup";
 import SyncConfirmDialog from "./SyncConfirmDialog";
@@ -254,6 +254,50 @@ export default function AppointmentList({
   onHideSoloMeetingsChange,
 }: AppointmentListProps) {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [soloPopoverOpen, setSoloPopoverOpen] = useState(false);
+  const [soloToggleCount, setSoloToggleCount] = useState(() => {
+    if (typeof window !== "undefined") {
+      return parseInt(localStorage.getItem("soloToggleCount") || "0", 10);
+    }
+    return 0;
+  });
+  const soloPopoverRef = useRef<HTMLDivElement>(null);
+  const soloTriggerRef = useRef<HTMLButtonElement>(null);
+
+  // Close solo popover when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        soloPopoverRef.current &&
+        !soloPopoverRef.current.contains(event.target as Node) &&
+        soloTriggerRef.current &&
+        !soloTriggerRef.current.contains(event.target as Node)
+      ) {
+        setSoloPopoverOpen(false);
+      }
+    }
+    if (soloPopoverOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [soloPopoverOpen]);
+
+  // Handle solo toggle with popover logic
+  const handleSoloToggle = () => {
+    const willHide = !hideSoloMeetings;
+    onHideSoloMeetingsChange?.(willHide);
+
+    // Only show popover when enabling (showing solo meetings), not when hiding
+    if (!willHide && soloToggleCount < 3) {
+      const newCount = soloToggleCount + 1;
+      setSoloToggleCount(newCount);
+      localStorage.setItem("soloToggleCount", String(newCount));
+
+      setSoloPopoverOpen(true);
+      // Auto-close after 3 seconds
+      setTimeout(() => setSoloPopoverOpen(false), 3000);
+    }
+  };
 
   // Count complete modifications that have actual changes
   const completeModificationsCount = useMemo(() => {
@@ -387,18 +431,20 @@ export default function AppointmentList({
           <div className="flex items-center gap-3 px-4 py-3">
             {selectableAppointments.length > 0 && (
               <>
-                <input
-                  type="checkbox"
-                  checked={allSelectableSelected}
-                  ref={(el) => {
-                    if (el) {
-                      el.indeterminate = someSelectableSelected;
-                    }
-                  }}
-                  onChange={(e) => onSelectAll(e.target.checked)}
-                  className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                <button
+                  type="button"
+                  onClick={() => onSelectAll(!allSelectableSelected)}
+                  className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                    allSelectableSelected || someSelectableSelected
+                      ? "bg-blue-50 border-blue-300 text-blue-500"
+                      : "border-gray-300 bg-white hover:bg-gray-50"
+                  }`}
                   aria-label="Alle Termine auswählen"
-                />
+                  aria-pressed={allSelectableSelected}
+                >
+                  {allSelectableSelected && <Check size={12} strokeWidth={2.5} />}
+                  {someSelectableSelected && !allSelectableSelected && <Minus size={12} strokeWidth={2.5} />}
+                </button>
                 <span className="text-sm text-gray-600 whitespace-nowrap">
                   Alle ({selectableAppointments.length})
                 </span>
@@ -457,7 +503,7 @@ export default function AppointmentList({
                     {filterDate && (
                       <button
                         onClick={() => onFilterDateClear?.()}
-                        className="flex items-center gap-1.5 px-2 py-1 text-xs text-blue-700 bg-blue-50 rounded-full hover:bg-blue-100 transition"
+                        className="flex items-center gap-1.5 px-2 py-1 text-xs text-blue-500 border border-blue-300 rounded-full hover:bg-blue-50 transition"
                       >
                         <span>{new Date(filterDate).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}</span>
                         <X size={12} />
@@ -479,25 +525,42 @@ export default function AppointmentList({
               {/* Divider */}
               <div className="h-8 w-px bg-gray-200" />
 
-              {/* Solo toggle */}
-              <button
-                onClick={() => onHideSoloMeetingsChange?.(!hideSoloMeetings)}
-                className={`flex items-center gap-2 px-4 py-3 text-sm whitespace-nowrap transition ${
-                  !hideSoloMeetings 
-                    ? "text-blue-600 bg-blue-50" 
-                    : "text-gray-500 hover:bg-gray-50"
-                }`}
-                title={hideSoloMeetings ? "Solo-Termine werden ausgeblendet" : "Solo-Termine werden angezeigt"}
-              >
-                <div className={`w-8 h-5 rounded-full relative transition-colors ${
-                  !hideSoloMeetings ? "bg-blue-600" : "bg-gray-300"
-                }`}>
-                  <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
-                    !hideSoloMeetings ? "translate-x-3.5" : "translate-x-0.5"
-                  }`} />
-                </div>
-                <span className="hidden sm:inline">Solo</span>
-              </button>
+              {/* Solo toggle with popover */}
+              <div className="relative">
+                <button
+                  ref={soloTriggerRef}
+                  onClick={handleSoloToggle}
+                  className={`flex items-center gap-2 px-4 py-3 text-sm whitespace-nowrap transition ${
+                    !hideSoloMeetings
+                      ? "text-blue-600 bg-blue-50"
+                      : "text-gray-500 hover:bg-gray-50"
+                  }`}
+                >
+                  <div className={`w-8 h-5 rounded-full relative transition-colors ${
+                    !hideSoloMeetings ? "bg-blue-600" : "bg-gray-300"
+                  }`}>
+                    <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                      !hideSoloMeetings ? "translate-x-3.5" : "translate-x-0.5"
+                    }`} />
+                  </div>
+                  <User size={16} />
+                </button>
+
+                {/* Popover - only shown for first 3 uses */}
+                {soloPopoverOpen && (
+                  <div
+                    ref={soloPopoverRef}
+                    className="absolute top-full right-0 mt-1 w-64 bg-white rounded-lg shadow-lg border border-gray-200 p-3 z-50"
+                  >
+                    <div className="text-sm font-medium text-gray-900 mb-1">Solo-Termine</div>
+                    <p className="text-xs text-gray-500">
+                      {hideSoloMeetings
+                        ? "Solo-Termine (Meetings ohne weitere Teilnehmer) werden jetzt ausgeblendet."
+                        : "Solo-Termine (Meetings ohne weitere Teilnehmer) werden jetzt angezeigt."}
+                    </p>
+                  </div>
+                )}
+              </div>
 
               {/* Divider before sync button */}
               <div className="h-8 w-px bg-gray-200" />

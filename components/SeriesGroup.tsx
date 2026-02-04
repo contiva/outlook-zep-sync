@@ -356,7 +356,7 @@ export default function SeriesGroup({
               if (el) el.indeterminate = someSelected && !allSelected;
             }}
             onChange={() => onToggleSeries(seriesId, !allSelected)}
-            className="mt-1 h-5 w-5 text-blue-600 rounded"
+            className="mt-1 h-5 w-5 accent-sky-300 rounded"
             aria-label={`Alle ${appointments.length} Termine der Serie "${seriesSubject}" auswählen`}
           />
 

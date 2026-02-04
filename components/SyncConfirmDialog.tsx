@@ -258,7 +258,7 @@ export default function SyncConfirmDialog({
                           type="checkbox"
                           checked={!isExcluded}
                           onChange={() => toggleExclude(apt.id)}
-                          className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 flex-shrink-0"
+                          className="w-4 h-4 accent-sky-300 rounded border-gray-300 focus:ring-blue-300 flex-shrink-0"
                           aria-label={isExcluded ? `${apt.subject} einschließen` : `${apt.subject} ausschließen`}
                         />
                         <div className="flex items-center gap-2 min-w-0 flex-1">
