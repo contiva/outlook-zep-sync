@@ -899,7 +899,7 @@ export default function AppointmentRow({
           {/* Title row with duration */}
           <div className="flex items-center gap-1.5">
             {appointment.subject ? (
-              <span className={`font-semibold text-sm truncate ${isMuted ? "text-gray-400" : "text-gray-900"}`}>{appointment.subject}</span>
+              <span className={`font-bold text-sm truncate ${isMuted ? "text-gray-400" : "text-gray-900"}`}>{appointment.subject}</span>
             ) : (
               <span className="font-medium text-gray-400 text-sm italic">Kein Titel definiert</span>
             )}

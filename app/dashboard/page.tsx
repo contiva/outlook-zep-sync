@@ -4,7 +4,7 @@ import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { format, startOfMonth, endOfMonth, subMonths, isWeekend, addDays } from "date-fns";
-import { LogOut, X, Keyboard, Loader2, Phone } from "lucide-react";
+import { LogOut, X, Keyboard, Loader2, Phone, CheckCircle2, AlertCircle } from "lucide-react";
 import Image from "next/image";
 import DateRangePicker from "@/components/DateRangePicker";
 import AppointmentList from "@/components/AppointmentList";
@@ -649,6 +649,17 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: "success" | "error"; details?: string[] } | null>(null);
+
+  // Auto-dismiss message after 60 seconds
+  useEffect(() => {
+    if (message) {
+      const timer = setTimeout(() => {
+        setMessage(null);
+      }, 60000);
+      return () => clearTimeout(timer);
+    }
+  }, [message]);
+
   const [syncedEntries, setSyncedEntries] = useState<ZepEntry[]>(initialState.syncedEntries);
   const [submittedIds, setSubmittedIds] = useState<Set<string>>(new Set());
   const [filterDate, setFilterDate] = useState<string | null>(initialState.filterDate);
@@ -2461,30 +2472,48 @@ export default function Dashboard() {
           <CalendarHeatmapLegend stats={heatmapStats} />
         </div>
 
+        {/* Toast Message - fixed position top center */}
         {message && (
-          <div
-            className={`p-4 rounded-lg relative ${
-              message.type === "error"
-                ? "bg-red-50 text-red-800 border border-red-200"
-                : "bg-green-50 text-green-800 border border-green-200"
-            }`}
-          >
-            <button
-              onClick={() => setMessage(null)}
-              className="absolute top-2 right-2 p-1 rounded hover:bg-black/5 transition"
-              aria-label="Meldung schließen"
+          <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50">
+            <div
+              className={`flex items-start gap-3 px-5 py-4 rounded-xl shadow-2xl min-w-80 max-w-lg ${
+                message.type === "error"
+                  ? "bg-red-600 text-white"
+                  : "bg-emerald-600 text-white"
+              }`}
             >
-              <X size={16} />
-            </button>
-            <div className="pr-8">
-              <p className="font-medium">{message.text}</p>
-              {message.details && message.details.length > 0 && (
-                <ul className="mt-2 text-sm list-disc list-inside">
-                  {message.details.map((detail, idx) => (
-                    <li key={idx}>{detail}</li>
-                  ))}
-                </ul>
-              )}
+              {/* Icon */}
+              <div className="shrink-0 mt-0.5 text-white/90">
+                {message.type === "error" ? (
+                  <AlertCircle size={22} />
+                ) : (
+                  <CheckCircle2 size={22} />
+                )}
+              </div>
+
+              {/* Content */}
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold">{message.text}</p>
+                {message.details && message.details.length > 0 && (
+                  <ul className="mt-2 text-sm space-y-1 text-white/85">
+                    {message.details.map((detail, idx) => (
+                      <li key={idx} className="flex items-start gap-2">
+                        <span className="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full bg-white/60" />
+                        <span>{detail}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              {/* Close button */}
+              <button
+                onClick={() => setMessage(null)}
+                className="shrink-0 p-1.5 -mr-1.5 -mt-1 rounded-lg transition text-white/70 hover:text-white hover:bg-white/20"
+                aria-label="Meldung schließen"
+              >
+                <X size={18} />
+              </button>
             </div>
           </div>
         )}

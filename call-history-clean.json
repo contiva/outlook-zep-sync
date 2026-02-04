@@ -1,0 +1,724 @@
+{
+  "generatedAt": "2026-02-03T07:12:23.025Z",
+  "dateRange": {
+    "start": "2026-01-05",
+    "end": "2026-02-02"
+  },
+  "minDurationMinutes": 5,
+  "totalCalls": 54,
+  "totalDurationMinutes": 1098,
+  "calls": [
+    {
+      "date": "05.01.2026",
+      "startTime": "09:12",
+      "endTime": "10:00",
+      "durationMinutes": 48,
+      "type": "ScreenShare",
+      "direction": "outgoing",
+      "participants": [
+        "Robert Fels",
+        "Sven Brandt (+491732664078)"
+      ],
+      "organizer": "Robert Fels"
+    },
+    {
+      "date": "05.01.2026",
+      "startTime": "11:29",
+      "endTime": "11:44",
+      "durationMinutes": 15,
+      "type": "Phone",
+      "direction": "outgoing",
+      "participants": [
+        "Robert Fels",
+        "Brommont, Thomas"
+      ],
+      "organizer": "Robert Fels"
+    },
+    {
+      "date": "06.01.2026",
+      "startTime": "12:57",
+      "endTime": "13:06",
+      "durationMinutes": 8,
+      "type": "Phone",
+      "direction": "outgoing",
+      "participants": [
+        "Robert Fels",
+        "Xenia Dik"
+      ],
+      "organizer": "Robert Fels"
+    },
+    {
+      "date": "06.01.2026",
+      "startTime": "14:11",
+      "endTime": "14:17",
+      "durationMinutes": 6,
+      "type": "ScreenShare",
+      "direction": "outgoing",
+      "participants": [
+        "Robert Fels",
+        "Armin Sadri"
+      ],
+      "organizer": "Robert Fels"
+    },
+    {
+      "date": "07.01.2026",
+      "startTime": "07:56",
+      "endTime": "08:03",
+      "durationMinutes": 7,
+      "type": "Phone",
+      "direction": "outgoing",
+      "participants": [
+        "Robert Fels",
+        "Jan Schmidthaus (+491736078565)"
+      ],
+      "organizer": "Robert Fels"
+    },
+    {
+      "date": "07.01.2026",
+      "startTime": "10:25",
+      "endTime": "10:45",
+      "durationMinutes": 20,
+      "type": "ScreenShare",
+      "direction": "outgoing",
+      "participants": [
+        "Robert Fels",
+        "Amir Abassi"
+      ],
+      "organizer": "Robert Fels"
+    },
+    {
+      "date": "07.01.2026",
+      "startTime": "12:31",
+      "endTime": "12:38",
+      "durationMinutes": 7,
+      "type": "Video",
+      "direction": "outgoing",
+      "participants": [
+        "Robert Fels",
+        "Arbach, Souha"
+      ],
+      "organizer": "Robert Fels"
+    },
+    {
+      "date": "07.01.2026",
+      "startTime": "13:32",
+      "endTime": "14:02",
+      "durationMinutes": 30,
+      "type": "ScreenShare",
+      "direction": "outgoing",
+      "participants": [
+        "Robert Fels",
+        "Jan Schmidthaus (+491736078565)"
+      ],
+      "organizer": "Robert Fels"
+    },
+    {
+      "date": "07.01.2026",
+      "startTime": "14:28",
+      "endTime": "14:55",
+      "durationMinutes": 27,
+      "type": "ScreenShare",
+      "direction": "incoming",
+      "participants": [
+        "Robert Fels"
+      ],
+      "organizer": "Horn, Markus"
+    },
+    {
+      "date": "07.01.2026",
+      "startTime": "14:58",
+      "endTime": "15:05",
+      "durationMinutes": 7,
+      "type": "Video",
+      "direction": "outgoing",
+      "participants": [
+        "Robert Fels",
+        "Arson Nezovski"
+      ],
+      "organizer": "Robert Fels"
+    },
+    {
+      "date": "07.01.2026",
+      "startTime": "15:06",
+      "endTime": "15:22",
+      "durationMinutes": 16,
+      "type": "ScreenShare",
+      "direction": "incoming",
+      "participants": [
+        "Sven Brandt",
+        "Nic Frigius",
+        "Robert Fels (+491707004330)",
+        "Robert Fels"
+      ],
+      "organizer": "Nic Frigius"
+    },
+    {
+      "date": "08.01.2026",
+      "startTime": "08:13",
+      "endTime": "08:23",
+      "durationMinutes": 9,
+      "type": "Phone",
+      "direction": "outgoing",
+      "participants": [
+        "Robert Fels",
+        "+491726217151"
+      ],
+      "organizer": "Robert Fels"
+    },
+    {
+      "date": "08.01.2026",
+      "startTime": "12:43",
+      "endTime": "12:49",
+      "durationMinutes": 6,
+      "type": "Phone",
+      "direction": "outgoing",
+      "participants": [
+        "Robert Fels",
+        "+491726217151"
+      ],
+      "organizer": "Robert Fels"
+    },
+    {
+      "date": "08.01.2026",
+      "startTime": "13:09",
+      "endTime": "13:30",
+      "durationMinutes": 21,
+      "type": "Phone",
+      "direction": "outgoing",
+      "participants": [
+        "Robert Fels",
+        "Leo Green"
+      ],
+      "organizer": "Robert Fels"
+    },
+    {
+      "date": "08.01.2026",
+      "startTime": "13:28",
+      "endTime": "14:13",
+      "durationMinutes": 45,
+      "type": "ScreenShare",
+      "direction": "incoming",
+      "participants": [
+        "Robert Fels"
+      ],
+      "organizer": "Horn, Markus"
+    },
+    {
+      "date": "09.01.2026",
+      "startTime": "09:29",
+      "endTime": "10:02",
+      "durationMinutes": 33,
+      "type": "Phone",
+      "direction": "outgoing",
+      "participants": [
+        "Robert Fels",
+        "Xenia Dik"
+      ],
+      "organizer": "Robert Fels"
+    },
+    {
+      "date": "12.01.2026",
+      "startTime": "08:16",
+      "endTime": "08:23",
+      "durationMinutes": 7,
+      "type": "Phone",
+      "direction": "outgoing",
+      "participants": [
+        "Robert Fels",
+        "+491726217151"
+      ],
+      "organizer": "Robert Fels"
+    },
+    {
+      "date": "13.01.2026",
+      "startTime": "10:38",
+      "endTime": "10:44",
+      "durationMinutes": 7,
+      "type": "Phone",
+      "direction": "outgoing",
+      "participants": [
+        "Robert Fels",
+        "+491726217151"
+      ],
+      "organizer": "Robert Fels"
+    },
+    {
+      "date": "13.01.2026",
+      "startTime": "12:10",
+      "endTime": "12:22",
+      "durationMinutes": 12,
+      "type": "ScreenShare",
+      "direction": "outgoing",
+      "participants": [
+        "Robert Fels",
+        "Jan Schmidthaus (+491736078565)"
+      ],
+      "organizer": "Robert Fels"
+    },
+    {
+      "date": "13.01.2026",
+      "startTime": "12:41",
+      "endTime": "13:01",
+      "durationMinutes": 20,
+      "type": "ScreenShare",
+      "direction": "incoming",
+      "participants": [
+        "Sven Brandt",
+        "Robert Fels (+491707004330)",
+        "Robert Fels",
+        "User: 56aa0a8f-4cd3-446b-8146-0023476a5ff2"
+      ],
+      "organizer": "Sven Brandt"
+    },
+    {
+      "date": "13.01.2026",
+      "startTime": "16:00",
+      "endTime": "16:12",
+      "durationMinutes": 13,
+      "type": "Phone",
+      "direction": "outgoing",
+      "participants": [
+        "Robert Fels",
+        "0918190914665"
+      ],
+      "organizer": "Robert Fels"
+    },
+    {
+      "date": "13.01.2026",
+      "startTime": "17:10",
+      "endTime": "17:35",
+      "durationMinutes": 25,
+      "type": "Phone",
+      "direction": "outgoing",
+      "participants": [
+        "Robert Fels",
+        "+491726217151"
+      ],
+      "organizer": "Robert Fels"
+    },
+    {
+      "date": "14.01.2026",
+      "startTime": "10:00",
+      "endTime": "10:25",
+      "durationMinutes": 26,
+      "type": "Phone",
+      "direction": "outgoing",
+      "participants": [
+        "Robert Fels",
+        "König, Sara"
+      ],
+      "organizer": "Robert Fels"
+    },
+    {
+      "date": "14.01.2026",
+      "startTime": "10:32",
+      "endTime": "11:29",
+      "durationMinutes": 58,
+      "type": "ScreenShare",
+      "direction": "outgoing",
+      "participants": [
+        "Robert Fels",
+        "Sven Brandt (+491732664078)"
+      ],
+      "organizer": "Robert Fels"
+    },
+    {
+      "date": "14.01.2026",
+      "startTime": "14:57",
+      "endTime": "15:20",
+      "durationMinutes": 23,
+      "type": "Phone",
+      "direction": "outgoing",
+      "participants": [
+        "Robert Fels",
+        "Leo Green"
+      ],
+      "organizer": "Robert Fels"
+    },
+    {
+      "date": "15.01.2026",
+      "startTime": "13:28",
+      "endTime": "13:45",
+      "durationMinutes": 18,
+      "type": "ScreenShare",
+      "direction": "incoming",
+      "participants": [
+        "Robert Fels"
+      ],
+      "organizer": "Horn, Markus"
+    },
+    {
+      "date": "15.01.2026",
+      "startTime": "17:11",
+      "endTime": "17:38",
+      "durationMinutes": 27,
+      "type": "ScreenShare",
+      "direction": "outgoing",
+      "participants": [
+        "Robert Fels",
+        "Sven Brandt (+491732664078)"
+      ],
+      "organizer": "Robert Fels"
+    },
+    {
+      "date": "16.01.2026",
+      "startTime": "09:36",
+      "endTime": "10:00",
+      "durationMinutes": 24,
+      "type": "ScreenShare",
+      "direction": "outgoing",
+      "participants": [
+        "Robert Fels",
+        "Xenia Dik (+4915170667140)"
+      ],
+      "organizer": "Robert Fels"
+    },
+    {
+      "date": "19.01.2026",
+      "startTime": "08:45",
+      "endTime": "08:55",
+      "durationMinutes": 10,
+      "type": "ScreenShare",
+      "direction": "outgoing",
+      "participants": [
+        "Robert Fels",
+        "Xenia Dik (+4915170667140)"
+      ],
+      "organizer": "Robert Fels"
+    },
+    {
+      "date": "19.01.2026",
+      "startTime": "09:46",
+      "endTime": "09:58",
+      "durationMinutes": 12,
+      "type": "ScreenShare",
+      "direction": "outgoing",
+      "participants": [
+        "Robert Fels",
+        "Sven Brandt (+491732664078)"
+      ],
+      "organizer": "Robert Fels"
+    },
+    {
+      "date": "20.01.2026",
+      "startTime": "12:07",
+      "endTime": "12:13",
+      "durationMinutes": 6,
+      "type": "Phone",
+      "direction": "outgoing",
+      "participants": [
+        "Robert Fels",
+        "Jan Schmidthaus (+491736078565)"
+      ],
+      "organizer": "Robert Fels"
+    },
+    {
+      "date": "20.01.2026",
+      "startTime": "15:42",
+      "endTime": "15:53",
+      "durationMinutes": 10,
+      "type": "Phone",
+      "direction": "outgoing",
+      "participants": [
+        "Robert Fels",
+        "+491726217151"
+      ],
+      "organizer": "Robert Fels"
+    },
+    {
+      "date": "20.01.2026",
+      "startTime": "16:35",
+      "endTime": "17:08",
+      "durationMinutes": 33,
+      "type": "ScreenShare",
+      "direction": "outgoing",
+      "participants": [
+        "Robert Fels",
+        "Jan Schmidthaus (+491736078565)"
+      ],
+      "organizer": "Robert Fels"
+    },
+    {
+      "date": "21.01.2026",
+      "startTime": "09:48",
+      "endTime": "09:57",
+      "durationMinutes": 9,
+      "type": "ScreenShare",
+      "direction": "outgoing",
+      "participants": [
+        "Robert Fels",
+        "Jan Schmidthaus (+491736078565)",
+        "Jan Schmidthaus",
+        "Nic Frigius"
+      ],
+      "organizer": "Robert Fels"
+    },
+    {
+      "date": "22.01.2026",
+      "startTime": "09:23",
+      "endTime": "09:35",
+      "durationMinutes": 11,
+      "type": "ScreenShare",
+      "direction": "outgoing",
+      "participants": [
+        "Robert Fels",
+        "Xenia Dik (+4915170667140)"
+      ],
+      "organizer": "Robert Fels"
+    },
+    {
+      "date": "22.01.2026",
+      "startTime": "13:28",
+      "endTime": "13:45",
+      "durationMinutes": 17,
+      "type": "ScreenShare",
+      "direction": "incoming",
+      "participants": [
+        "Robert Fels"
+      ],
+      "organizer": "Horn, Markus"
+    },
+    {
+      "date": "22.01.2026",
+      "startTime": "15:08",
+      "endTime": "15:32",
+      "durationMinutes": 24,
+      "type": "Phone",
+      "direction": "outgoing",
+      "participants": [
+        "Robert Fels",
+        "Sven Brandt (+491732664078)"
+      ],
+      "organizer": "Robert Fels"
+    },
+    {
+      "date": "23.01.2026",
+      "startTime": "07:59",
+      "endTime": "08:44",
+      "durationMinutes": 46,
+      "type": "ScreenShare",
+      "direction": "outgoing",
+      "participants": [
+        "Robert Fels",
+        "Xenia Dik (+4915170667140)"
+      ],
+      "organizer": "Robert Fels"
+    },
+    {
+      "date": "23.01.2026",
+      "startTime": "11:18",
+      "endTime": "11:24",
+      "durationMinutes": 7,
+      "type": "ScreenShare",
+      "direction": "outgoing",
+      "participants": [
+        "Robert Fels",
+        "Jan Schmidthaus (+491736078565)",
+        "Xenia Dik",
+        "Jan Schmidthaus"
+      ],
+      "organizer": "Robert Fels"
+    },
+    {
+      "date": "23.01.2026",
+      "startTime": "11:39",
+      "endTime": "12:32",
+      "durationMinutes": 53,
+      "type": "ScreenShare",
+      "direction": "outgoing",
+      "participants": [
+        "Robert Fels",
+        "Simon Rehr (+491715457265)"
+      ],
+      "organizer": "Robert Fels"
+    },
+    {
+      "date": "23.01.2026",
+      "startTime": "16:15",
+      "endTime": "17:08",
+      "durationMinutes": 53,
+      "type": "ScreenShare",
+      "direction": "outgoing",
+      "participants": [
+        "Robert Fels",
+        "Sven Brandt (+491732664078)"
+      ],
+      "organizer": "Robert Fels"
+    },
+    {
+      "date": "26.01.2026",
+      "startTime": "09:37",
+      "endTime": "09:57",
+      "durationMinutes": 20,
+      "type": "ScreenShare",
+      "direction": "outgoing",
+      "participants": [
+        "Robert Fels",
+        "Jan Schmidthaus (+491736078565)",
+        "Amir Abassi",
+        "Benedikt Koch",
+        "Jan Schmidthaus"
+      ],
+      "organizer": "Robert Fels"
+    },
+    {
+      "date": "27.01.2026",
+      "startTime": "11:50",
+      "endTime": "12:06",
+      "durationMinutes": 17,
+      "type": "Phone",
+      "direction": "outgoing",
+      "participants": [
+        "Robert Fels",
+        "Sven Brandt (+491732664078)"
+      ],
+      "organizer": "Robert Fels"
+    },
+    {
+      "date": "27.01.2026",
+      "startTime": "12:08",
+      "endTime": "12:25",
+      "durationMinutes": 17,
+      "type": "Phone",
+      "direction": "outgoing",
+      "participants": [
+        "Robert Fels",
+        "Simon Rehr (+491715457265)"
+      ],
+      "organizer": "Robert Fels"
+    },
+    {
+      "date": "29.01.2026",
+      "startTime": "07:43",
+      "endTime": "08:01",
+      "durationMinutes": 19,
+      "type": "ScreenShare",
+      "direction": "outgoing",
+      "participants": [
+        "Robert Fels",
+        "Simon Rehr (+491715457265)"
+      ],
+      "organizer": "Robert Fels"
+    },
+    {
+      "date": "29.01.2026",
+      "startTime": "11:00",
+      "endTime": "11:10",
+      "durationMinutes": 10,
+      "type": "ScreenShare",
+      "direction": "incoming",
+      "participants": [
+        "Jan Schmidthaus",
+        "Robert Fels (+491707004330)",
+        "Robert Fels",
+        "Benedikt Koch"
+      ],
+      "organizer": "Jan Schmidthaus"
+    },
+    {
+      "date": "29.01.2026",
+      "startTime": "13:28",
+      "endTime": "14:09",
+      "durationMinutes": 41,
+      "type": "ScreenShare",
+      "direction": "incoming",
+      "participants": [
+        "Robert Fels"
+      ],
+      "organizer": "Horn, Markus"
+    },
+    {
+      "date": "29.01.2026",
+      "startTime": "15:28",
+      "endTime": "15:39",
+      "durationMinutes": 11,
+      "type": "Phone",
+      "direction": "outgoing",
+      "participants": [
+        "Robert Fels",
+        "+4915144377998"
+      ],
+      "organizer": "Robert Fels"
+    },
+    {
+      "date": "29.01.2026",
+      "startTime": "15:43",
+      "endTime": "15:55",
+      "durationMinutes": 12,
+      "type": "Phone",
+      "direction": "incoming",
+      "participants": [
+        "Robert Fels (+491707004330)",
+        "Robert Fels",
+        "+34677452505",
+        "User: 9e133cac-5238-4d1e-aaa0-d8ff4ca23f4e"
+      ],
+      "organizer": "+34677452505"
+    },
+    {
+      "date": "30.01.2026",
+      "startTime": "08:23",
+      "endTime": "08:32",
+      "durationMinutes": 9,
+      "type": "Phone",
+      "direction": "outgoing",
+      "participants": [
+        "Robert Fels",
+        "Benedikt Koch"
+      ],
+      "organizer": "Robert Fels"
+    },
+    {
+      "date": "30.01.2026",
+      "startTime": "12:34",
+      "endTime": "12:46",
+      "durationMinutes": 12,
+      "type": "Phone",
+      "direction": "outgoing",
+      "participants": [
+        "Robert Fels",
+        "Sven Brandt (+491732664078)"
+      ],
+      "organizer": "Robert Fels"
+    },
+    {
+      "date": "30.01.2026",
+      "startTime": "14:06",
+      "endTime": "14:51",
+      "durationMinutes": 45,
+      "type": "ScreenShare",
+      "direction": "outgoing",
+      "participants": [
+        "Robert Fels",
+        "Sven Brandt (+491732664078)"
+      ],
+      "organizer": "Robert Fels"
+    },
+    {
+      "date": "02.02.2026",
+      "startTime": "09:38",
+      "endTime": "09:51",
+      "durationMinutes": 14,
+      "type": "ScreenShare",
+      "direction": "outgoing",
+      "participants": [
+        "Robert Fels",
+        "Sven Brandt (+491732664078)"
+      ],
+      "organizer": "Robert Fels"
+    },
+    {
+      "date": "02.02.2026",
+      "startTime": "17:08",
+      "endTime": "17:23",
+      "durationMinutes": 15,
+      "type": "Video",
+      "direction": "outgoing",
+      "participants": [
+        "Robert Fels",
+        "Lukas Henkel"
+      ],
+      "organizer": "Robert Fels"
+    }
+  ]
+}
