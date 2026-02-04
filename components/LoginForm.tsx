@@ -12,11 +12,12 @@ export default function LoginForm() {
   const searchParams = useSearchParams();
   const hasTriggeredLogin = useRef(false);
 
-  // Prüfen ob ein Fehler vorliegt (z.B. von Error-Seite kommend)
+  // Prüfen ob ein Fehler vorliegt oder manuell ausgeloggt wurde
   const hasError = searchParams.get("error") !== null;
+  const hasLoggedOut = searchParams.get("logout") !== null;
 
-  // Manuellen Login anzeigen wenn Fehler vorliegt
-  const showManualLogin = hasError;
+  // Manuellen Login anzeigen wenn Fehler vorliegt oder ausgeloggt wurde
+  const showManualLogin = hasError || hasLoggedOut;
 
   useEffect(() => {
     // Bereits eingeloggt -> zum Dashboard
@@ -25,12 +26,12 @@ export default function LoginForm() {
       return;
     }
 
-    // Nicht eingeloggt und kein Fehler -> automatisch Azure Login auslösen
-    if (status === "unauthenticated" && !hasTriggeredLogin.current && !hasError) {
+    // Nicht eingeloggt und kein Fehler/Logout -> automatisch Azure Login auslösen
+    if (status === "unauthenticated" && !hasTriggeredLogin.current && !hasError && !hasLoggedOut) {
       hasTriggeredLogin.current = true;
       signIn("azure-ad", { callbackUrl: "/dashboard" });
     }
-  }, [status, session, router, hasError]);
+  }, [status, session, router, hasError, hasLoggedOut]);
 
   const handleMicrosoftLogin = () => {
     signIn("azure-ad", { callbackUrl: "/dashboard" });
@@ -53,7 +54,7 @@ export default function LoginForm() {
         <div className="space-y-6">
           {showManualLogin ? (
             <>
-              {hasError && (
+              {hasError && !hasLoggedOut && (
                 <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-center text-sm text-red-700">
                   Anmeldung fehlgeschlagen. Bitte mit einem @contiva.com Konto anmelden.
                 </div>

@@ -2563,7 +2563,7 @@ export default function Dashboard() {
               </div>
             </div>
             <button
-              onClick={() => signOut({ callbackUrl: "/" })}
+              onClick={() => signOut({ callbackUrl: "/?logout=true" })}
               className="text-gray-300 hover:text-blue-500 transition-colors"
               title="Abmelden"
             >
