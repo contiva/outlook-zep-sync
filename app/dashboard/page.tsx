@@ -2485,11 +2485,12 @@ export default function Dashboard() {
             <div className="h-5 w-px bg-gray-200" />
             <div
               className="relative group"
-              title="Tastaturkürzel: Esc = Filter löschen, Strg+R = Neu laden"
+              title="Tastaturkürzel"
             >
               <Keyboard size={16} className="text-gray-300 group-hover:text-blue-500 cursor-help transition-colors" />
               <div className="hidden group-hover:block absolute right-0 top-full mt-1 p-2 bg-gray-900 text-white text-xs rounded shadow-lg whitespace-nowrap z-50">
                 <div className="font-medium mb-1">Tastaturkürzel</div>
+                <div><kbd className="px-1 bg-gray-700 rounded">←</kbd> <kbd className="px-1 bg-gray-700 rounded">→</kbd> Tag wechseln</div>
                 <div><kbd className="px-1 bg-gray-700 rounded">Esc</kbd> Filter löschen</div>
                 <div><kbd className="px-1 bg-gray-700 rounded">Strg+R</kbd> Termine laden</div>
               </div>
