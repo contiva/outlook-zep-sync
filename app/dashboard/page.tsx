@@ -725,18 +725,34 @@ export default function Dashboard() {
 
   // Detect when heatmap becomes sticky
   useEffect(() => {
+    let rafId: number | null = null;
+    let lastSticky = false;
+
     const handleScroll = () => {
-      const heatmapSentinel = heatmapSentinelRef.current;
-      if (heatmapSentinel) {
-        const rect = heatmapSentinel.getBoundingClientRect();
-        setIsHeatmapSticky(rect.top < 64);
-      }
+      if (rafId) return; // Skip if already scheduled
+
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        const heatmapSentinel = heatmapSentinelRef.current;
+        if (heatmapSentinel) {
+          const rect = heatmapSentinel.getBoundingClientRect();
+          const isSticky = rect.top < 64;
+          // Only update state if changed
+          if (isSticky !== lastSticky) {
+            lastSticky = isSticky;
+            setIsHeatmapSticky(isSticky);
+          }
+        }
+      });
     };
 
     window.addEventListener("scroll", handleScroll, { passive: true });
     handleScroll();
 
-    return () => window.removeEventListener("scroll", handleScroll);
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      if (rafId) cancelAnimationFrame(rafId);
+    };
   }, []);
 
   // Measure heatmap card height for sticky positioning (excludes legend)
@@ -2572,7 +2588,7 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-sm sticky top-0 z-40">
+      <header className="bg-white shadow-sm sticky top-0 z-40 will-change-transform">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Image src="/logo.png" alt="Logo" width={32} height={32} className="h-8 w-auto" />
@@ -2626,7 +2642,7 @@ export default function Dashboard() {
         {/* Sentinel element to detect when heatmap becomes sticky */}
         <div ref={heatmapSentinelRef} className="h-0" />
         {/* Combined Date Picker and Calendar Heatmap with Legend */}
-        <div className="sticky top-16 z-30 bg-gray-50">
+        <div className="sticky top-16 z-30 bg-gray-50 will-change-transform">
           {/* Left navigation arrow - positioned outside the card */}
           <button
             onClick={() => navigateDay('prev')}

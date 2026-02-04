@@ -295,18 +295,34 @@ export default function AppointmentList({
   useEffect(() => {
     if (stickyTop === undefined) return;
 
-    const handleScroll = () => {
-      const sentinel = filterbarSentinelRef.current;
-      if (!sentinel) return;
+    let rafId: number | null = null;
+    let lastSticky = false;
 
-      const rect = sentinel.getBoundingClientRect();
-      // Filterbar is sticky when sentinel goes above its sticky position
-      setIsFilterbarSticky(rect.top < stickyTop);
+    const handleScroll = () => {
+      if (rafId) return; // Skip if already scheduled
+
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        const sentinel = filterbarSentinelRef.current;
+        if (!sentinel) return;
+
+        const rect = sentinel.getBoundingClientRect();
+        // Filterbar is sticky when sentinel goes above its sticky position (+1 for seamless transition)
+        const isSticky = rect.top < stickyTop + 1;
+        // Only update state if changed
+        if (isSticky !== lastSticky) {
+          lastSticky = isSticky;
+          setIsFilterbarSticky(isSticky);
+        }
+      });
     };
 
     window.addEventListener("scroll", handleScroll, { passive: true });
     handleScroll();
-    return () => window.removeEventListener("scroll", handleScroll);
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      if (rafId) cancelAnimationFrame(rafId);
+    };
   }, [stickyTop]);
 
   // Notify parent of sticky state changes
@@ -460,7 +476,7 @@ export default function AppointmentList({
       <div ref={filterbarSentinelRef} className="h-0" />
       {/* Header mit "Alle auswählen" Checkbox und Filter */}
       <div
-        className={`relative bg-white border border-gray-200 z-[25] transition-[border-radius] ${
+        className={`relative bg-white border border-gray-200 z-[25] transition-[border-radius] will-change-transform ${
           stickyTop !== undefined ? "sticky" : ""
         } ${isFilterbarSticky ? "rounded-none border-t-0" : "rounded-t-lg"}`}
         style={stickyTop !== undefined ? { top: `${stickyTop}px` } : undefined}
