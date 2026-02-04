@@ -282,11 +282,16 @@ function AttendeePopover({ attendees, organizer, isOrganizer, isMuted }: Attende
   // Check if all attendees are from internal domains
   const isInternalOnly = attendeeCount > 0 && allDomains.every(d => isInternalDomain(d));
 
+  // Filter out organizer from attendees list (will be shown separately)
+  const filteredAttendees = organizer
+    ? attendees.filter(a => a.emailAddress.address.toLowerCase() !== organizer.emailAddress.address.toLowerCase())
+    : attendees;
+
   // Group attendees by status
-  const accepted = attendees.filter(a => a.status.response === "accepted");
-  const tentative = attendees.filter(a => a.status.response === "tentativelyAccepted");
-  const declined = attendees.filter(a => a.status.response === "declined");
-  const noResponse = attendees.filter(a => !["accepted", "tentativelyAccepted", "declined", "organizer"].includes(a.status.response));
+  const accepted = filteredAttendees.filter(a => a.status.response === "accepted");
+  const tentative = filteredAttendees.filter(a => a.status.response === "tentativelyAccepted");
+  const declined = filteredAttendees.filter(a => a.status.response === "declined");
+  const noResponse = filteredAttendees.filter(a => !["accepted", "tentativelyAccepted", "declined", "organizer"].includes(a.status.response));
 
   // Only show trigger if there are attendees
   if (attendeeCount === 0) {
