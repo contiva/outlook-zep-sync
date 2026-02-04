@@ -222,6 +222,7 @@ interface AttendeePopoverProps {
 
 function AttendeePopover({ attendees, organizer, isOrganizer, isMuted }: AttendeePopoverProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [openAbove, setOpenAbove] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
@@ -243,6 +244,17 @@ function AttendeePopover({ attendees, organizer, isOrganizer, isMuted }: Attende
       return () => document.removeEventListener("mousedown", handleClickOutside);
     }
   }, [isOpen]);
+
+  // Toggle popover and calculate position
+  const handleToggle = () => {
+    if (!isOpen && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const popoverHeight = 300; // Approximate max height
+      setOpenAbove(spaceBelow < popoverHeight && rect.top > popoverHeight);
+    }
+    setIsOpen(!isOpen);
+  };
 
   const attendeeCount = attendees.length;
   const allDomains = [...new Set(attendees.map(a => a.emailAddress.address.split('@')[1]).filter(Boolean))];
@@ -267,7 +279,7 @@ function AttendeePopover({ attendees, organizer, isOrganizer, isMuted }: Attende
     <div className="relative inline-flex items-center">
       <button
         ref={triggerRef}
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={handleToggle}
         className={`flex items-center gap-1 text-xs hover:text-gray-700 transition-colors ${isMuted ? "text-gray-400" : "text-gray-500"}`}
         title="Teilnehmer anzeigen"
       >
@@ -283,7 +295,9 @@ function AttendeePopover({ attendees, organizer, isOrganizer, isMuted }: Attende
       {isOpen && (
         <div
           ref={popoverRef}
-          className="absolute left-0 top-full mt-1 z-50 bg-white rounded-lg shadow-lg border border-gray-200 p-3 min-w-70 max-w-90 font-[Inter]"
+          className={`absolute left-0 z-50 bg-white rounded-lg shadow-lg border border-gray-200 p-3 min-w-70 max-w-90 font-[Inter] ${
+            openAbove ? "bottom-full mb-1" : "top-full mt-1"
+          }`}
         >
           <div className="text-xs font-medium text-gray-700 mb-2">
             {attendeeCount} Teilnehmer
@@ -448,6 +462,7 @@ function DurationInfoPopover({
   children,
 }: DurationInfoPopoverProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [openAbove, setOpenAbove] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
@@ -470,6 +485,18 @@ function DurationInfoPopover({
     }
   }, [isOpen]);
 
+  // Toggle popover and calculate position
+  const handleToggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!isOpen && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const popoverHeight = 250; // Approximate max height
+      setOpenAbove(spaceBelow < popoverHeight && rect.top > popoverHeight);
+    }
+    setIsOpen(!isOpen);
+  };
+
   const plannedWasRounded = originalStart !== plannedStart || originalEnd !== plannedEnd;
   const actualWasRounded = hasActualData && originalActualStart && actualStart &&
     (originalActualStart !== actualStart || originalActualEnd !== actualEnd);
@@ -489,7 +516,7 @@ function DurationInfoPopover({
       {children && (
         <button
           ref={triggerRef}
-          onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen); }}
+          onClick={handleToggle}
           className="hover:text-gray-700 transition-colors cursor-pointer"
           title="Zeitoptionen anzeigen"
         >
@@ -499,7 +526,7 @@ function DurationInfoPopover({
       {!children && (
         <button
           ref={triggerRef}
-          onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen); }}
+          onClick={handleToggle}
           className="text-gray-500 px-1.5 py-0.5 hover:text-gray-700 transition-colors cursor-pointer"
           title="Klicken für Details"
         >
@@ -510,7 +537,9 @@ function DurationInfoPopover({
       {isOpen && (
         <div
           ref={popoverRef}
-          className="absolute left-0 top-full mt-1 z-50 bg-white rounded-lg shadow-lg border border-gray-200 p-3 min-w-64 font-[Inter]"
+          className={`absolute left-0 z-50 bg-white rounded-lg shadow-lg border border-gray-200 p-3 min-w-64 font-[Inter] ${
+            openAbove ? "bottom-full mb-1" : "top-full mt-1"
+          }`}
         >
           <div className="text-xs font-medium text-gray-700 mb-2">
             Zeitoptionen für ZEP

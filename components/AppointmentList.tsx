@@ -262,6 +262,7 @@ export default function AppointmentList({
 }: AppointmentListProps) {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [soloPopoverOpen, setSoloPopoverOpen] = useState(false);
+  const [soloPopoverOpenAbove, setSoloPopoverOpenAbove] = useState(false);
   const [isFilterbarSticky, setIsFilterbarSticky] = useState(false);
   const filterbarSentinelRef = useRef<HTMLDivElement>(null);
   const [soloToggleCount, setSoloToggleCount] = useState(() => {
@@ -290,6 +291,17 @@ export default function AppointmentList({
       return () => document.removeEventListener("mousedown", handleClickOutside);
     }
   }, [soloPopoverOpen]);
+
+  // Helper to open solo popover with position calculation
+  const openSoloPopover = () => {
+    if (soloTriggerRef.current) {
+      const rect = soloTriggerRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const popoverHeight = 120; // Approximate height
+      setSoloPopoverOpenAbove(spaceBelow < popoverHeight && rect.top > popoverHeight);
+    }
+    openSoloPopover();
+  };
 
   // Detect when filterbar becomes sticky
   useEffect(() => {
@@ -347,7 +359,7 @@ export default function AppointmentList({
       setSoloToggleCount(newCount);
       localStorage.setItem("soloToggleCount", String(newCount));
 
-      setSoloPopoverOpen(true);
+      openSoloPopover();
       // Auto-close after 3 seconds
       setTimeout(() => setSoloPopoverOpen(false), 3000);
     }
@@ -618,7 +630,9 @@ export default function AppointmentList({
                 {soloPopoverOpen && (
                   <div
                     ref={soloPopoverRef}
-                    className="absolute top-full right-0 mt-1 w-64 bg-white rounded-lg shadow-lg border border-gray-200 p-3 z-50"
+                    className={`absolute right-0 w-64 bg-white rounded-lg shadow-lg border border-gray-200 p-3 z-50 ${
+                      soloPopoverOpenAbove ? "bottom-full mb-1" : "top-full mt-1"
+                    }`}
                   >
                     <div className="text-sm font-medium text-gray-900 mb-1">Solo-Termine</div>
                     <p className="text-xs text-gray-500">
