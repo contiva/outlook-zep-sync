@@ -128,7 +128,11 @@ export async function POST(request: Request) {
     }
 
     // First, get the Teams app installation ID for this user
-    const installationsUrl = `https://graph.microsoft.com/v1.0/users/${recipientUserId}/teamwork/installedApps?$filter=teamsAppDefinition/teamsAppId eq '${CLIENT_ID}'&$expand=teamsAppDefinition`;
+    // Note: The Teams App ID in the manifest may differ from the Azure AD Client ID
+    const teamsAppId = CLIENT_ID; // This should match the "id" in manifest.json
+
+    // Get all installed apps and find ours
+    const installationsUrl = `https://graph.microsoft.com/v1.0/users/${recipientUserId}/teamwork/installedApps?$expand=teamsAppDefinition`;
 
     const installationsResponse = await fetch(installationsUrl, {
       headers: { Authorization: `Bearer ${appToken}` },
@@ -141,20 +145,34 @@ export async function POST(request: Request) {
         success: false,
         message: "Could not find Teams app installation",
         count,
+        debug: process.env.NODE_ENV === "development" ? errorText : undefined,
       });
     }
 
     const installationsData = await installationsResponse.json();
-    const installation = installationsData.value?.[0];
+
+    // Log all installed apps for debugging
+    console.log("[Teams Badge] Found installed apps:", installationsData.value?.length || 0);
+    installationsData.value?.forEach((app: { id: string; teamsAppDefinition?: { teamsAppId?: string; displayName?: string } }) => {
+      console.log(`  - ${app.teamsAppDefinition?.displayName}: ${app.teamsAppDefinition?.teamsAppId}`);
+    });
+
+    // Find our app by matching the teamsAppId
+    const installation = installationsData.value?.find(
+      (app: { teamsAppDefinition?: { teamsAppId?: string } }) =>
+        app.teamsAppDefinition?.teamsAppId === teamsAppId
+    );
 
     if (!installation) {
-      console.log("[Teams Badge] App not installed for user");
+      console.log("[Teams Badge] App not installed for user. Looking for teamsAppId:", teamsAppId);
       return NextResponse.json({
         success: false,
         message: "Teams app not installed for this user",
         count,
       });
     }
+
+    console.log("[Teams Badge] Found app installation:", installation.id);
 
     // Send activity notification via Graph API using app-only token
     const activityUrl = `https://graph.microsoft.com/v1.0/users/${recipientUserId}/teamwork/sendActivityNotification`;
