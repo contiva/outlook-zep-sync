@@ -149,8 +149,13 @@ export function useTeamsAuth(): TeamsAuthState {
     performTeamsAuth();
   }, [session?.accessToken, status, performTeamsAuth]);
 
-  // When not in Teams, return NextAuth session state
-  if (!state.isInTeams && status !== "loading") {
+  // Check URL parameter to determine if we're in Teams context
+  // This is needed because state.isInTeams is set async in useEffect
+  const urlIndicatesTeams = typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("inTeams") === "true";
+
+  // When not in Teams (both state and URL), return NextAuth session state
+  if (!state.isInTeams && !urlIndicatesTeams && status !== "loading") {
     return {
       isInTeams: false,
       isLoading: false,

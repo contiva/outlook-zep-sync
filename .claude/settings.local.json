@@ -6,14 +6,12 @@
       "Bash(npx eslint:*)",
       "WebSearch",
       "Bash(lsof:*)",
-      "Bash(git push:*)",
-      "Bash(git checkout:*)",
-      "Bash(git pull:*)",
-      "Bash(git merge:*)",
-      "Bash(git add:*)",
-      "Bash(git commit -m \"$\\(cat <<''EOF''\nchore: block search engine indexing\n\n- Add robots.txt to disallow all crawlers\n- Add robots meta tag with noindex, nofollow\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
-      "Bash(git commit -m \"$\\(cat <<''EOF''\nfix: show domain count instead of list when >2 external domains\n\n- Display \"3 extern\" instead of long domain list for better readability\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
-      "Bash(git commit -m \"$\\(cat <<''EOF''\nfix: treat extern.contiva.com as internal domain\n\n- Add isInternalDomain\\(\\) helper to check contiva.com and subdomains\n- Filter out all internal domains from external display\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
+      "Bash(curl:*)",
+      "WebFetch(domain:www.svgrepo.com)",
+      "WebFetch(domain:www.vectorlogo.zone)",
+      "Bash(chmod:*)",
+      "Bash(sips:*)",
+      "Bash(git add:*)"
     ]
   }
 }
