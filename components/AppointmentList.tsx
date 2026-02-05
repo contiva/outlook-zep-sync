@@ -106,6 +106,8 @@ interface AppointmentListProps {
   syncedEntries: ZepEntry[];
   duplicateWarnings?: Map<string, DuplicateCheckResult>;
   loadingTasks?: Set<number>;
+  // Loading state for skeleton
+  loading?: boolean;
   // Actual meeting durations from call records
   actualDurations?: ActualDurationsMap;
   onToggle: (id: string) => void;
@@ -225,6 +227,175 @@ function getActualDuration(
   return actualDurations.get(durationKey);
 }
 
+// Skeleton component for loading state - with variation for realistic look
+function AppointmentSkeleton({ variant = 0 }: { variant?: number }) {
+  // Different title widths for variation
+  const titleWidths = ["w-64", "w-48", "w-72", "w-56", "w-40"];
+  const orgWidths = ["w-28", "w-24", "w-32", "w-20", "w-36"];
+  const isSynced = variant === 0 || variant === 3; // Some appear synced
+
+  return (
+    <div className="bg-white border border-gray-100 rounded-lg p-4 animate-pulse">
+      {/* Row 1: Main info */}
+      <div className="flex items-start gap-3">
+        {/* Checkbox or synced icon skeleton */}
+        {isSynced ? (
+          <div className="w-5 h-5 bg-green-100 rounded-full mt-0.5 shrink-0" />
+        ) : (
+          <div className="w-4 h-4 bg-gray-200 rounded mt-1 shrink-0" />
+        )}
+
+        {/* Content area */}
+        <div className="flex-1 min-w-0">
+          {/* Title row */}
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
+            {/* Title */}
+            <div className={`h-4 bg-gray-200 rounded ${titleWidths[variant % titleWidths.length]}`} />
+            {/* "von" text */}
+            <div className={`h-3 bg-gray-100 rounded ${orgWidths[variant % orgWidths.length]}`} />
+            {/* Separator dot */}
+            <div className="w-1 h-1 bg-gray-300 rounded-full" />
+            {/* Attendees badge */}
+            <div className="h-5 bg-gray-100 rounded-full w-8" />
+            {/* Separator dot */}
+            <div className="w-1 h-1 bg-gray-300 rounded-full" />
+            {/* Teams icon placeholder */}
+            <div className="w-4 h-4 bg-gray-100 rounded" />
+          </div>
+
+          {/* Time and duration row */}
+          <div className="flex items-center gap-2">
+            {/* Time range */}
+            <div className="h-3.5 bg-gray-100 rounded w-32" />
+            {/* Separator dot */}
+            <div className="w-1 h-1 bg-gray-300 rounded-full" />
+            {/* Duration badge */}
+            <div className={`h-6 rounded-full w-14 ${isSynced ? "bg-green-100" : "bg-gray-100"}`} />
+            {/* Separator */}
+            <div className="w-px h-3 bg-gray-200" />
+            {/* Actual duration */}
+            <div className="h-4 bg-gray-100 rounded w-8" />
+          </div>
+        </div>
+
+        {/* Right side: Tags */}
+        <div className="flex items-center gap-2 shrink-0">
+          {isSynced && <div className="h-5 bg-green-100 rounded-full w-16" />}
+          <div className={`h-5 rounded-full w-12 ${variant % 2 === 0 ? "bg-blue-50" : "bg-orange-50"}`} />
+        </div>
+      </div>
+
+      {/* Row 2: Form fields or synced info */}
+      {isSynced ? (
+        <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-50">
+          {/* Project/Task info for synced */}
+          <div className="h-4 bg-gray-100 rounded w-32" />
+          <div className="h-4 bg-gray-100 rounded w-1" />
+          <div className="h-4 bg-gray-100 rounded w-24" />
+          <div className="h-5 w-5 bg-gray-100 rounded ml-2" />
+        </div>
+      ) : (
+        <div className="flex items-center gap-3 mt-3 pt-3 border-t border-gray-50">
+          {/* Projekt dropdown */}
+          <div className="flex flex-col gap-1.5">
+            <div className="h-3 bg-gray-100 rounded w-12" />
+            <div className="h-9 bg-gray-100 rounded w-44" />
+          </div>
+
+          {/* Task dropdown */}
+          <div className="flex flex-col gap-1.5">
+            <div className="h-3 bg-gray-100 rounded w-8" />
+            <div className="h-9 bg-gray-100 rounded w-32" />
+          </div>
+
+          {/* Tätigkeit dropdown */}
+          <div className="flex flex-col gap-1.5">
+            <div className="h-3 bg-gray-100 rounded w-16" />
+            <div className="h-9 bg-gray-100 rounded w-32" />
+          </div>
+
+          {/* Fakt. button */}
+          <div className="flex flex-col gap-1.5">
+            <div className="h-3 bg-gray-100 rounded w-8" />
+            <div className="h-9 w-9 bg-gray-100 rounded" />
+          </div>
+
+          {/* Zeit buttons */}
+          <div className="flex flex-col gap-1.5">
+            <div className="h-3 bg-gray-100 rounded w-8" />
+            <div className="flex gap-1">
+              <div className="h-9 w-11 bg-gray-100 rounded" />
+              <div className="h-9 w-11 bg-gray-100 rounded" />
+            </div>
+          </div>
+
+          {/* Sync button */}
+          <div className="flex flex-col gap-1.5">
+            <div className="h-3 bg-gray-100 rounded w-8" />
+            <div className="h-9 w-9 bg-gray-100 rounded" />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Skeleton list with 5 items
+function AppointmentListSkeleton() {
+  return (
+    <div>
+      {/* Header skeleton */}
+      <div className="bg-white border border-gray-200 rounded-t-lg shadow-md">
+        <div className="flex items-center px-4 py-3">
+          {/* Checkbox */}
+          <div className="flex items-center gap-3">
+            <div className="w-4 h-4 bg-gray-200 rounded animate-pulse" />
+            <div className="h-4 bg-gray-200 rounded w-16 animate-pulse" />
+          </div>
+
+          <div className="h-8 w-px bg-gray-200 mx-3" />
+
+          {/* Search */}
+          <div className="flex-1 flex items-center gap-2">
+            <div className="w-5 h-5 bg-gray-200 rounded animate-pulse" />
+            <div className="h-4 bg-gray-200 rounded w-24 animate-pulse" />
+          </div>
+
+          <div className="h-8 w-px bg-gray-200 mx-3" />
+
+          {/* Filter button */}
+          <div className="h-8 bg-gray-200 rounded w-20 animate-pulse" />
+
+          <div className="h-8 w-px bg-gray-200 mx-3" />
+
+          {/* Count */}
+          <div className="h-4 bg-gray-200 rounded w-16 animate-pulse" />
+
+          <div className="flex-1" />
+
+          {/* Sync button */}
+          <div className="h-10 bg-gray-200 rounded w-28 animate-pulse" />
+        </div>
+      </div>
+
+      {/* Appointment skeletons with variation */}
+      <div className="flex flex-col gap-1 py-1">
+        {[0, 1, 2, 3, 4].map((i) => (
+          <AppointmentSkeleton key={i} variant={i} />
+        ))}
+      </div>
+
+      {/* Footer skeleton */}
+      <div className="px-4 py-3 border border-gray-200 bg-white rounded-b-lg">
+        <div className="flex items-center gap-4">
+          <div className="h-4 bg-gray-200 rounded w-40 animate-pulse" />
+          <div className="h-4 bg-gray-200 rounded w-24 animate-pulse" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AppointmentList({
   appointments,
   projects,
@@ -233,6 +404,7 @@ export default function AppointmentList({
   syncedEntries,
   duplicateWarnings,
   loadingTasks,
+  loading,
   actualDurations,
   onToggle,
   onToggleSeries,
@@ -466,6 +638,11 @@ export default function AppointmentList({
   const selectedSelectableCount = selectableAppointments.filter(a => a.selected).length;
   const allSelectableSelected = selectableAppointments.length > 0 && selectedSelectableCount === selectableAppointments.length;
   const someSelectableSelected = selectedSelectableCount > 0 && selectedSelectableCount < selectableAppointments.length;
+
+  // Loading state - show skeleton
+  if (loading) {
+    return <AppointmentListSkeleton />;
+  }
 
   // Keine Termine vorhanden
   if (appointments.length === 0) {

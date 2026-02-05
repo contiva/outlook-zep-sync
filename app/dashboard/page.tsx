@@ -2867,6 +2867,7 @@ export default function Dashboard() {
           syncedEntries={syncedEntries}
           duplicateWarnings={duplicateWarnings}
           loadingTasks={loadingTasks}
+          loading={loading}
           // Actual meeting durations from call records
           actualDurations={actualDurations}
           onToggle={toggleAppointment}

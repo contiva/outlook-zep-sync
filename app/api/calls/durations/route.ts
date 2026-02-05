@@ -8,6 +8,9 @@ const TENANT_ID = process.env.AZURE_AD_TENANT_ID;
 const CLIENT_ID = process.env.AZURE_AD_CLIENT_ID;
 const CLIENT_SECRET = process.env.AZURE_AD_CLIENT_SECRET;
 
+// Batch size for fetching call details
+const BATCH_SIZE = 20;
+
 // Get Application token (client credentials flow)
 async function getAppToken(): Promise<string> {
   const res = await fetch(
@@ -30,6 +33,26 @@ async function getAppToken(): Promise<string> {
   return data.access_token;
 }
 
+// Get current user using their delegated token (/me endpoint)
+async function getCurrentUserFromToken(
+  userToken: string
+): Promise<{ id: string; displayName: string }> {
+  const response = await fetch(
+    "https://graph.microsoft.com/v1.0/me?$select=id,displayName",
+    {
+      headers: {
+        Authorization: `Bearer ${userToken}`,
+      },
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch current user: ${response.status}`);
+  }
+
+  return response.json();
+}
+
 interface CallRecordBasic {
   id: string;
   startDateTime: string;
@@ -38,9 +61,51 @@ interface CallRecordBasic {
   joinWebUrl?: string;
 }
 
+interface Participant {
+  user?: {
+    id?: string;
+    displayName?: string;
+  };
+}
+
+interface CallRecordWithParticipants extends CallRecordBasic {
+  participants?: Participant[];
+}
+
 interface GraphCallRecordsResponse {
   value: CallRecordBasic[];
   "@odata.nextLink"?: string;
+}
+
+// Fetch call record details including participants
+async function fetchCallDetails(
+  accessToken: string,
+  callId: string
+): Promise<CallRecordWithParticipants | null> {
+  try {
+    const res = await fetch(
+      `https://graph.microsoft.com/v1.0/communications/callRecords/${callId}?$select=id,startDateTime,endDateTime,type,joinWebUrl,participants`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    return res.ok ? await res.json() : null;
+  } catch {
+    return null;
+  }
+}
+
+// Check if user participated in the call
+function userParticipatedInCall(
+  details: CallRecordWithParticipants,
+  userId: string,
+  userName: string
+): boolean {
+  if (!details.participants) return false;
+
+  return details.participants.some(
+    (p) =>
+      p.user?.id === userId ||
+      p.user?.displayName?.toLowerCase().includes(userName.toLowerCase())
+  );
 }
 
 interface DurationsResponse {
@@ -124,14 +189,15 @@ export async function GET(
   }
 
   try {
+    // Get current user from their token (to filter by participation)
+    const currentUser = await getCurrentUserFromToken(session.accessToken);
+
     // Use Application token (client credentials) for CallRecords.Read.All
     const accessToken = await getAppToken();
 
-    // Fetch call records with joinWebUrl (group calls only, which are scheduled meetings)
-    // We only need the basic info - no participant resolution needed
-    const durations: DurationsResponse["durations"] = {};
-
-    let callUrl: string | null = `https://graph.microsoft.com/v1.0/communications/callRecords?$filter=startDateTime ge ${startDateTime} and startDateTime le ${endDateTime}&$select=id,startDateTime,endDateTime,type,joinWebUrl`;
+    // First, get all call record IDs for group calls in the date range
+    const callIds: string[] = [];
+    let callUrl: string | null = `https://graph.microsoft.com/v1.0/communications/callRecords?$filter=startDateTime ge ${startDateTime} and startDateTime le ${endDateTime}&$select=id,type,joinWebUrl`;
 
     while (callUrl) {
       const res: Response = await fetch(callUrl, {
@@ -150,40 +216,10 @@ export async function GET(
 
       const data: GraphCallRecordsResponse = await res.json();
 
-      // Process each call record
+      // Collect IDs of group calls with joinWebUrl
       for (const record of data.value) {
-        // Only process group calls (scheduled meetings) with joinWebUrl
         if (record.type === "groupCall" && record.joinWebUrl) {
-          const normalizedUrl = normalizeJoinUrl(record.joinWebUrl);
-          if (normalizedUrl) {
-            // Use date from the call record's start time to create unique key per occurrence
-            // This is critical for recurring meetings which share the same joinWebUrl
-            const callDate = record.startDateTime.split("T")[0];
-            const durationKey = getDurationKey(normalizedUrl, callDate);
-
-            // If we already have this meeting on this day, keep the one with the longest duration
-            // (in case a meeting was restarted)
-            const existing = durations[durationKey];
-            if (existing) {
-              const existingDuration =
-                new Date(existing.actualEnd).getTime() -
-                new Date(existing.actualStart).getTime();
-              const newDuration =
-                new Date(record.endDateTime).getTime() -
-                new Date(record.startDateTime).getTime();
-              if (newDuration > existingDuration) {
-                durations[durationKey] = {
-                  actualStart: record.startDateTime,
-                  actualEnd: record.endDateTime,
-                };
-              }
-            } else {
-              durations[durationKey] = {
-                actualStart: record.startDateTime,
-                actualEnd: record.endDateTime,
-              };
-            }
-          }
+          callIds.push(record.id);
         }
       }
 
@@ -191,7 +227,63 @@ export async function GET(
     }
 
     console.log(
-      `[/api/calls/durations] Returning ${Object.keys(durations).length} meeting durations`
+      `[/api/calls/durations] Found ${callIds.length} group calls, fetching details for user ${currentUser.displayName}`
+    );
+
+    // Fetch details in parallel batches and filter by user participation
+    const durations: DurationsResponse["durations"] = {};
+
+    for (let i = 0; i < callIds.length; i += BATCH_SIZE) {
+      const batch = callIds.slice(i, i + BATCH_SIZE);
+
+      const results = await Promise.all(
+        batch.map((id) => fetchCallDetails(accessToken, id))
+      );
+
+      for (const details of results) {
+        if (!details) continue;
+        if (!details.joinWebUrl) continue;
+
+        // Security: Only include meetings where the current user participated
+        if (!userParticipatedInCall(details, currentUser.id, currentUser.displayName)) {
+          continue;
+        }
+
+        const normalizedUrl = normalizeJoinUrl(details.joinWebUrl);
+        if (normalizedUrl) {
+          // Use date from the call record's start time to create unique key per occurrence
+          // This is critical for recurring meetings which share the same joinWebUrl
+          const callDate = details.startDateTime.split("T")[0];
+          const durationKey = getDurationKey(normalizedUrl, callDate);
+
+          // If we already have this meeting on this day, keep the one with the longest duration
+          // (in case a meeting was restarted)
+          const existing = durations[durationKey];
+          if (existing) {
+            const existingDuration =
+              new Date(existing.actualEnd).getTime() -
+              new Date(existing.actualStart).getTime();
+            const newDuration =
+              new Date(details.endDateTime).getTime() -
+              new Date(details.startDateTime).getTime();
+            if (newDuration > existingDuration) {
+              durations[durationKey] = {
+                actualStart: details.startDateTime,
+                actualEnd: details.endDateTime,
+              };
+            }
+          } else {
+            durations[durationKey] = {
+              actualStart: details.startDateTime,
+              actualEnd: details.endDateTime,
+            };
+          }
+        }
+      }
+    }
+
+    console.log(
+      `[/api/calls/durations] Returning ${Object.keys(durations).length} meeting durations for user ${currentUser.displayName}`
     );
 
     return NextResponse.json({ durations });

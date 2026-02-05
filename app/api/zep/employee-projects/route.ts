@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { getBookableProjects, mapProjektToRestFormat } from "@/lib/zep-soap";
+import { getBookableProjects, mapProjektToRestFormat, findEmployeeByEmail } from "@/lib/zep-soap";
 
 export async function GET(request: Request) {
   // Check authentication
@@ -26,6 +26,30 @@ export async function GET(request: Request) {
     return NextResponse.json(
       { error: "employeeId required" },
       { status: 400 }
+    );
+  }
+
+  // Security: Validate that the requested employeeId matches the logged-in user
+  try {
+    const employee = await findEmployeeByEmail(token, session.user.email);
+    if (!employee) {
+      return NextResponse.json(
+        { error: "Kein ZEP-Benutzer für diesen Account gefunden" },
+        { status: 403 }
+      );
+    }
+    if (employee.userId !== employeeId) {
+      console.warn(`Security: User ${session.user.email} (ZEP: ${employee.userId}) tried to access projects for ${employeeId}`);
+      return NextResponse.json(
+        { error: "Zugriff verweigert: Sie können nur Ihre eigenen Projekte abrufen" },
+        { status: 403 }
+      );
+    }
+  } catch (error) {
+    console.error("Employee validation error:", error);
+    return NextResponse.json(
+      { error: "Fehler bei der Benutzervalidierung" },
+      { status: 500 }
     );
   }
 

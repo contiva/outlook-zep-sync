@@ -31,6 +31,15 @@ export async function GET(request: Request) {
     );
   }
 
+  // Security: Users can only query their own employee data
+  if (email.toLowerCase() !== session.user.email.toLowerCase()) {
+    console.warn(`Security: User ${session.user.email} tried to access employee data for ${email}`);
+    return NextResponse.json(
+      { error: "Zugriff verweigert: Sie können nur Ihre eigenen Daten abrufen" },
+      { status: 403 }
+    );
+  }
+
   try {
     const employee = await findEmployeeByEmail(token, email);
 
