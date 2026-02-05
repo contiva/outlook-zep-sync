@@ -742,6 +742,11 @@ export default function AppointmentRow({
     const minutesUntilStart = (startDate.getTime() - now.getTime()) / 60000;
     return minutesUntilStart > 0 && minutesUntilStart <= 30;
   });
+  const [isStartingSoon, setIsStartingSoon] = useState(() => {
+    const now = new Date();
+    const minutesUntilStart = (startDate.getTime() - now.getTime()) / 60000;
+    return minutesUntilStart > 0 && minutesUntilStart <= 5;
+  });
 
   // Update live/upcoming status every 30 seconds
   useEffect(() => {
@@ -753,6 +758,7 @@ export default function AppointmentRow({
 
       setIsLive(now >= start && now <= end);
       setIsUpcoming(minutesUntilStart > 0 && minutesUntilStart <= 30);
+      setIsStartingSoon(minutesUntilStart > 0 && minutesUntilStart <= 5);
     };
 
     // Check immediately
@@ -1249,14 +1255,21 @@ export default function AppointmentRow({
               {/* Live Badge */}
               {isLive && (
                 <span className="inline-flex items-center gap-0.5 px-1 rounded text-[10px] font-bold uppercase tracking-wide bg-red-100 text-red-600 shrink-0 leading-4">
-                  <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-                  Live
+                  <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                  Jetzt
                 </span>
               )}
               {/* Upcoming Badge - subtle */}
               {!isLive && isUpcoming && (
-                <span className="px-1 rounded text-[10px] text-blue-500 border border-blue-300 shrink-0 leading-4">
-                  Als nächstes
+                <span className="inline-flex items-center gap-1 px-1 rounded text-[10px] text-blue-500 uppercase border border-blue-300 shrink-0 leading-4">
+                  {isStartingSoon && (
+                    <span className="inline-flex gap-0.5">
+                      <span className="w-1 h-1 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <span className="w-1 h-1 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <span className="w-1 h-1 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </span>
+                  )}
+                  In Kürze
                 </span>
               )}
               {appointment.subject ? (
