@@ -883,6 +883,27 @@ export default function AppointmentRow({
     return 'other';
   }, [zepBookedDuration, plannedDurationRounded, actualDurationInfo]);
 
+  // Check if the shorter time was synced (warning: other time option was longer)
+  const syncedShorterTime = useMemo(() => {
+    // Only relevant for synced entries with actual duration data
+    if (!isSynced || !actualDurationInfo || !zepBookedDuration) return false;
+
+    // Calculate ZEP booked duration in minutes
+    const [fromH, fromM] = zepBookedDuration.from.split(':').map(Number);
+    const [toH, toM] = zepBookedDuration.to.split(':').map(Number);
+    const zepMinutes = (toH * 60 + toM) - (fromH * 60 + fromM);
+
+    // Get the planned and actual durations
+    const plannedMinutes = plannedDurationRounded.totalMinutes;
+    const actualMinutes = actualDurationInfo.totalMinutes;
+
+    // Find the longer available time
+    const longerTime = Math.max(plannedMinutes, actualMinutes);
+
+    // Warning if ZEP time is shorter than the longer available time
+    return zepMinutes < longerTime;
+  }, [isSynced, actualDurationInfo, zepBookedDuration, plannedDurationRounded.totalMinutes]);
+
   // Check if there's a time deviation between Outlook and ZEP times
   const timeDeviation = useMemo(() => {
     // Get the ZEP time that will be/was used
@@ -1415,34 +1436,40 @@ export default function AppointmentRow({
                   syncedTimeType={syncedTimeType}
                   canSwitch={false}
                 />
-                {/* Planned time - with checkmark if synced */}
+                {/* Planned time - with checkmark if synced, warning if shorter than actual */}
                 <span
                   className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-l ${
                     syncedTimeType === 'planned'
-                      ? "bg-green-100 text-green-700 font-medium"
+                      ? syncedShorterTime
+                        ? "bg-amber-100 text-amber-700 font-medium"
+                        : "bg-green-100 text-green-700 font-medium"
                       : "text-gray-400"
                   }`}
-                  title={`Geplant: ${plannedDurationRounded.startFormatted}–${plannedDurationRounded.endFormatted}${syncedTimeType === 'planned' ? ' ✓ In ZEP gebucht' : ''}`}
+                  title={`Geplant: ${plannedDurationRounded.startFormatted}–${plannedDurationRounded.endFormatted}${syncedTimeType === 'planned' ? ' ✓ In ZEP gebucht' : ''}${syncedShorterTime && syncedTimeType === 'planned' ? ' ⚠ Kürzer als tatsächliche Zeit' : ''}`}
                 >
-                  {syncedTimeType === 'planned' && <ClockCheck size={10} className="text-green-600" />}
+                  {syncedTimeType === 'planned' && syncedShorterTime && <AlertTriangle size={10} className="text-amber-600" />}
+                  {syncedTimeType === 'planned' && !syncedShorterTime && <ClockCheck size={10} className="text-green-600" />}
                   {plannedDurationRounded.hours > 0 ? `${plannedDurationRounded.hours}h${plannedDurationRounded.minutes > 0 ? plannedDurationRounded.minutes : ''}` : `${plannedDurationRounded.minutes}m`}
                 </span>
                 <span className="text-gray-300">|</span>
-                {/* Actual time - with checkmark if synced */}
+                {/* Actual time - with checkmark if synced, warning if shorter than planned */}
                 <span
                   className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-r ${
                     syncedTimeType === 'actual'
-                      ? "bg-green-100 text-green-700 font-medium"
+                      ? syncedShorterTime
+                        ? "bg-amber-100 text-amber-700 font-medium"
+                        : "bg-green-100 text-green-700 font-medium"
                       : actualDurationInfo
                         ? actualDurationInfo.color
                         : "text-gray-300"
                   }`}
                   title={actualDurationInfo
-                    ? `Tatsächlich: ${actualDurationInfo.startRounded}–${actualDurationInfo.endRounded}${syncedTimeType === 'actual' ? ' ✓ In ZEP gebucht' : ''}`
+                    ? `Tatsächlich: ${actualDurationInfo.startRounded}–${actualDurationInfo.endRounded}${syncedTimeType === 'actual' ? ' ✓ In ZEP gebucht' : ''}${syncedShorterTime && syncedTimeType === 'actual' ? ' ⚠ Kürzer als geplante Zeit' : ''}`
                     : "Keine tatsächliche Zeit verfügbar"
                   }
                 >
-                  {syncedTimeType === 'actual' && <ClockCheck size={10} className="text-green-600" />}
+                  {syncedTimeType === 'actual' && syncedShorterTime && <AlertTriangle size={10} className="text-amber-600" />}
+                  {syncedTimeType === 'actual' && !syncedShorterTime && <ClockCheck size={10} className="text-green-600" />}
                   {actualDurationInfo
                     ? (actualDurationInfo.hours > 0 ? `${actualDurationInfo.hours}h${actualDurationInfo.minutes > 0 ? actualDurationInfo.minutes : ''}` : `${actualDurationInfo.minutes}m`)
                     : "--"
