@@ -12,7 +12,7 @@ const CLIENT_ID = process.env.AZURE_AD_CLIENT_ID;
 const CLIENT_SECRET = process.env.AZURE_AD_CLIENT_SECRET;
 
 // Scopes needed by the application
-const REQUIRED_SCOPES = "openid profile email User.Read Calendars.Read offline_access";
+const REQUIRED_SCOPES = "openid profile email User.Read Calendars.Read TeamsActivity.Send offline_access";
 
 interface OBOTokenResponse {
   access_token: string;
