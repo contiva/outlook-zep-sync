@@ -670,47 +670,6 @@ export default function Dashboard() {
     return fetch(url, options);
   }, [getAuthHeaders]);
 
-  // Update Teams badge with count of unprocessed appointments for today
-  const updateTeamsBadge = useCallback(async (
-    allAppointments: Appointment[],
-    syncedEntryList: ZepEntry[]
-  ) => {
-    if (!isInTeams || !accessToken) return;
-
-    try {
-      // Get today's date in YYYY-MM-DD format
-      const today = new Date().toISOString().split("T")[0];
-
-      // Filter appointments for today
-      const todayAppointments = allAppointments.filter(
-        (apt) => apt.start.dateTime.startsWith(today)
-      );
-
-      // Count unprocessed appointments (not synced)
-      const unprocessedCount = todayAppointments.filter((apt) => {
-        const isSynced = syncedEntryList.some((entry) => {
-          const entryDate = entry.date.split("T")[0];
-          const aptDate = apt.start.dateTime.split("T")[0];
-          const entryNote = (entry.note || "").trim();
-          const aptSubject = (apt.subject || "").trim();
-          return entryNote === aptSubject && entryDate === aptDate;
-        });
-        return !isSynced;
-      }).length;
-
-      // Send badge count to Teams API
-      await authFetch("/api/teams/badge", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ count: unprocessedCount }),
-      });
-
-      console.log("[Teams Badge] Updated to:", unprocessedCount);
-    } catch (error) {
-      console.error("[Teams Badge] Failed to update:", error);
-    }
-  }, [isInTeams, accessToken, authFetch]);
-
   // Load initial state from localStorage or use defaults
   const initialState = useMemo(() => {
     const stored = getStoredState();
@@ -1138,19 +1097,6 @@ export default function Dashboard() {
       // Update last loaded timestamp
       setLastLoadedAt(new Date());
 
-      // Update Teams badge with unprocessed count for today
-      if (Array.isArray(appointmentsData) && Array.isArray(zepData)) {
-        const loadedAppointments = appointmentsData.map((apt: Appointment) => ({
-          ...apt,
-          selected: false,
-          projectId: apt.projectId ?? null,
-          taskId: apt.taskId ?? null,
-          activityId: "be",
-          billable: true,
-          canChangeBillable: true,
-        }));
-        updateTeamsBadge(loadedAppointments, zepData);
-      }
     } catch (error) {
       console.error("Failed to load appointments:", error);
       toast({ text: "Fehler beim Laden der Termine", type: "error" });
@@ -2250,13 +2196,11 @@ export default function Dashboard() {
         setSyncedEntries(data);
         // Cache the fresh data
         setCachedZepEntries(employeeId, startDate, endDate, data);
-        // Update Teams badge after sync
-        updateTeamsBadge(appointments, data);
       }
     } catch (e) {
       console.error("Failed to reload synced entries:", e);
     }
-  }, [employeeId, startDate, endDate, appointments, updateTeamsBadge]);
+  }, [employeeId, startDate, endDate]);
 
   // Correct time for a rescheduled appointment
   const correctRescheduledTime = useCallback(async (
