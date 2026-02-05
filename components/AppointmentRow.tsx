@@ -1983,7 +1983,7 @@ export default function AppointmentRow({
           )}
           {duplicateWarning?.hasDuplicate && !isSynced && duplicateWarning.type !== 'rescheduled' && (
             <span className="px-2 py-0.5 text-xs font-medium text-amber-700 bg-amber-50 rounded" title={duplicateWarning.message}>
-              {duplicateWarning.type === 'exact' ? 'Duplikat' : duplicateWarning.type === 'timeOverlap' ? 'Konflikt' : 'Ähnlich'}
+              {duplicateWarning.type === 'exact' ? 'Duplikat' : duplicateWarning.type === 'timeOverlap' ? 'Doppelbuchung' : 'Ähnlich'}
             </span>
           )}
           {/* Rescheduled appointment - show correction button */}
