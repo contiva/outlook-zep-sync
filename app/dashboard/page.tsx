@@ -635,10 +635,12 @@ export default function Dashboard() {
 
   // Check if we're in Teams context (client-side only)
   const [isInTeams, setIsInTeams] = useState(false);
+  const [isTeamsContextDetermined, setIsTeamsContextDetermined] = useState(false);
   useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       setIsInTeams(params.get("inTeams") === "true");
+      setIsTeamsContextDetermined(true);
     }
   }, []);
 
@@ -2751,15 +2753,16 @@ export default function Dashboard() {
     setSubmitting(false);
   };
 
-  // Show loading state for NextAuth or Teams SSO
-  const isAuthLoading = isInTeams ? teamsAuth.isLoading : status === "loading";
+  // Show loading state for Teams context detection, NextAuth, or Teams SSO
+  // Include isTeamsContextDetermined to prevent flash of "Keine Anmeldung" before Teams context is determined
+  const isAuthLoading = !isTeamsContextDetermined || (isInTeams ? teamsAuth.isLoading : status === "loading");
   const authError = isInTeams ? teamsAuth.error : session?.error;
 
   if (isAuthLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-gray-500">
-          {isInTeams ? "Teams-Anmeldung..." : "Laden..."}
+          {isTeamsContextDetermined && isInTeams ? "Teams-Anmeldung..." : "Laden..."}
         </div>
       </div>
     );
