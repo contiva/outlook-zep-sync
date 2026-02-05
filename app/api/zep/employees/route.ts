@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { findEmployeeByEmail, mapMitarbeiterToRestFormat } from "@/lib/zep-soap";
+import { getAuthenticatedUser } from "@/lib/auth-helper";
 
 // GET /api/zep/employees?email=robert.fels@contiva.com
 // Returns matching ZEP employee or 404
 export async function GET(request: Request) {
-  // Check authentication
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.email) {
+  // Check authentication (supports both NextAuth and Teams SSO)
+  const user = await getAuthenticatedUser(request);
+  if (!user?.email) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -32,8 +31,8 @@ export async function GET(request: Request) {
   }
 
   // Security: Users can only query their own employee data
-  if (email.toLowerCase() !== session.user.email.toLowerCase()) {
-    console.warn(`Security: User ${session.user.email} tried to access employee data for ${email}`);
+  if (email.toLowerCase() !== user.email.toLowerCase()) {
+    console.warn(`Security: User ${user.email} tried to access employee data for ${email}`);
     return NextResponse.json(
       { error: "Zugriff verweigert: Sie können nur Ihre eigenen Daten abrufen" },
       { status: 403 }

@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import { 
-  readProjektzeiten, 
+import {
+  readProjektzeiten,
   createProjektzeit,
   updateProjektzeit,
   mapProjektzeitToRestFormat,
@@ -14,25 +12,26 @@ import {
   findEmployeeByEmail,
   determineBillable
 } from "@/lib/zep-soap";
+import { getAuthenticatedUser } from "@/lib/auth-helper";
 
 // Helper: Validate that the requested employeeId matches the logged-in user
-async function validateEmployeeAccess(requestedEmployeeId: string, token: string): Promise<{ valid: boolean; error?: string; status?: number }> {
-  const session = await getServerSession(authOptions);
-  
-  if (!session?.user?.email) {
+async function validateEmployeeAccess(request: Request, requestedEmployeeId: string, token: string): Promise<{ valid: boolean; error?: string; status?: number }> {
+  const user = await getAuthenticatedUser(request);
+
+  if (!user?.email) {
     return { valid: false, error: "Nicht authentifiziert", status: 401 };
   }
 
   // Find the ZEP employee for the logged-in user
-  const employee = await findEmployeeByEmail(token, session.user.email);
-  
+  const employee = await findEmployeeByEmail(token, user.email);
+
   if (!employee) {
     return { valid: false, error: "Kein ZEP-Benutzer für diesen Account gefunden", status: 403 };
   }
 
   // Check if the requested employeeId matches the logged-in user's ZEP username
   if (employee.userId !== requestedEmployeeId) {
-    console.warn(`Security: User ${session.user.email} (ZEP: ${employee.userId}) tried to access data for ${requestedEmployeeId}`);
+    console.warn(`Security: User ${user.email} (ZEP: ${employee.userId}) tried to access data for ${requestedEmployeeId}`);
     return { valid: false, error: "Zugriff verweigert: Sie können nur Ihre eigenen Einträge abrufen", status: 403 };
   }
 
@@ -63,7 +62,7 @@ export async function GET(request: Request) {
   }
 
   // Security: Validate that user can only access their own data
-  const accessCheck = await validateEmployeeAccess(employeeId, token);
+  const accessCheck = await validateEmployeeAccess(request, employeeId, token);
   if (!accessCheck.valid) {
     return NextResponse.json(
       { error: accessCheck.error },
@@ -145,7 +144,7 @@ export async function POST(request: Request) {
   const uniqueEmployeeIds = [...new Set(entries.map(e => e.employee_id))];
   
   for (const employeeId of uniqueEmployeeIds) {
-    const accessCheck = await validateEmployeeAccess(employeeId, token);
+    const accessCheck = await validateEmployeeAccess(request, employeeId, token);
     if (!accessCheck.valid) {
       return NextResponse.json(
         { error: accessCheck.error },
@@ -316,7 +315,7 @@ export async function PATCH(request: Request) {
   const uniqueUserIds = [...new Set(entries.map(e => e.userId))];
   
   for (const userId of uniqueUserIds) {
-    const accessCheck = await validateEmployeeAccess(userId, token);
+    const accessCheck = await validateEmployeeAccess(request, userId, token);
     if (!accessCheck.valid) {
       return NextResponse.json(
         { error: accessCheck.error },

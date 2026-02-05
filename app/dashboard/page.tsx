@@ -860,7 +860,7 @@ export default function Dashboard() {
       setEmployeeError(null);
       
       try {
-        const res = await fetch(`/api/zep/employees?email=${encodeURIComponent(email)}`);
+        const res = await authFetch(`/api/zep/employees?email=${encodeURIComponent(email)}`);
         
         if (res.ok) {
           const data = await res.json();
@@ -921,7 +921,7 @@ export default function Dashboard() {
         params.set("date", new Date().toISOString().split("T")[0]);
       }
       
-      const res = await fetch(`/api/zep/tasks?${params.toString()}`);
+      const res = await authFetch(`/api/zep/tasks?${params.toString()}`);
       const data = await res.json();
       if (Array.isArray(data)) {
         setTasks((prev) => ({ ...prev, [projectId]: data }));
@@ -988,12 +988,12 @@ export default function Dashboard() {
         cachedZepEntries
           ? Promise.resolve(cachedZepEntries)
           : employeeId
-            ? fetch(`/api/zep/timeentries?employeeId=${employeeId}&startDate=${effectiveStartDate}&endDate=${effectiveEndDate}`).then(res => res.json())
+            ? authFetch(`/api/zep/timeentries?employeeId=${employeeId}&startDate=${effectiveStartDate}&endDate=${effectiveEndDate}`).then(res => res.json())
             : Promise.resolve(null),
         cachedProjects
           ? Promise.resolve(cachedProjects)
           : employeeId
-            ? fetch(`/api/zep/employee-projects?${new URLSearchParams({ employeeId, date: today })}`).then(res => res.json())
+            ? authFetch(`/api/zep/employee-projects?${new URLSearchParams({ employeeId, date: today })}`).then(res => res.json())
             : Promise.resolve(null),
       ]);
       
@@ -2186,7 +2186,7 @@ export default function Dashboard() {
       // Invalidate cache first since we want fresh data after sync
       invalidateZepCache(employeeId, startDate, endDate);
       
-      const res = await fetch(`/api/zep/timeentries?employeeId=${employeeId}&startDate=${startDate}&endDate=${endDate}`);
+      const res = await authFetch(`/api/zep/timeentries?employeeId=${employeeId}&startDate=${startDate}&endDate=${endDate}`);
       const data = await res.json();
       if (Array.isArray(data)) {
         setSyncedEntries(data);
@@ -2213,7 +2213,7 @@ export default function Dashboard() {
     setCorrectingTimeIds((prev) => new Set(prev).add(appointmentId));
 
     try {
-      const response = await fetch("/api/zep/timeentries", {
+      const response = await authFetch("/api/zep/timeentries", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -2272,7 +2272,7 @@ export default function Dashboard() {
     setSavingModifiedSingleId(modifiedEntry.outlookEventId);
 
     try {
-      const response = await fetch("/api/zep/timeentries", {
+      const response = await authFetch("/api/zep/timeentries", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -2413,7 +2413,7 @@ export default function Dashboard() {
         entry
       }, null, 2));
 
-      const res = await fetch("/api/zep/timeentries", {
+      const res = await authFetch("/api/zep/timeentries", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ entries: [entry] }),
@@ -2508,7 +2508,7 @@ export default function Dashboard() {
         };
       });
 
-      const res = await fetch("/api/zep/timeentries", {
+      const res = await authFetch("/api/zep/timeentries", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -2621,7 +2621,7 @@ export default function Dashboard() {
           };
         });
 
-        const res = await fetch("/api/zep/timeentries", {
+        const res = await authFetch("/api/zep/timeentries", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ entries }),
@@ -2687,7 +2687,7 @@ export default function Dashboard() {
           istFakturierbar: mod.newBillable,
         }));
 
-        const modRes = await fetch("/api/zep/timeentries", {
+        const modRes = await authFetch("/api/zep/timeentries", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ entries: modifyEntries }),

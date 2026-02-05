@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { readTaetigkeit, mapTaetigkeitToRestFormat } from "@/lib/zep-soap";
+import { getAuthenticatedUser } from "@/lib/auth-helper";
 
-export async function GET() {
-  // Check authentication
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.email) {
+export async function GET(request: Request) {
+  // Check authentication (supports both NextAuth and Teams SSO)
+  const user = await getAuthenticatedUser(request);
+  if (!user?.email) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { getProjectTasks, readProjekte, mapVorgangToRestFormat, findEmployeeByEmail } from "@/lib/zep-soap";
+import { getAuthenticatedUser } from "@/lib/auth-helper";
 
 export async function GET(request: Request) {
-  // Check authentication
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.email) {
+  // Check authentication (supports both NextAuth and Teams SSO)
+  const user = await getAuthenticatedUser(request);
+  if (!user?.email) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -34,7 +33,7 @@ export async function GET(request: Request) {
   // Security: If userId is provided, validate it matches the logged-in user
   if (userId) {
     try {
-      const employee = await findEmployeeByEmail(token, session.user.email);
+      const employee = await findEmployeeByEmail(token, user.email);
       if (!employee) {
         return NextResponse.json(
           { error: "Kein ZEP-Benutzer für diesen Account gefunden" },
@@ -42,7 +41,7 @@ export async function GET(request: Request) {
         );
       }
       if (employee.userId !== userId) {
-        console.warn(`Security: User ${session.user.email} (ZEP: ${employee.userId}) tried to access tasks for ${userId}`);
+        console.warn(`Security: User ${user.email} (ZEP: ${employee.userId}) tried to access tasks for ${userId}`);
         return NextResponse.json(
           { error: "Zugriff verweigert: Sie können nur Ihre eigenen Tasks abrufen" },
           { status: 403 }
