@@ -78,9 +78,23 @@ export function useTeamsAuth(): TeamsAuthState {
       // Notify Teams that the app loaded successfully
       await teamsSDK.notifyAppLoaded();
 
-      // Extract user info from Teams context
-      const userName = context.user?.displayName || context.user?.userPrincipalName?.split("@")[0] || null;
-      const userEmail = context.user?.userPrincipalName || null;
+      // Fetch user info from Microsoft Graph API (more reliable than Teams context)
+      let userName: string | null = null;
+      let userEmail: string | null = context.user?.userPrincipalName || null;
+
+      try {
+        const meResponse = await fetch("https://graph.microsoft.com/v1.0/me?$select=displayName,mail,userPrincipalName", {
+          headers: { Authorization: `Bearer ${tokenData.accessToken}` },
+        });
+        if (meResponse.ok) {
+          const meData = await meResponse.json();
+          userName = meData.displayName || null;
+          userEmail = meData.mail || meData.userPrincipalName || userEmail;
+        }
+      } catch {
+        // Fallback to Teams context if Graph API fails
+        userName = context.user?.displayName || context.user?.userPrincipalName?.split("@")[0] || null;
+      }
 
       setState({
         isInTeams: true,
