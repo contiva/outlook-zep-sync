@@ -2798,7 +2798,7 @@ export default function Dashboard() {
           </div>
           <div className="flex items-center gap-3">
             <span className="text-sm text-gray-500">
-              {session?.user?.name || session?.user?.email || (isInTeams && "Teams-Benutzer")}
+              {session?.user?.name || session?.user?.email || teamsAuth.user?.name || teamsAuth.user?.email || (isInTeams && "Teams-Benutzer")}
               {employeeLoading && (
                 <span className="ml-1 text-gray-400">(Lade ZEP...)</span>
               )}

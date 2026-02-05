@@ -3,7 +3,6 @@
   "manifestVersion": "1.17",
   "version": "1.0.0",
   "id": "edf73da0-7ec5-4d6e-8f2e-4a86f2fdb9a6",
-  "packageName": "dev.contiva.zep",
   "name": {
     "short": "ZEP Sync",
     "full": "Outlook ZEP Synchronisation"

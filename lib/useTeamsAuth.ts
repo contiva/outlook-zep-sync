@@ -10,11 +10,17 @@
 import { useState, useEffect, useCallback } from "react";
 import { signIn, useSession } from "next-auth/react";
 
+interface TeamsUser {
+  name: string | null;
+  email: string | null;
+}
+
 interface TeamsAuthState {
   isInTeams: boolean;
   isLoading: boolean;
   error: string | null;
   accessToken: string | null;
+  user: TeamsUser | null;
 }
 
 /**
@@ -28,6 +34,7 @@ export function useTeamsAuth(): TeamsAuthState {
     isLoading: true,
     error: null,
     accessToken: null,
+    user: null,
   });
 
   const performTeamsAuth = useCallback(async () => {
@@ -71,14 +78,22 @@ export function useTeamsAuth(): TeamsAuthState {
       // Notify Teams that the app loaded successfully
       await teamsSDK.notifyAppLoaded();
 
+      // Extract user info from Teams context
+      const userName = context.user?.displayName || context.user?.userPrincipalName?.split("@")[0] || null;
+      const userEmail = context.user?.userPrincipalName || null;
+
       setState({
         isInTeams: true,
         isLoading: false,
         error: null,
         accessToken: tokenData.accessToken,
+        user: {
+          name: userName,
+          email: userEmail,
+        },
       });
 
-      console.log("[Teams Auth] Authentication successful");
+      console.log("[Teams Auth] Authentication successful for:", userName);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
       console.error("[Teams Auth] Authentication failed:", errorMessage);
@@ -92,6 +107,7 @@ export function useTeamsAuth(): TeamsAuthState {
         isLoading: false,
         error: errorMessage,
         accessToken: null,
+        user: null,
       });
     }
   }, []);
@@ -110,6 +126,7 @@ export function useTeamsAuth(): TeamsAuthState {
         isLoading: status === "loading",
         error: null,
         accessToken: session?.accessToken || null,
+        user: null,
       });
       return;
     }
@@ -125,6 +142,7 @@ export function useTeamsAuth(): TeamsAuthState {
       isLoading: false,
       error: session?.error || null,
       accessToken: session?.accessToken || null,
+      user: null,
     };
   }
 
