@@ -163,6 +163,8 @@ interface AppointmentListProps {
   hideSoloMeetings?: boolean;
   onHideSoloMeetingsChange?: (hide: boolean) => void;
   focusedAppointmentId?: string | null;
+  // Highlighted appointment (from UpcomingMeetingBar jump)
+  highlightedAppointment?: { id: string; type: "running" | "upcoming" } | null;
 }
 
 // Status filter options with colors
@@ -448,6 +450,7 @@ export default function AppointmentList({
   hideSoloMeetings,
   onHideSoloMeetingsChange,
   focusedAppointmentId,
+  highlightedAppointment,
 }: AppointmentListProps) {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [soloPopoverOpen, setSoloPopoverOpen] = useState(false);
@@ -1056,8 +1059,18 @@ export default function AppointmentList({
                 focusedAppointmentId={focusedAppointmentId}
               />
             ) : (
-              <AppointmentRow
+              <div
                 key={item.appointments[0].id}
+                id={`appointment-${item.appointments[0].id}`}
+                className={`transition-all duration-300 ${
+                  highlightedAppointment?.id === item.appointments[0].id
+                    ? highlightedAppointment.type === "running"
+                      ? "ring-2 ring-red-500 ring-offset-2 rounded-lg"
+                      : "ring-2 ring-amber-500 ring-offset-2 rounded-lg"
+                    : ""
+                }`}
+              >
+              <AppointmentRow
                 appointment={item.appointments[0]}
                 projects={projects}
                 tasks={
@@ -1101,6 +1114,7 @@ export default function AppointmentList({
                 // Keyboard navigation focus
                 isFocused={focusedAppointmentId === item.appointments[0].id}
               />
+              </div>
             )
           )}
       </div>

@@ -10,6 +10,7 @@ import Image from "next/image";
 import DateRangePicker from "@/components/DateRangePicker";
 import AppointmentList from "@/components/AppointmentList";
 import CalendarHeatmap, { CalendarHeatmapLegend, HeatmapStats } from "@/components/CalendarHeatmap";
+import UpcomingMeetingBar from "@/components/UpcomingMeetingBar";
 import { saveSyncRecords, SyncRecord } from "@/lib/sync-history";
 import { checkAppointmentsForDuplicates, DuplicateCheckResult, ZepAttendance, calculateZepTimes } from "@/lib/zep-api";
 import { ActualDuration, ActualDurationsMap, normalizeJoinUrl, getDurationKey } from "@/lib/teams-utils";
@@ -719,6 +720,12 @@ export default function Dashboard() {
   // State for series sync
   const [syncingSeriesId, setSyncingSeriesId] = useState<string | null>(null);
 
+  // State for highlighted appointment (from UpcomingMeetingBar jump)
+  const [highlightedAppointment, setHighlightedAppointment] = useState<{
+    id: string;
+    type: "running" | "upcoming";
+  } | null>(null);
+
   // State for editing synced entries (rebooking)
   const [editingAppointments, setEditingAppointments] = useState<Set<string>>(new Set());
   const [modifiedEntries, setModifiedEntries] = useState<Map<string, ModifiedEntry>>(new Map());
@@ -1423,6 +1430,37 @@ export default function Dashboard() {
 
   const canNavigatePrev = availableDates.length > 0 && (!filterDate || availableDates.indexOf(filterDate) > 0);
   const canNavigateNext = availableDates.length > 0 && (!filterDate || availableDates.indexOf(filterDate) < availableDates.length - 1);
+
+  // Jump to appointment from UpcomingMeetingBar
+  const jumpToAppointment = useCallback((appointmentId: string, highlightType: "running" | "upcoming") => {
+    // Find the appointment to get its date
+    const appointment = appointments.find(apt => apt.id === appointmentId);
+    if (appointment) {
+      // Set filter to the appointment's date so it's visible
+      const aptDate = appointment.start.dateTime.split("T")[0];
+      setFilterDate(aptDate);
+      // Clear any other filters that might hide the appointment
+      setSeriesFilterActive(false);
+      setStatusFilter("all");
+      setSearchQuery("");
+    }
+
+    // Highlight the appointment
+    setHighlightedAppointment({ id: appointmentId, type: highlightType });
+
+    // Scroll to the appointment after a short delay (to allow filter to apply)
+    setTimeout(() => {
+      const element = document.getElementById(`appointment-${appointmentId}`);
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }, 100);
+
+    // Remove highlight after 3 seconds
+    setTimeout(() => {
+      setHighlightedAppointment(null);
+    }, 3000);
+  }, [appointments]);
 
   // Focused appointment for keyboard navigation
   const [focusedAppointmentId, setFocusedAppointmentId] = useState<string | null>(null);
@@ -2933,6 +2971,9 @@ export default function Dashboard() {
               seriesFilterActive={seriesFilterActive}
               onStatsChange={setHeatmapStats}
             />
+
+            {/* Upcoming/Running Meeting Quick Join */}
+            <UpcomingMeetingBar appointments={appointments} onJumpToAppointment={jumpToAppointment} />
           </div>
         </div>
 
@@ -2998,6 +3039,7 @@ export default function Dashboard() {
           hideSoloMeetings={hideSoloMeetings}
           onHideSoloMeetingsChange={setHideSoloMeetings}
           focusedAppointmentId={focusedAppointmentId}
+          highlightedAppointment={highlightedAppointment}
         />
       </main>
     </div>
