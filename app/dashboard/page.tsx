@@ -2787,39 +2787,39 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-sm">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Image src="/logo.png" alt="Logo" width={32} height={32} className="h-8 w-auto" />
-            <h1 className="text-xl font-bold text-gray-900">
-              <span className="font-montserrat">Outlook ZEP</span>{" "}
-              <span className="font-inter font-light">Sync</span>
-            </h1>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-gray-500">
-              {session?.user?.name || session?.user?.email || teamsAuth.user?.name || teamsAuth.user?.email || (isInTeams && "Teams-Benutzer")}
-              {employeeLoading && (
-                <span className="ml-1 text-gray-400">(Lade ZEP...)</span>
-              )}
-            </span>
-            <div className="h-5 w-px bg-gray-200" />
-            <div
-              className="relative group"
-              title="Tastaturkürzel"
-            >
-              <Keyboard size={16} className="text-gray-300 group-hover:text-blue-500 cursor-help transition-colors" />
-              <div className="hidden group-hover:block absolute right-0 top-full mt-1 p-2 bg-gray-900 text-white text-xs rounded shadow-lg whitespace-nowrap z-50">
-                <div className="font-medium mb-1">Tastaturkürzel</div>
-                <div><kbd className="px-1 bg-gray-700 rounded">←</kbd> <kbd className="px-1 bg-gray-700 rounded">→</kbd> Tag wechseln</div>
-                <div><kbd className="px-1 bg-gray-700 rounded">↑</kbd> <kbd className="px-1 bg-gray-700 rounded">↓</kbd> Termin wechseln</div>
-                <div><kbd className="px-1 bg-gray-700 rounded">Space</kbd> Termin auswählen</div>
-                <div><kbd className="px-1 bg-gray-700 rounded">Esc</kbd> Filter löschen</div>
-                <div><kbd className="px-1 bg-gray-700 rounded">Strg+R</kbd> Termine laden</div>
-              </div>
+      {/* Hide header in Teams (Teams has its own header) */}
+      {!isInTeams && (
+        <header className="bg-white shadow-sm">
+          <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Image src="/logo.png" alt="Logo" width={32} height={32} className="h-8 w-auto" />
+              <h1 className="text-xl font-bold text-gray-900">
+                <span className="font-montserrat">Outlook ZEP</span>{" "}
+                <span className="font-inter font-light">Sync</span>
+              </h1>
             </div>
-            {/* Hide logout button in Teams (can't sign out from Teams tab) */}
-            {!isInTeams && (
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-gray-500">
+                {session?.user?.name || session?.user?.email}
+                {employeeLoading && (
+                  <span className="ml-1 text-gray-400">(Lade ZEP...)</span>
+                )}
+              </span>
+              <div className="h-5 w-px bg-gray-200" />
+              <div
+                className="relative group"
+                title="Tastaturkürzel"
+              >
+                <Keyboard size={16} className="text-gray-300 group-hover:text-blue-500 cursor-help transition-colors" />
+                <div className="hidden group-hover:block absolute right-0 top-full mt-1 p-2 bg-gray-900 text-white text-xs rounded shadow-lg whitespace-nowrap z-50">
+                  <div className="font-medium mb-1">Tastaturkürzel</div>
+                  <div><kbd className="px-1 bg-gray-700 rounded">←</kbd> <kbd className="px-1 bg-gray-700 rounded">→</kbd> Tag wechseln</div>
+                  <div><kbd className="px-1 bg-gray-700 rounded">↑</kbd> <kbd className="px-1 bg-gray-700 rounded">↓</kbd> Termin wechseln</div>
+                  <div><kbd className="px-1 bg-gray-700 rounded">Space</kbd> Termin auswählen</div>
+                  <div><kbd className="px-1 bg-gray-700 rounded">Esc</kbd> Filter löschen</div>
+                  <div><kbd className="px-1 bg-gray-700 rounded">Strg+R</kbd> Termine laden</div>
+                </div>
+              </div>
               <button
                 onClick={() => signOut({ callbackUrl: "/?logout=true" })}
                 className="text-gray-300 hover:text-blue-500 transition-colors"
@@ -2827,10 +2827,10 @@ export default function Dashboard() {
               >
                 <LogOut size={16} />
               </button>
-            )}
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
+      )}
 
       {employeeError && (
         <div className="max-w-6xl mx-auto px-4 pt-4">
