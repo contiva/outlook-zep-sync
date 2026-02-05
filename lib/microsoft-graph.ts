@@ -43,6 +43,11 @@ export interface OutlookEvent {
   isCancelled?: boolean;
   // Letzte Änderung (bei abgesagten Terminen = Absage-Zeitpunkt)
   lastModifiedDateTime?: string;
+  // Location
+  location?: {
+    displayName?: string;
+    locationType?: string;
+  };
 }
 
 export interface CalendarResponse {
@@ -67,7 +72,7 @@ export async function getCalendarEvents(
     u.searchParams.set("endDateTime", `${endDate}T23:59:59`);
     u.searchParams.set("$orderby", "start/dateTime");
     u.searchParams.set("$top", "250"); // Max allowed by Graph API
-    u.searchParams.set("$select", "id,subject,start,end,bodyPreview,attendees,organizer,isOrganizer,type,seriesMasterId,isOnlineMeeting,onlineMeetingProvider,onlineMeeting,isCancelled,lastModifiedDateTime");
+    u.searchParams.set("$select", "id,subject,start,end,bodyPreview,attendees,organizer,isOrganizer,type,seriesMasterId,isOnlineMeeting,onlineMeetingProvider,onlineMeeting,isCancelled,lastModifiedDateTime,location");
     return u.toString();
   })();
 
