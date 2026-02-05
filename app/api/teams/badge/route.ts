@@ -128,10 +128,10 @@ export async function POST(request: Request) {
     }
 
     // First, get the Teams app installation ID for this user
-    // Note: The Teams App ID in the manifest may differ from the Azure AD Client ID
-    const teamsAppId = CLIENT_ID; // This should match the "id" in manifest.json
+    // Note: Teams assigns its own ID to sideloaded/custom apps, different from Azure AD Client ID
+    // We search by app name "ZEP Sync" to find our app
 
-    // Get all installed apps and find ours
+    // Get all installed apps and find ours by name
     const installationsUrl = `https://graph.microsoft.com/v1.0/users/${recipientUserId}/teamwork/installedApps?$expand=teamsAppDefinition`;
 
     const installationsResponse = await fetch(installationsUrl, {
@@ -151,28 +151,23 @@ export async function POST(request: Request) {
 
     const installationsData = await installationsResponse.json();
 
-    // Log all installed apps for debugging
-    console.log("[Teams Badge] Found installed apps:", installationsData.value?.length || 0);
-    installationsData.value?.forEach((app: { id: string; teamsAppDefinition?: { teamsAppId?: string; displayName?: string } }) => {
-      console.log(`  - ${app.teamsAppDefinition?.displayName}: ${app.teamsAppDefinition?.teamsAppId}`);
-    });
-
-    // Find our app by matching the teamsAppId
+    // Find our app by matching the display name "ZEP Sync"
     const installation = installationsData.value?.find(
-      (app: { teamsAppDefinition?: { teamsAppId?: string } }) =>
-        app.teamsAppDefinition?.teamsAppId === teamsAppId
+      (app: { teamsAppDefinition?: { displayName?: string } }) =>
+        app.teamsAppDefinition?.displayName === "ZEP Sync"
     );
 
     if (!installation) {
-      console.log("[Teams Badge] App not installed for user. Looking for teamsAppId:", teamsAppId);
+      console.log("[Teams Badge] ZEP Sync app not installed for user");
       return NextResponse.json({
         success: false,
-        message: "Teams app not installed for this user",
+        message: "ZEP Sync app not installed for this user",
         count,
       });
     }
 
-    console.log("[Teams Badge] Found app installation:", installation.id);
+    const teamsAppId = installation.teamsAppDefinition?.teamsAppId;
+    console.log("[Teams Badge] Found ZEP Sync installation:", installation.id, "teamsAppId:", teamsAppId);
 
     // Send activity notification via Graph API using app-only token
     const activityUrl = `https://graph.microsoft.com/v1.0/users/${recipientUserId}/teamwork/sendActivityNotification`;
