@@ -6,11 +6,69 @@ import { getAuthenticatedUser } from "@/lib/auth-helper";
  *
  * This uses the Microsoft Graph API to send activity feed notifications
  * which appear as badges on the Teams app icon.
+ *
+ * Important: Uses App-Only token (Client Credentials) because a user cannot
+ * send activity notifications to themselves with a delegated token.
  */
+
+const TENANT_ID = process.env.AZURE_AD_TENANT_ID;
+const CLIENT_ID = process.env.AZURE_AD_CLIENT_ID;
+const CLIENT_SECRET = process.env.AZURE_AD_CLIENT_SECRET;
 
 interface BadgeRequest {
   count: number;
-  userId?: string; // Azure AD user ID (optional, will be fetched if not provided)
+}
+
+// Cache for app-only token
+let appTokenCache: { token: string; expiresAt: number } | null = null;
+
+/**
+ * Get an app-only access token using Client Credentials flow
+ */
+async function getAppOnlyToken(): Promise<string | null> {
+  // Check cache
+  if (appTokenCache && appTokenCache.expiresAt > Date.now() + 60000) {
+    return appTokenCache.token;
+  }
+
+  if (!TENANT_ID || !CLIENT_ID || !CLIENT_SECRET) {
+    console.error("[Teams Badge] Azure AD credentials not configured");
+    return null;
+  }
+
+  try {
+    const tokenEndpoint = `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`;
+
+    const response = await fetch(tokenEndpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: CLIENT_ID,
+        client_secret: CLIENT_SECRET,
+        scope: "https://graph.microsoft.com/.default",
+        grant_type: "client_credentials",
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      console.error("[Teams Badge] Failed to get app-only token:", error);
+      return null;
+    }
+
+    const data = await response.json();
+
+    // Cache the token
+    appTokenCache = {
+      token: data.access_token,
+      expiresAt: Date.now() + (data.expires_in * 1000),
+    };
+
+    return data.access_token;
+  } catch (error) {
+    console.error("[Teams Badge] Error getting app-only token:", error);
+    return null;
+  }
 }
 
 export async function POST(request: Request) {
@@ -31,11 +89,11 @@ export async function POST(request: Request) {
       );
     }
 
-    // Get the access token from the Authorization header
+    // Get the user's access token to fetch their Azure AD ID
     const authHeader = request.headers.get("Authorization");
-    const accessToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+    const userToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
 
-    if (!accessToken) {
+    if (!userToken) {
       return NextResponse.json(
         { error: "Access token required for Teams badge" },
         { status: 401 }
@@ -44,12 +102,12 @@ export async function POST(request: Request) {
 
     // Get user's Azure AD ID from Graph API
     const meResponse = await fetch("https://graph.microsoft.com/v1.0/me?$select=id", {
-      headers: { Authorization: `Bearer ${accessToken}` },
+      headers: { Authorization: `Bearer ${userToken}` },
     });
 
     if (!meResponse.ok) {
       const errorText = await meResponse.text();
-      console.error("Failed to get user ID:", errorText);
+      console.error("[Teams Badge] Failed to get user ID:", errorText);
       return NextResponse.json(
         { error: "Failed to get user ID from Graph API" },
         { status: 500 }
@@ -57,41 +115,73 @@ export async function POST(request: Request) {
     }
 
     const meData = await meResponse.json();
-    const userId = meData.id;
+    const recipientUserId = meData.id;
 
-    // App ID from environment or manifest
-    const appId = process.env.AZURE_AD_CLIENT_ID || "edf73da0-7ec5-4d6e-8f2e-4a86f2fdb9a6";
+    // Get app-only token for sending notifications
+    const appToken = await getAppOnlyToken();
+    if (!appToken) {
+      return NextResponse.json({
+        success: false,
+        message: "Could not get app-only token for notifications",
+        count,
+      });
+    }
 
-    // Send activity notification via Graph API
-    // This requires an app-only token with TeamsActivity.Send.User permission
-    // For now, we'll use the delegated token which has limited capabilities
+    // First, get the Teams app installation ID for this user
+    const installationsUrl = `https://graph.microsoft.com/v1.0/users/${recipientUserId}/teamwork/installedApps?$filter=teamsAppDefinition/teamsAppId eq '${CLIENT_ID}'&$expand=teamsAppDefinition`;
 
-    // The activity notification endpoint
-    const activityUrl = `https://graph.microsoft.com/v1.0/users/${userId}/teamwork/sendActivityNotification`;
+    const installationsResponse = await fetch(installationsUrl, {
+      headers: { Authorization: `Bearer ${appToken}` },
+    });
+
+    if (!installationsResponse.ok) {
+      const errorText = await installationsResponse.text();
+      console.error("[Teams Badge] Failed to get app installations:", errorText);
+      return NextResponse.json({
+        success: false,
+        message: "Could not find Teams app installation",
+        count,
+      });
+    }
+
+    const installationsData = await installationsResponse.json();
+    const installation = installationsData.value?.[0];
+
+    if (!installation) {
+      console.log("[Teams Badge] App not installed for user");
+      return NextResponse.json({
+        success: false,
+        message: "Teams app not installed for this user",
+        count,
+      });
+    }
+
+    // Send activity notification via Graph API using app-only token
+    const activityUrl = `https://graph.microsoft.com/v1.0/users/${recipientUserId}/teamwork/sendActivityNotification`;
 
     const activityPayload = {
       topic: {
         source: "entityUrl",
-        value: `https://graph.microsoft.com/v1.0/users/${userId}/teamwork/installedApps/${appId}`
+        value: `https://graph.microsoft.com/v1.0/users/${recipientUserId}/teamwork/installedApps/${installation.id}`,
       },
       activityType: "pendingAppointments",
       previewText: {
         content: count > 0
           ? `${count} unbearbeitete Termine für heute`
-          : "Alle Termine bearbeitet"
+          : "Alle Termine bearbeitet",
       },
       templateParameters: [
         {
           name: "count",
-          value: count.toString()
-        }
-      ]
+          value: count.toString(),
+        },
+      ],
     };
 
     const activityResponse = await fetch(activityUrl, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${accessToken}`,
+        Authorization: `Bearer ${appToken}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify(activityPayload),
@@ -99,26 +189,26 @@ export async function POST(request: Request) {
 
     if (!activityResponse.ok) {
       const errorText = await activityResponse.text();
-      console.error("Failed to send activity notification:", errorText);
+      console.error("[Teams Badge] Failed to send activity notification:", errorText);
 
-      // Activity notifications require specific permissions
-      // Return success anyway but log the issue
       return NextResponse.json({
         success: false,
-        message: "Activity notification not sent (permissions may be required)",
+        message: "Activity notification failed",
         count,
-        debug: process.env.NODE_ENV === "development" ? errorText : undefined
+        debug: process.env.NODE_ENV === "development" ? errorText : undefined,
       });
     }
+
+    console.log("[Teams Badge] Notification sent successfully for count:", count);
 
     return NextResponse.json({
       success: true,
       count,
-      message: "Badge updated successfully"
+      message: "Badge updated successfully",
     });
 
   } catch (error) {
-    console.error("Badge API error:", error);
+    console.error("[Teams Badge] API error:", error);
     return NextResponse.json(
       { error: "Failed to update badge" },
       { status: 500 }
