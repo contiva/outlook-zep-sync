@@ -850,23 +850,24 @@ export default function Dashboard() {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [filterDate, seriesFilterActive, searchQuery, statusFilter]);
 
-  // Load ZEP employee info when session is available
+  // Load ZEP employee info when session or Teams auth is available
+  const userEmail = session?.user?.email || teamsAuth.user?.email;
+
   useEffect(() => {
     const loadEmployee = async () => {
-      const email = session?.user?.email;
-      if (!email) return;
-      
+      if (!userEmail) return;
+
       setEmployeeLoading(true);
       setEmployeeError(null);
-      
+
       try {
-        const res = await authFetch(`/api/zep/employees?email=${encodeURIComponent(email)}`);
-        
+        const res = await authFetch(`/api/zep/employees?email=${encodeURIComponent(userEmail)}`);
+
         if (res.ok) {
           const data = await res.json();
           setZepEmployee(data);
         } else if (res.status === 404) {
-          setEmployeeError(`Kein ZEP-Benutzer für ${email} gefunden. Bitte kontaktiere den Administrator.`);
+          setEmployeeError(`Kein ZEP-Benutzer für ${userEmail} gefunden. Bitte kontaktiere den Administrator.`);
         } else {
           const error = await res.json();
           setEmployeeError(error.error || "Fehler beim Laden des ZEP-Benutzers");
@@ -878,9 +879,9 @@ export default function Dashboard() {
         setEmployeeLoading(false);
       }
     };
-    
+
     loadEmployee();
-  }, [session?.user?.email]);
+  }, [userEmail, authFetch]);
 
   // Auto-load appointments when page opens (after employee is loaded)
   const hasAutoLoaded = useRef(false);
@@ -1013,7 +1014,7 @@ export default function Dashboard() {
       }
 
       if (Array.isArray(appointmentsData)) {
-        const userEmail = session?.user?.email?.toLowerCase();
+        const userEmailLower = userEmail?.toLowerCase();
         
         // Get previously saved state to preserve user edits
         const savedState = getStoredState();
@@ -1041,7 +1042,7 @@ export default function Dashboard() {
             
             // New appointment - apply defaults
             const otherAttendees = (event.attendees || []).filter(
-              (a: Attendee) => a.emailAddress.address.toLowerCase() !== userEmail
+              (a: Attendee) => a.emailAddress.address.toLowerCase() !== userEmailLower
             );
             const hasMeetingAttendees = otherAttendees.length > 0;
             
@@ -1334,7 +1335,7 @@ export default function Dashboard() {
 
     // Filter out solo meetings if toggle is on, BUT keep selected ones visible
     if (hideSoloMeetings) {
-      const userEmail = session?.user?.email?.toLowerCase();
+      const userEmailLower = userEmail?.toLowerCase();
       filtered = filtered.filter((apt) => {
         // Always show if manually selected
         if (apt.selected) return true;
@@ -1344,7 +1345,7 @@ export default function Dashboard() {
 
         // Otherwise, only show if has other attendees
         const otherAttendees = (apt.attendees || []).filter(
-          (a) => a.emailAddress.address.toLowerCase() !== userEmail
+          (a) => a.emailAddress.address.toLowerCase() !== userEmailLower
         );
         return otherAttendees.length > 0;
       });
@@ -1382,7 +1383,7 @@ export default function Dashboard() {
     }
 
     return filtered;
-  }, [mergedAppointments, filterDate, seriesFilterActive, validSeriesIds, searchQuery, hideSoloMeetings, session?.user?.email, statusFilter, syncedEntries, editingAppointmentIds]);
+  }, [mergedAppointments, filterDate, seriesFilterActive, validSeriesIds, searchQuery, hideSoloMeetings, userEmail, statusFilter, syncedEntries, editingAppointmentIds]);
 
   // Get unique sorted dates from appointments for day navigation
   const availableDates = useMemo(() => {
@@ -2919,7 +2920,7 @@ export default function Dashboard() {
               modifiedEntries={modifiedEntries}
               selectedDate={filterDate}
               hideSoloMeetings={hideSoloMeetings}
-              userEmail={session?.user?.email || undefined}
+              userEmail={userEmail || undefined}
               onDayClick={(date) => {
                 setFilterDate(date);
                 if (date) setSeriesFilterActive(false); // Clear series filter when selecting a date
