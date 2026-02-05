@@ -22,6 +22,10 @@ export interface OutlookEvent {
     timeZone: string;
   };
   bodyPreview?: string;
+  body?: {
+    contentType?: string;
+    content?: string;
+  };
   attendees?: Attendee[];
   organizer?: {
     emailAddress: {
@@ -72,7 +76,7 @@ export async function getCalendarEvents(
     u.searchParams.set("endDateTime", `${endDate}T23:59:59`);
     u.searchParams.set("$orderby", "start/dateTime");
     u.searchParams.set("$top", "250"); // Max allowed by Graph API
-    u.searchParams.set("$select", "id,subject,start,end,bodyPreview,attendees,organizer,isOrganizer,type,seriesMasterId,isOnlineMeeting,onlineMeetingProvider,onlineMeeting,isCancelled,lastModifiedDateTime,location");
+    u.searchParams.set("$select", "id,subject,start,end,bodyPreview,body,attendees,organizer,isOrganizer,type,seriesMasterId,isOnlineMeeting,onlineMeetingProvider,onlineMeeting,isCancelled,lastModifiedDateTime,location");
     return u.toString();
   })();
 

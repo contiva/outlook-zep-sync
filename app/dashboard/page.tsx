@@ -115,6 +115,9 @@ interface CalendarEvent {
   onlineMeeting?: { joinUrl?: string }; // Teams meeting join URL
   isCancelled?: boolean;
   lastModifiedDateTime?: string;
+  bodyPreview?: string;
+  body?: { contentType?: string; content?: string };
+  location?: { displayName?: string; locationType?: string };
 }
 
 interface Appointment {
@@ -147,6 +150,9 @@ interface Appointment {
   isCancelled?: boolean;
   lastModifiedDateTime?: string;
   useActualTime?: boolean; // true = use actual time from call records, false = use planned time
+  bodyPreview?: string;
+  body?: { contentType?: string; content?: string };
+  location?: { displayName?: string; locationType?: string };
 }
 
 interface ZepEntry {
@@ -1272,14 +1278,14 @@ export default function Dashboard() {
       const query = searchQuery.toLowerCase().trim();
       filtered = filtered.filter((apt) => {
         // Match title
-        if (apt.subject.toLowerCase().includes(query)) {
+        if (apt.subject?.toLowerCase().includes(query)) {
           return true;
         }
         // Match attendee name or email
         if (apt.attendees?.some(
           (a) =>
-            a.emailAddress.name.toLowerCase().includes(query) ||
-            a.emailAddress.address.toLowerCase().includes(query)
+            a.emailAddress?.name?.toLowerCase().includes(query) ||
+            a.emailAddress?.address?.toLowerCase().includes(query)
         )) {
           return true;
         }

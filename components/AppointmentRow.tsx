@@ -44,6 +44,168 @@ function canChangeBillableForTask(projektFakt?: number | string, vorgangFakt?: n
   return true;
 }
 
+// Helper: Extract Zoom meeting URL from text (bodyPreview or location)
+function extractZoomUrl(text?: string): string | null {
+  if (!text) return null;
+  // Match various Zoom URL formats:
+  // https://zoom.us/j/123456789
+  // https://us02web.zoom.us/j/123456789
+  // https://workato.zoom.us/j/123456789?pwd=xxx
+  // Also match without https:// prefix
+  const zoomRegex = /(?:https?:\/\/)?(?:[\w-]+\.)*zoom\.us\/j\/[\w?=&./-]+/gi;
+  const match = text.match(zoomRegex);
+  if (match) {
+    // Ensure URL has https:// prefix
+    let url = match[0];
+    if (!url.startsWith('http')) {
+      url = 'https://' + url;
+    }
+    return url;
+  }
+  return null;
+}
+
+// Helper: Get body text from appointment (combines bodyPreview and full body)
+function getBodyText(appointment: { bodyPreview?: string; body?: { content?: string } }): string {
+  // Prefer full body content, fall back to preview
+  return appointment.body?.content?.toLowerCase() || appointment.bodyPreview?.toLowerCase() || '';
+}
+
+// Helper: Check if meeting has a Teams link in body (for meetings not marked as isOnlineMeeting)
+function hasTeamsLinkInBody(appointment: {
+  bodyPreview?: string;
+  body?: { content?: string };
+}): boolean {
+  const bodyText = getBodyText(appointment);
+  return bodyText.includes('teams.microsoft.com') || bodyText.includes('teams.live.com');
+}
+
+// Helper: Extract Teams join URL from body
+function getTeamsJoinUrlFromBody(appointment: {
+  bodyPreview?: string;
+  body?: { content?: string };
+}): string | null {
+  const fullBodyText = appointment.body?.content || '';
+  const bodyPreviewText = appointment.bodyPreview || '';
+
+  // Match Teams meeting URLs
+  const teamsRegex = /https?:\/\/teams\.(microsoft|live)\.com\/l\/meetup-join\/[\w%?=&./-]+/gi;
+
+  const matchFullBody = fullBodyText.match(teamsRegex);
+  if (matchFullBody) return matchFullBody[0];
+  const matchPreview = bodyPreviewText.match(teamsRegex);
+  if (matchPreview) return matchPreview[0];
+  return null;
+}
+
+// Helper: Check if meeting is a Calendly meeting
+function isCalendlyMeeting(appointment: {
+  location?: { displayName?: string };
+  bodyPreview?: string;
+  body?: { content?: string };
+}): boolean {
+  const locationText = appointment.location?.displayName?.toLowerCase() || '';
+  const bodyText = getBodyText(appointment);
+  return locationText.includes('calendly.com') || bodyText.includes('calendly.com');
+}
+
+// Helper: Get Calendly URL from appointment
+function getCalendlyUrl(appointment: {
+  location?: { displayName?: string };
+  bodyPreview?: string;
+  body?: { content?: string };
+}): string | null {
+  const locationText = appointment.location?.displayName || '';
+  const fullBodyText = appointment.body?.content || '';
+  const bodyPreviewText = appointment.bodyPreview || '';
+
+  // Extract Calendly URL
+  const calendlyRegex = /https?:\/\/(?:[\w-]+\.)?calendly\.com\/[\w?=&./-]*/gi;
+  const matchLocation = locationText.match(calendlyRegex);
+  if (matchLocation) return matchLocation[0];
+  const matchFullBody = fullBodyText.match(calendlyRegex);
+  if (matchFullBody) return matchFullBody[0];
+  const matchPreview = bodyPreviewText.match(calendlyRegex);
+  if (matchPreview) return matchPreview[0];
+  return null;
+}
+
+// Helper: Check if meeting is a Zoom meeting (only if we can find a zoom.us URL)
+function isZoomMeeting(appointment: {
+  location?: { displayName?: string };
+  bodyPreview?: string;
+  body?: { content?: string };
+}): boolean {
+  // Don't detect as Zoom if it's Calendly
+  if (isCalendlyMeeting(appointment)) return false;
+
+  const locationText = appointment.location?.displayName?.toLowerCase() || '';
+  const bodyText = getBodyText(appointment);
+
+  // Only detect as Zoom if we find zoom.us domain (actual Zoom URL)
+  const hasZoomUrl = locationText.includes('zoom.us') || bodyText.includes('zoom.us');
+
+  return hasZoomUrl;
+}
+
+// Helper: Get Zoom join URL from appointment
+function getZoomJoinUrl(appointment: {
+  location?: { displayName?: string };
+  bodyPreview?: string;
+  body?: { content?: string };
+}): string | null {
+  // First try full body content (most complete)
+  if (appointment.body?.content) {
+    const urlFromFullBody = extractZoomUrl(appointment.body.content);
+    if (urlFromFullBody) return urlFromFullBody;
+  }
+
+  // Then try bodyPreview
+  const urlFromBodyPreview = extractZoomUrl(appointment.bodyPreview);
+  if (urlFromBodyPreview) return urlFromBodyPreview;
+
+  // Check if location contains a Zoom URL
+  const urlFromLocation = extractZoomUrl(appointment.location?.displayName);
+  if (urlFromLocation) return urlFromLocation;
+
+  return null;
+}
+
+// Helper: Check if meeting is a Google Meet meeting
+function isGoogleMeetMeeting(appointment: {
+  location?: { displayName?: string };
+  bodyPreview?: string;
+  body?: { content?: string };
+}): boolean {
+  const locationText = appointment.location?.displayName?.toLowerCase() || '';
+  const bodyText = getBodyText(appointment);
+
+  return locationText.includes('meet.google.com') || bodyText.includes('meet.google.com');
+}
+
+// Helper: Get Google Meet URL from appointment
+function getGoogleMeetUrl(appointment: {
+  location?: { displayName?: string };
+  bodyPreview?: string;
+  body?: { content?: string };
+}): string | null {
+  const fullBodyText = appointment.body?.content || '';
+  const bodyPreviewText = appointment.bodyPreview || '';
+  const locationText = appointment.location?.displayName || '';
+
+  // Match Google Meet URLs: https://meet.google.com/xxx-xxxx-xxx
+  const meetRegex = /https?:\/\/meet\.google\.com\/[\w-]+/gi;
+
+  const matchFullBody = fullBodyText.match(meetRegex);
+  if (matchFullBody) return matchFullBody[0];
+  const matchPreview = bodyPreviewText.match(meetRegex);
+  if (matchPreview) return matchPreview[0];
+  const matchLocation = locationText.match(meetRegex);
+  if (matchLocation) return matchLocation[0];
+
+  return null;
+}
+
 // Zugeordnete Tätigkeit (zu Projekt oder Vorgang)
 interface AssignedActivity {
   name: string;      // Tätigkeit-Kürzel
@@ -157,6 +319,9 @@ interface Appointment {
     displayName?: string;
     locationType?: string;
   };
+  // Body preview und full body (für Zoom-Link Erkennung etc.)
+  bodyPreview?: string;
+  body?: { contentType?: string; content?: string };
 }
 
 interface AppointmentRowProps {
@@ -1305,12 +1470,28 @@ export default function AppointmentRow({
                 isMuted={isMuted}
               />
             )}
-            {/* Separator after attendees - only show if there's location or other content */}
-            {attendeeCount > 0 && (appointment.location?.displayName || appointment.isCancelled || appointment.isOnlineMeeting) && (
+            {/* Separator after attendees - only show if there's visible location or meeting icons */}
+            {attendeeCount > 0 && (
+              (appointment.location?.displayName &&
+                !appointment.location.displayName.toLowerCase().includes('microsoft teams') &&
+                !appointment.location.displayName.toLowerCase().includes('calendly.com') &&
+                !appointment.location.displayName.toLowerCase().includes('zoom.us') &&
+                !appointment.location.displayName.toLowerCase().includes('meet.google.com')) ||
+              appointment.isCancelled ||
+              appointment.isOnlineMeeting ||
+              hasTeamsLinkInBody(appointment) ||
+              isZoomMeeting(appointment) ||
+              isCalendlyMeeting(appointment) ||
+              isGoogleMeetMeeting(appointment)
+            ) && (
               <span className={`text-xs ${isMuted ? "text-gray-200" : "text-gray-300"}`}>•</span>
             )}
-            {/* Location */}
-            {appointment.location?.displayName && (
+            {/* Location - hide if it's a meeting service URL (redundant with icons) */}
+            {appointment.location?.displayName &&
+              !appointment.location.displayName.toLowerCase().includes('microsoft teams') &&
+              !appointment.location.displayName.toLowerCase().includes('calendly.com') &&
+              !appointment.location.displayName.toLowerCase().includes('zoom.us') &&
+              !appointment.location.displayName.toLowerCase().includes('meet.google.com') && (
               <span
                 className={`inline-flex items-center gap-0.5 text-xs ${isMuted ? "text-gray-400" : "text-gray-500"}`}
                 title={appointment.location.displayName}
@@ -1336,59 +1517,194 @@ export default function AppointmentRow({
                 )}
               </span>
             )}
-            {/* Teams Meeting Icon / Join Button */}
-            {appointment.isOnlineMeeting && appointment.onlineMeetingProvider === "teamsForBusiness" && (
-              (isLive || isUpcoming) && appointment.onlineMeeting?.joinUrl ? (
-                <a
-                  href={appointment.onlineMeeting.joinUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                  className={`group inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium shrink-0 transition-all ${
-                    isLive
-                      ? "bg-indigo-600 text-white hover:bg-indigo-700"
-                      : "bg-indigo-100 text-indigo-700 hover:bg-indigo-200"
-                  }`}
-                  title="Teams Meeting beitreten"
-                >
-                  <svg
-                    className="w-3.5 h-3.5 shrink-0"
-                    viewBox="0 0 2228.833 2073.333"
-                    xmlns="http://www.w3.org/2000/svg"
-                    aria-label="Teams Meeting"
+            {/* Teams Meeting Icon / Join Button - also detect Teams links in body */}
+            {((appointment.isOnlineMeeting && appointment.onlineMeetingProvider === "teamsForBusiness") || hasTeamsLinkInBody(appointment)) && (
+              (() => {
+                const teamsUrl = appointment.onlineMeeting?.joinUrl || getTeamsJoinUrlFromBody(appointment);
+                return (isLive || isUpcoming) && teamsUrl ? (
+                  <a
+                    href={teamsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className={`group inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium shrink-0 transition-all ${
+                      isLive
+                        ? "bg-indigo-600 text-white hover:bg-indigo-700"
+                        : "bg-indigo-100 text-indigo-700 hover:bg-indigo-200"
+                    }`}
+                    title="Teams Meeting beitreten"
                   >
-                    <path fill="#5059C9" d="M1554.637 777.5h575.713c54.391 0 98.483 44.092 98.483 98.483v524.398c0 199.901-162.051 361.952-361.952 361.952h-1.711c-199.901.028-361.975-162.023-362.004-361.924V828.971c.001-28.427 23.045-51.471 51.471-51.471z"/>
-                    <circle fill="#5059C9" cx="1943.75" cy="440.583" r="233.25"/>
-                    <circle fill="#7B83EB" cx="1218.083" cy="336.917" r="336.917"/>
-                    <path fill="#7B83EB" d="M1667.323 777.5H717.01c-53.743 1.33-96.257 45.931-95.01 99.676v598.105c-7.505 322.519 247.657 590.16 570.167 598.053 322.51-7.893 577.671-275.534 570.167-598.053V877.176c1.245-53.745-41.268-98.346-95.011-99.676z"/>
-                    <linearGradient id="teams-gradient" gradientUnits="userSpaceOnUse" x1="198.099" y1="1683.0726" x2="942.2344" y2="394.2607" gradientTransform="matrix(1 0 0 -1 0 2075.3333)">
-                      <stop offset="0" stopColor="#5a62c3"/><stop offset=".5" stopColor="#4d55bd"/><stop offset="1" stopColor="#3940ab"/>
-                    </linearGradient>
-                    <path fill="url(#teams-gradient)" d="M95.01 466.5h950.312c52.473 0 95.01 42.538 95.01 95.01v950.312c0 52.473-42.538 95.01-95.01 95.01H95.01c-52.473 0-95.01-42.538-95.01-95.01V561.51c0-52.472 42.538-95.01 95.01-95.01z"/>
-                    <path fill="#FFF" d="M820.211 828.193H630.241v517.297H509.211V828.193H320.123V727.844h500.088v100.349z"/>
-                  </svg>
-                  Beitreten
-                </a>
-              ) : (
-                <span className="group">
-                  <svg
-                    className={`w-3.5 h-3.5 shrink-0 grayscale opacity-60 group-hover:grayscale-0 group-hover:opacity-100 transition-all ${isMuted ? "opacity-40" : ""}`}
-                    viewBox="0 0 2228.833 2073.333"
-                    xmlns="http://www.w3.org/2000/svg"
-                    aria-label="Teams Meeting"
+                    <svg
+                      className="w-3.5 h-3.5 shrink-0"
+                      viewBox="0 0 2228.833 2073.333"
+                      xmlns="http://www.w3.org/2000/svg"
+                      aria-label="Teams Meeting"
+                    >
+                      <path fill="#5059C9" d="M1554.637 777.5h575.713c54.391 0 98.483 44.092 98.483 98.483v524.398c0 199.901-162.051 361.952-361.952 361.952h-1.711c-199.901.028-361.975-162.023-362.004-361.924V828.971c.001-28.427 23.045-51.471 51.471-51.471z"/>
+                      <circle fill="#5059C9" cx="1943.75" cy="440.583" r="233.25"/>
+                      <circle fill="#7B83EB" cx="1218.083" cy="336.917" r="336.917"/>
+                      <path fill="#7B83EB" d="M1667.323 777.5H717.01c-53.743 1.33-96.257 45.931-95.01 99.676v598.105c-7.505 322.519 247.657 590.16 570.167 598.053 322.51-7.893 577.671-275.534 570.167-598.053V877.176c1.245-53.745-41.268-98.346-95.011-99.676z"/>
+                      <linearGradient id="teams-gradient" gradientUnits="userSpaceOnUse" x1="198.099" y1="1683.0726" x2="942.2344" y2="394.2607" gradientTransform="matrix(1 0 0 -1 0 2075.3333)">
+                        <stop offset="0" stopColor="#5a62c3"/><stop offset=".5" stopColor="#4d55bd"/><stop offset="1" stopColor="#3940ab"/>
+                      </linearGradient>
+                      <path fill="url(#teams-gradient)" d="M95.01 466.5h950.312c52.473 0 95.01 42.538 95.01 95.01v950.312c0 52.473-42.538 95.01-95.01 95.01H95.01c-52.473 0-95.01-42.538-95.01-95.01V561.51c0-52.472 42.538-95.01 95.01-95.01z"/>
+                      <path fill="#FFF" d="M820.211 828.193H630.241v517.297H509.211V828.193H320.123V727.844h500.088v100.349z"/>
+                    </svg>
+                    Beitreten
+                  </a>
+                ) : (
+                  <span className="group">
+                    <svg
+                      className={`w-3.5 h-3.5 shrink-0 grayscale opacity-60 group-hover:grayscale-0 group-hover:opacity-100 transition-all ${isMuted ? "opacity-40" : ""}`}
+                      viewBox="0 0 2228.833 2073.333"
+                      xmlns="http://www.w3.org/2000/svg"
+                      aria-label="Teams Meeting"
+                    >
+                      <path fill="#5059C9" d="M1554.637 777.5h575.713c54.391 0 98.483 44.092 98.483 98.483v524.398c0 199.901-162.051 361.952-361.952 361.952h-1.711c-199.901.028-361.975-162.023-362.004-361.924V828.971c.001-28.427 23.045-51.471 51.471-51.471z"/>
+                      <circle fill="#5059C9" cx="1943.75" cy="440.583" r="233.25"/>
+                      <circle fill="#7B83EB" cx="1218.083" cy="336.917" r="336.917"/>
+                      <path fill="#7B83EB" d="M1667.323 777.5H717.01c-53.743 1.33-96.257 45.931-95.01 99.676v598.105c-7.505 322.519 247.657 590.16 570.167 598.053 322.51-7.893 577.671-275.534 570.167-598.053V877.176c1.245-53.745-41.268-98.346-95.011-99.676z"/>
+                      <linearGradient id="teams-gradient-muted" gradientUnits="userSpaceOnUse" x1="198.099" y1="1683.0726" x2="942.2344" y2="394.2607" gradientTransform="matrix(1 0 0 -1 0 2075.3333)">
+                        <stop offset="0" stopColor="#5a62c3"/><stop offset=".5" stopColor="#4d55bd"/><stop offset="1" stopColor="#3940ab"/>
+                      </linearGradient>
+                      <path fill="url(#teams-gradient-muted)" d="M95.01 466.5h950.312c52.473 0 95.01 42.538 95.01 95.01v950.312c0 52.473-42.538 95.01-95.01 95.01H95.01c-52.473 0-95.01-42.538-95.01-95.01V561.51c0-52.472 42.538-95.01 95.01-95.01z"/>
+                      <path fill="#FFF" d="M820.211 828.193H630.241v517.297H509.211V828.193H320.123V727.844h500.088v100.349z"/>
+                    </svg>
+                  </span>
+                );
+              })()
+            )}
+            {/* Zoom Meeting Icon / Join Button - show for Zoom meetings that are not Teams */}
+            {appointment.onlineMeetingProvider !== "teamsForBusiness" && !hasTeamsLinkInBody(appointment) && isZoomMeeting(appointment) && (
+              (() => {
+                const zoomUrl = getZoomJoinUrl(appointment);
+                return (isLive || isUpcoming) && zoomUrl ? (
+                  <a
+                    href={zoomUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className={`group inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium shrink-0 transition-all ${
+                      isLive
+                        ? "bg-blue-600 text-white hover:bg-blue-700"
+                        : "bg-blue-100 text-blue-700 hover:bg-blue-200"
+                    }`}
+                    title="Zoom Meeting beitreten"
                   >
-                    <path fill="#5059C9" d="M1554.637 777.5h575.713c54.391 0 98.483 44.092 98.483 98.483v524.398c0 199.901-162.051 361.952-361.952 361.952h-1.711c-199.901.028-361.975-162.023-362.004-361.924V828.971c.001-28.427 23.045-51.471 51.471-51.471z"/>
-                    <circle fill="#5059C9" cx="1943.75" cy="440.583" r="233.25"/>
-                    <circle fill="#7B83EB" cx="1218.083" cy="336.917" r="336.917"/>
-                    <path fill="#7B83EB" d="M1667.323 777.5H717.01c-53.743 1.33-96.257 45.931-95.01 99.676v598.105c-7.505 322.519 247.657 590.16 570.167 598.053 322.51-7.893 577.671-275.534 570.167-598.053V877.176c1.245-53.745-41.268-98.346-95.011-99.676z"/>
-                    <linearGradient id="teams-gradient-muted" gradientUnits="userSpaceOnUse" x1="198.099" y1="1683.0726" x2="942.2344" y2="394.2607" gradientTransform="matrix(1 0 0 -1 0 2075.3333)">
-                      <stop offset="0" stopColor="#5a62c3"/><stop offset=".5" stopColor="#4d55bd"/><stop offset="1" stopColor="#3940ab"/>
-                    </linearGradient>
-                    <path fill="url(#teams-gradient-muted)" d="M95.01 466.5h950.312c52.473 0 95.01 42.538 95.01 95.01v950.312c0 52.473-42.538 95.01-95.01 95.01H95.01c-52.473 0-95.01-42.538-95.01-95.01V561.51c0-52.472 42.538-95.01 95.01-95.01z"/>
-                    <path fill="#FFF" d="M820.211 828.193H630.241v517.297H509.211V828.193H320.123V727.844h500.088v100.349z"/>
-                  </svg>
-                </span>
-              )
+                    <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" aria-label="Zoom Meeting">
+                      <rect width="512" height="512" rx="85" fill="#2D8CFF"/>
+                      <path fill="#fff" d="M310 178H148c-16.5 0-30 13.5-30 30v96c0 16.5 13.5 30 30 30h162c16.5 0 30-13.5 30-30v-96c0-16.5-13.5-30-30-30zm84 6v144l-48-36v-72l48-36z"/>
+                    </svg>
+                    Beitreten
+                  </a>
+                ) : (
+                  <span className="group" title="Zoom Meeting">
+                    <svg
+                      className={`w-3.5 h-3.5 shrink-0 grayscale opacity-60 group-hover:grayscale-0 group-hover:opacity-100 transition-all ${isMuted ? "opacity-40" : ""}`}
+                      viewBox="0 0 512 512"
+                      xmlns="http://www.w3.org/2000/svg"
+                      aria-label="Zoom Meeting"
+                    >
+                      <rect width="512" height="512" rx="85" fill="#2D8CFF"/>
+                      <path fill="#fff" d="M310 178H148c-16.5 0-30 13.5-30 30v96c0 16.5 13.5 30 30 30h162c16.5 0 30-13.5 30-30v-96c0-16.5-13.5-30-30-30zm84 6v144l-48-36v-72l48-36z"/>
+                    </svg>
+                  </span>
+                );
+              })()
+            )}
+            {/* Calendly Meeting Icon / Join Button */}
+            {isCalendlyMeeting(appointment) && (
+              (() => {
+                const calendlyUrl = getCalendlyUrl(appointment);
+                return (isLive || isUpcoming) && calendlyUrl ? (
+                  <a
+                    href={calendlyUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className={`group inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium shrink-0 transition-all ${
+                      isLive
+                        ? "bg-blue-600 text-white hover:bg-blue-700"
+                        : "bg-blue-100 text-blue-700 hover:bg-blue-200"
+                    }`}
+                    title="Calendly Meeting öffnen"
+                  >
+                    <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" aria-label="Calendly">
+                      <rect width="120" height="120" rx="24" fill="#006BFF"/>
+                      <rect x="28" y="38" width="64" height="54" rx="6" fill="none" stroke="#fff" strokeWidth="5"/>
+                      <path d="M28 52h64" stroke="#fff" strokeWidth="5"/>
+                      <circle cx="42" cy="34" r="4" fill="#fff"/>
+                      <circle cx="78" cy="34" r="4" fill="#fff"/>
+                      <path d="M44 68l10 10 22-22" stroke="#fff" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+                    </svg>
+                    Öffnen
+                  </a>
+                ) : (
+                  <span className="group" title="Calendly Meeting">
+                    <svg
+                      className={`w-3.5 h-3.5 shrink-0 grayscale opacity-60 group-hover:grayscale-0 group-hover:opacity-100 transition-all ${isMuted ? "opacity-40" : ""}`}
+                      viewBox="0 0 120 120"
+                      xmlns="http://www.w3.org/2000/svg"
+                      aria-label="Calendly"
+                    >
+                      <rect width="120" height="120" rx="24" fill="#006BFF"/>
+                      <rect x="28" y="38" width="64" height="54" rx="6" fill="none" stroke="#fff" strokeWidth="5"/>
+                      <path d="M28 52h64" stroke="#fff" strokeWidth="5"/>
+                      <circle cx="42" cy="34" r="4" fill="#fff"/>
+                      <circle cx="78" cy="34" r="4" fill="#fff"/>
+                      <path d="M44 68l10 10 22-22" stroke="#fff" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+                    </svg>
+                  </span>
+                );
+              })()
+            )}
+            {/* Google Meet Icon / Join Button */}
+            {isGoogleMeetMeeting(appointment) && (
+              (() => {
+                const meetUrl = getGoogleMeetUrl(appointment);
+                return (isLive || isUpcoming) && meetUrl ? (
+                  <a
+                    href={meetUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className={`group inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium shrink-0 transition-all ${
+                      isLive
+                        ? "bg-green-600 text-white hover:bg-green-700"
+                        : "bg-green-100 text-green-700 hover:bg-green-200"
+                    }`}
+                    title="Google Meet beitreten"
+                  >
+                    <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 87.5 72" xmlns="http://www.w3.org/2000/svg" aria-label="Google Meet">
+                      <path fill="#00832d" d="M49.5 36l8.53 9.75 11.47 7.33 2-17.02-2-16.64-11.69 6.44z"/>
+                      <path fill="#0066da" d="M0 51.5V66c0 3.315 2.685 6 6 6h14.5l3-10.96-3-9.54H0z"/>
+                      <path fill="#e94235" d="M20.5 0L0 20.5l10.25 3 10.25-3V0z"/>
+                      <path fill="#2684fc" d="M20.5 20.5H0v31h20.5z"/>
+                      <path fill="#00ac47" d="M82.6 8.68L69.5 19.42v33.66l13.16 10.79c2.97 2.44 7.34.46 7.34-3.32V12.09c0-3.81-4.42-5.78-7.4-3.41z"/>
+                      <path fill="#00832d" d="M49.5 36v15.5h-29V72h43c3.315 0 6-2.685 6-6V53.08z"/>
+                      <path fill="#ffba00" d="M63.5 0h-43v20.5h29V36l19.5-16.08V6c0-3.315-2.685-6-6-6z"/>
+                    </svg>
+                    Beitreten
+                  </a>
+                ) : (
+                  <span className="group" title="Google Meet">
+                    <svg
+                      className={`w-3.5 h-3.5 shrink-0 grayscale opacity-60 group-hover:grayscale-0 group-hover:opacity-100 transition-all ${isMuted ? "opacity-40" : ""}`}
+                      viewBox="0 0 87.5 72"
+                      xmlns="http://www.w3.org/2000/svg"
+                      aria-label="Google Meet"
+                    >
+                      <path fill="#00832d" d="M49.5 36l8.53 9.75 11.47 7.33 2-17.02-2-16.64-11.69 6.44z"/>
+                      <path fill="#0066da" d="M0 51.5V66c0 3.315 2.685 6 6 6h14.5l3-10.96-3-9.54H0z"/>
+                      <path fill="#e94235" d="M20.5 0L0 20.5l10.25 3 10.25-3V0z"/>
+                      <path fill="#2684fc" d="M20.5 20.5H0v31h20.5z"/>
+                      <path fill="#00ac47" d="M82.6 8.68L69.5 19.42v33.66l13.16 10.79c2.97 2.44 7.34.46 7.34-3.32V12.09c0-3.81-4.42-5.78-7.4-3.41z"/>
+                      <path fill="#00832d" d="M49.5 36v15.5h-29V72h43c3.315 0 6-2.685 6-6V53.08z"/>
+                      <path fill="#ffba00" d="M63.5 0h-43v20.5h29V36l19.5-16.08V6c0-3.315-2.685-6-6-6z"/>
+                    </svg>
+                  </span>
+                );
+              })()
             )}
             {/* Call badges */}
             {appointment.type === 'call' && (

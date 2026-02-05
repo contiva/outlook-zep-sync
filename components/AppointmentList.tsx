@@ -644,8 +644,8 @@ export default function AppointmentList({
     return <AppointmentListSkeleton />;
   }
 
-  // Keine Termine vorhanden
-  if (appointments.length === 0) {
+  // Keine Termine geladen (nicht gefiltert - wirklich keine Daten)
+  if (appointments.length === 0 && (!totalAppointmentsCount || totalAppointmentsCount === 0)) {
     return (
       <div className="p-8 text-center text-gray-500 bg-gray-50 rounded-lg border border-gray-200">
         Keine Termine gefunden. Wähle einen Zeitraum und klicke auf &quot;Termine laden&quot;.
@@ -653,8 +653,78 @@ export default function AppointmentList({
     );
   }
 
-  // Determine if filter controls should be shown
+  // Determine if filter controls should be shown (moved up for empty filtered state)
   const showFilterControls = onSearchChange !== undefined;
+
+  // Filter aktiv aber keine Ergebnisse - zeige Filterbar mit Hinweis
+  if (appointments.length === 0 && totalAppointmentsCount && totalAppointmentsCount > 0) {
+    return (
+      <div>
+        {/* Header mit Filter (ohne Checkbox da keine Termine) */}
+        <div className="relative bg-white border border-gray-200 rounded-t-lg shadow-md">
+          <div className="flex items-center">
+            {/* Platzhalter für Checkbox-Bereich */}
+            <div className="flex items-center gap-3 px-4 py-3">
+              <span className="text-sm text-gray-500 whitespace-nowrap">
+                Keine Ergebnisse
+              </span>
+            </div>
+
+            {showFilterControls && (
+              <>
+                {/* Divider */}
+                <div className="h-8 w-px bg-gray-200" />
+
+                {/* Search input */}
+                <div className="relative flex-1">
+                  <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Suchen..."
+                    value={searchQuery || ""}
+                    onChange={(e) => onSearchChange?.(e.target.value)}
+                    className="w-full pl-11 pr-10 py-3 text-sm bg-transparent border-0 focus:outline-none focus:ring-0"
+                    aria-label="Termine durchsuchen"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => onSearchChange?.("")}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition"
+                      aria-label="Suche löschen"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Divider */}
+                <div className="h-8 w-px bg-gray-200" />
+
+                {/* Count */}
+                <div className="px-3 text-sm text-gray-500 whitespace-nowrap">
+                  <span className="font-medium text-gray-700">0</span>
+                  <span className="text-gray-400"> / {totalAppointmentsCount}</span>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Hinweis dass keine Ergebnisse gefunden wurden */}
+        <div className="p-8 text-center text-gray-500 bg-gray-50 border border-t-0 border-gray-200 rounded-b-lg">
+          Keine Termine für diese Filterkriterien gefunden.
+          {searchQuery && (
+            <button
+              onClick={() => onSearchChange?.("")}
+              className="ml-2 text-blue-600 hover:text-blue-800 underline"
+            >
+              Suche zurücksetzen
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
