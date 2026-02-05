@@ -669,6 +669,8 @@ export default function Dashboard() {
 
   // State for single row sync
   const [syncingSingleId, setSyncingSingleId] = useState<string | null>(null);
+  // State for series sync
+  const [syncingSeriesId, setSyncingSeriesId] = useState<string | null>(null);
 
   // State for editing synced entries (rebooking)
   const [editingAppointments, setEditingAppointments] = useState<Set<string>>(new Set());
@@ -1664,7 +1666,8 @@ export default function Dashboard() {
     seriesId: string,
     projectId: number | null,
     taskId: number | null,
-    activityId: string
+    activityId: string,
+    billable?: boolean
   ) => {
     if (projectId) {
       await loadTasksForProject(projectId);
@@ -1673,7 +1676,13 @@ export default function Dashboard() {
     setAppointments((prev) =>
       prev.map((apt) =>
         apt.seriesMasterId === seriesId
-          ? { ...apt, projectId, taskId, activityId }
+          ? {
+              ...apt,
+              projectId,
+              taskId,
+              activityId,
+              ...(billable !== undefined ? { billable } : {}),
+            }
           : apt
       )
     );
@@ -2357,6 +2366,98 @@ export default function Dashboard() {
     }
   };
 
+  // Sync all sync-ready appointments in a series
+  const syncSeriesAppointments = async (seriesId: string, appointmentsToSync: Appointment[]) => {
+    if (appointmentsToSync.length === 0 || !employeeId) {
+      toast({ text: "Keine Termine zum Synchronisieren vorhanden.", type: "error" });
+      return;
+    }
+
+    setSyncingSeriesId(seriesId);
+
+    try {
+      const entries = appointmentsToSync.map((appointment) => {
+        const { startDt, endDt } = getEffectiveTime(appointment);
+        const dateStr = new Date(appointment.start.dateTime).toISOString().split("T")[0];
+        const zepTimes = calculateZepTimes(startDt, endDt);
+
+        // Determine the correct billable value
+        let billableValue = appointment.billable;
+        if (!appointment.canChangeBillable && appointment.projectId && appointment.taskId) {
+          const project = projects.find((p) => p.id === appointment.projectId);
+          const projectTasks = tasks[appointment.projectId] || [];
+          const task = projectTasks.find((t) => t.id === appointment.taskId);
+          const projektFakt = project?.voreinstFakturierbarkeit ?? project?.defaultFakt;
+          const vorgangFakt = task?.defaultFakt;
+          billableValue = determineBillable(projektFakt, vorgangFakt);
+        }
+
+        return {
+          date: dateStr,
+          from: zepTimes.start,
+          to: zepTimes.end,
+          employee_id: employeeId,
+          note: appointment.subject,
+          billable: billableValue,
+          activity_id: appointment.activityId,
+          project_id: appointment.projectId!,
+          project_task_id: appointment.taskId!,
+          _appointmentId: appointment.id, // For tracking
+        };
+      });
+
+      const res = await fetch("/api/zep/timeentries", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        body: JSON.stringify({ entries: entries.map(({ _appointmentId, ...e }) => e) }),
+      });
+
+      const result = await res.json();
+
+      if (result.succeeded > 0) {
+        // Save sync history
+        if (result.createdEntries && result.createdEntries.length > 0) {
+          const syncRecords: SyncRecord[] = result.createdEntries.map((created: { zepId: number }, index: number) => ({
+            outlookEventId: entries[index]._appointmentId,
+            zepAttendanceId: created.zepId,
+            subject: appointmentsToSync[index].subject,
+            date: entries[index].date,
+            syncedAt: new Date().toISOString(),
+          }));
+          saveSyncRecords(syncRecords);
+        }
+
+        // Track submitted IDs for heatmap
+        const syncedIds = appointmentsToSync.slice(0, result.succeeded).map((a) => a.id);
+        setSubmittedIds((prev) => new Set([...prev, ...syncedIds]));
+
+        // Deselect synced appointments
+        setAppointments((prev) =>
+          prev.map((a) =>
+            syncedIds.includes(a.id) ? { ...a, selected: false } : a
+          )
+        );
+
+        toast({
+          text: `${result.succeeded} Termine erfolgreich synchronisiert${result.failed > 0 ? `, ${result.failed} fehlgeschlagen` : ""}`,
+          type: "success",
+        });
+
+        // Reload synced entries
+        await loadSyncedEntries();
+      } else {
+        const errorMsg = result.errors?.[0] ? parseErrorMessage(result.errors[0]) : "Unbekannter Fehler";
+        toast({ text: `Fehler: ${errorMsg}`, type: "error" });
+      }
+    } catch (error) {
+      console.error("Series sync error:", error);
+      toast({ text: "Fehler bei der Synchronisierung", type: "error" });
+    } finally {
+      setSyncingSeriesId(null);
+    }
+  };
+
   const submitToZep = async (appointmentsToSync: Appointment[], entriesToModify?: ModifiedEntry[]) => {
     // Use the appointments passed from the dialog (already filtered by user)
     const syncReadyAppointments = appointmentsToSync;
@@ -2709,6 +2810,8 @@ export default function Dashboard() {
           onSubmit={submitToZep}
           onSyncSingle={syncSingleAppointment}
           syncingSingleId={syncingSingleId}
+          onSyncSeries={syncSeriesAppointments}
+          syncingSeriesId={syncingSeriesId}
           onReset={resetPendingSyncs}
           submitting={submitting}
           // Editing synced entries (rebooking)

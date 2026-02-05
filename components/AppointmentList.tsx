@@ -121,11 +121,15 @@ interface AppointmentListProps {
     seriesId: string,
     projectId: number | null,
     taskId: number | null,
-    activityId: string
+    activityId: string,
+    billable?: boolean
   ) => void;
   onSubmit: (appointmentsToSync: Appointment[], modifiedEntries?: ModifiedEntry[]) => void;
   onSyncSingle?: (appointment: Appointment) => void;
   syncingSingleId?: string | null;
+  // Series sync
+  onSyncSeries?: (seriesId: string, appointments: Appointment[]) => void;
+  syncingSeriesId?: string | null;
   onReset: () => void;
   submitting: boolean;
   // Editing synced entries (rebooking)
@@ -231,6 +235,8 @@ export default function AppointmentList({
   onSubmit,
   onSyncSingle,
   syncingSingleId,
+  onSyncSeries,
+  syncingSeriesId,
   onReset,
   submitting,
   editingAppointments,
@@ -699,6 +705,9 @@ export default function AppointmentList({
                 onBillableChange={onBillableChange}
                 onUseActualTimeChange={onUseActualTimeChange}
                 onApplyToSeries={onApplyToSeries}
+                // Series sync
+                onSyncSeries={onSyncSeries}
+                syncingSeriesId={syncingSeriesId}
                 // Single sync
                 onSyncSingle={onSyncSingle}
                 syncingSingleId={syncingSingleId}
