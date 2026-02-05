@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useRef, useEffect } from "react";
-import { Search, X, RotateCcw, ClockArrowUp, Check, Minus, User } from "lucide-react";
+import { Search, X, RotateCcw, ClockArrowUp, Check, Minus, User, ChevronDown } from "lucide-react";
 import AppointmentRow from "./AppointmentRow";
 import SeriesGroup from "./SeriesGroup";
 import SyncConfirmDialog from "./SyncConfirmDialog";
@@ -155,10 +155,21 @@ interface AppointmentListProps {
   onFilterDateClear?: () => void;
   seriesFilterActive?: boolean;
   onSeriesFilterClear?: () => void;
+  // Status filter: "all" | "synced" | "inProgress" | "unprocessed"
+  statusFilter?: string;
+  onStatusFilterChange?: (status: string) => void;
   hideSoloMeetings?: boolean;
   onHideSoloMeetingsChange?: (hide: boolean) => void;
   focusedAppointmentId?: string | null;
 }
+
+// Status filter options with colors
+const STATUS_FILTER_OPTIONS = [
+  { value: "all", label: "Alle", color: null },
+  { value: "synced", label: "Synchronisiert", color: "bg-green-500" },
+  { value: "inProgress", label: "In Bearbeitung", color: "bg-amber-400" },
+  { value: "unprocessed", label: "Unbearbeitet", color: "bg-red-400" },
+];
 
 interface GroupedItem {
   type: "single" | "series";
@@ -260,12 +271,17 @@ export default function AppointmentList({
   onFilterDateClear,
   seriesFilterActive,
   onSeriesFilterClear,
+  statusFilter = "all",
+  onStatusFilterChange,
   hideSoloMeetings,
   onHideSoloMeetingsChange,
   focusedAppointmentId,
 }: AppointmentListProps) {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [soloPopoverOpen, setSoloPopoverOpen] = useState(false);
+  const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
+  const statusDropdownRef = useRef<HTMLDivElement>(null);
+  const statusTriggerRef = useRef<HTMLButtonElement>(null);
   const [soloPopoverOpenAbove, setSoloPopoverOpenAbove] = useState(false);
   const [soloToggleCount, setSoloToggleCount] = useState(() => {
     if (typeof window !== "undefined") {
@@ -293,6 +309,24 @@ export default function AppointmentList({
       return () => document.removeEventListener("mousedown", handleClickOutside);
     }
   }, [soloPopoverOpen]);
+
+  // Close status dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        statusDropdownRef.current &&
+        !statusDropdownRef.current.contains(event.target as Node) &&
+        statusTriggerRef.current &&
+        !statusTriggerRef.current.contains(event.target as Node)
+      ) {
+        setStatusDropdownOpen(false);
+      }
+    }
+    if (statusDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [statusDropdownOpen]);
 
   // Helper to open solo popover with position calculation
   const openSoloPopover = () => {
@@ -506,6 +540,63 @@ export default function AppointmentList({
                   </button>
                 )}
               </div>
+
+              {/* Divider */}
+              <div className="h-8 w-px bg-gray-200" />
+
+              {/* Status filter dropdown */}
+              {onStatusFilterChange && (
+                <div className="relative">
+                  <button
+                    ref={statusTriggerRef}
+                    onClick={() => setStatusDropdownOpen(!statusDropdownOpen)}
+                    className={`flex items-center gap-2 px-3 py-2 text-sm whitespace-nowrap transition rounded-lg mx-1 ${
+                      statusFilter !== "all"
+                        ? "text-gray-700 bg-gray-100"
+                        : "text-gray-500 hover:bg-gray-50"
+                    }`}
+                    title="Nach Status filtern"
+                  >
+                    {/* Color dot */}
+                    <span className={`w-2.5 h-2.5 rounded-full ${
+                      STATUS_FILTER_OPTIONS.find(o => o.value === statusFilter)?.color || "bg-gray-300"
+                    }`} />
+                    <span className="hidden sm:inline">
+                      {STATUS_FILTER_OPTIONS.find(o => o.value === statusFilter)?.label || "Alle"}
+                    </span>
+                    <ChevronDown size={14} className={`transition-transform ${statusDropdownOpen ? "rotate-180" : ""}`} />
+                  </button>
+
+                  {/* Dropdown menu */}
+                  {statusDropdownOpen && (
+                    <div
+                      ref={statusDropdownRef}
+                      className="absolute top-full mt-1 right-0 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 min-w-40"
+                    >
+                      {STATUS_FILTER_OPTIONS.map((option) => (
+                        <button
+                          key={option.value}
+                          onClick={() => {
+                            onStatusFilterChange(option.value);
+                            setStatusDropdownOpen(false);
+                          }}
+                          className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left transition ${
+                            statusFilter === option.value
+                              ? "bg-blue-50 text-blue-700"
+                              : "text-gray-700 hover:bg-gray-50"
+                          }`}
+                        >
+                          <span className={`w-2.5 h-2.5 rounded-full ${option.color || "bg-gray-300"}`} />
+                          <span>{option.label}</span>
+                          {statusFilter === option.value && (
+                            <Check size={14} className="ml-auto text-blue-600" />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Divider */}
               <div className="h-8 w-px bg-gray-200" />

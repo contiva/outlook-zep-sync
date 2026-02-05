@@ -658,6 +658,9 @@ export default function Dashboard() {
   const [seriesFilterActive, setSeriesFilterActive] = useState(false);
   const [heatmapStats, setHeatmapStats] = useState<HeatmapStats>({ synced: 0, syncedWithChanges: 0, edited: 0, unprocessed: 0 });
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all"); // "all" | "synced" | "inProgress" | "unprocessed"
+  // Track appointments being actively edited (to prevent them from disappearing due to status filter)
+  const [editingAppointmentIds, setEditingAppointmentIds] = useState<Set<string>>(new Set());
   const [zepEmployee, setZepEmployee] = useState<{ username: string; firstname: string; lastname: string; email: string } | null>(null);
   const [employeeLoading, setEmployeeLoading] = useState(false);
   const [employeeError, setEmployeeError] = useState<string | null>(null);
@@ -781,11 +784,13 @@ export default function Dashboard() {
 
       // Escape - clear filters
       if (e.key === "Escape") {
-        if (filterDate || seriesFilterActive || searchQuery) {
+        if (filterDate || seriesFilterActive || searchQuery || statusFilter !== "all") {
           e.preventDefault();
           setFilterDate(null);
           setSeriesFilterActive(false);
           setSearchQuery("");
+          setStatusFilter("all");
+          setEditingAppointmentIds(new Set());
         }
       }
 
@@ -798,7 +803,7 @@ export default function Dashboard() {
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [filterDate, seriesFilterActive, searchQuery]);
+  }, [filterDate, seriesFilterActive, searchQuery, statusFilter]);
 
   // Load ZEP employee info when session is available
   useEffect(() => {
@@ -1300,8 +1305,39 @@ export default function Dashboard() {
       });
     }
 
+    // Filter by status
+    if (statusFilter !== "all") {
+      filtered = filtered.filter((apt) => {
+        // Keep appointments that are being actively edited visible
+        // They will be removed from editingAppointmentIds after sync
+        if (editingAppointmentIds.has(apt.id)) return true;
+
+        // Helper to check if synced
+        const isSynced = syncedEntries.some((entry) => {
+          const entryDate = entry.date.split("T")[0];
+          const aptDate = apt.start.dateTime.split("T")[0];
+          const entryNote = (entry.note || "").trim();
+          const aptSubject = (apt.subject || "").trim();
+          return entryNote === aptSubject && entryDate === aptDate;
+        });
+
+        if (statusFilter === "synced") {
+          return isSynced;
+        }
+        if (statusFilter === "inProgress") {
+          // In progress = has project AND task selected, but not yet synced
+          return !isSynced && apt.projectId && apt.taskId;
+        }
+        if (statusFilter === "unprocessed") {
+          // Unprocessed = not synced AND (no project OR no task)
+          return !isSynced && (!apt.projectId || !apt.taskId);
+        }
+        return true;
+      });
+    }
+
     return filtered;
-  }, [mergedAppointments, filterDate, seriesFilterActive, validSeriesIds, searchQuery, hideSoloMeetings, session?.user?.email]);
+  }, [mergedAppointments, filterDate, seriesFilterActive, validSeriesIds, searchQuery, hideSoloMeetings, session?.user?.email, statusFilter, syncedEntries, editingAppointmentIds]);
 
   // Get unique sorted dates from appointments for day navigation
   const availableDates = useMemo(() => {
@@ -1525,9 +1561,17 @@ export default function Dashboard() {
     // Auch Editing-State zurücksetzen
     setEditingAppointments(new Set());
     setModifiedEntries(new Map());
+    // Clear editing IDs for status filter
+    setEditingAppointmentIds(new Set());
   };
 
   const changeProject = async (id: string, projectId: number | null) => {
+    // Mark as being edited only when setting a project (not when clearing)
+    // This prevents the appointment from disappearing due to status filter while editing
+    if (projectId) {
+      setEditingAppointmentIds((prev) => new Set([...prev, id]));
+    }
+
     // Check if this is a call
     const isCall = calls.some((c) => c.id === id);
     const setItems = isCall ? setCalls : setAppointments;
@@ -1586,6 +1630,12 @@ export default function Dashboard() {
   };
 
   const changeTask = (id: string, taskId: number | null) => {
+    // Mark as being edited only when setting a task (not when clearing)
+    // This prevents the appointment from disappearing due to status filter while editing
+    if (taskId) {
+      setEditingAppointmentIds((prev) => new Set([...prev, id]));
+    }
+
     // Check if this is a call
     const isCall = calls.some((c) => c.id === id);
     const setItems = isCall ? setCalls : setAppointments;
@@ -2350,6 +2400,13 @@ export default function Dashboard() {
           )
         );
 
+        // Remove from editing IDs (so it gets filtered out now)
+        setEditingAppointmentIds((prev) => {
+          const next = new Set(prev);
+          next.delete(appointment.id);
+          return next;
+        });
+
         toast({ text: "Termin erfolgreich synchronisiert", type: "success" });
 
         // Reload synced entries
@@ -2438,6 +2495,13 @@ export default function Dashboard() {
             syncedIds.includes(a.id) ? { ...a, selected: false } : a
           )
         );
+
+        // Remove from editing IDs (so they get filtered out now)
+        setEditingAppointmentIds((prev) => {
+          const next = new Set(prev);
+          syncedIds.forEach((id) => next.delete(id));
+          return next;
+        });
 
         toast({
           text: `${result.succeeded} Termine erfolgreich synchronisiert${result.failed > 0 ? `, ${result.failed} fehlgeschlagen` : ""}`,
@@ -2546,13 +2610,20 @@ export default function Dashboard() {
           setSubmittedIds((prev) => new Set([...prev, ...submittedAppointmentIds]));
           
           // Deselect the submitted appointments
-          setAppointments((prev) => 
-            prev.map((a) => 
-              submittedAppointmentIds.has(a.id) 
+          setAppointments((prev) =>
+            prev.map((a) =>
+              submittedAppointmentIds.has(a.id)
                 ? { ...a, selected: false }
                 : a
             )
           );
+
+          // Remove from editing IDs (so they get filtered out now)
+          setEditingAppointmentIds((prev) => {
+            const next = new Set(prev);
+            submittedAppointmentIds.forEach((id) => next.delete(id));
+            return next;
+          });
         }
       }
 
@@ -2837,6 +2908,12 @@ export default function Dashboard() {
           onFilterDateClear={() => setFilterDate(null)}
           seriesFilterActive={seriesFilterActive}
           onSeriesFilterClear={() => setSeriesFilterActive(false)}
+          statusFilter={statusFilter}
+          onStatusFilterChange={(newFilter) => {
+            setStatusFilter(newFilter);
+            // Clear editing IDs when filter changes to get a clean filtered view
+            setEditingAppointmentIds(new Set());
+          }}
           hideSoloMeetings={hideSoloMeetings}
           onHideSoloMeetingsChange={setHideSoloMeetings}
           focusedAppointmentId={focusedAppointmentId}
