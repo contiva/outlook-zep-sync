@@ -1179,7 +1179,7 @@ export default function Dashboard() {
     const loadActualDurations = async () => {
       setDurationsLoading(true);
       try {
-        const res = await fetch(
+        const res = await authFetch(
           `/api/calls/durations?startDate=${startDate}&endDate=${endDate}`
         );
         const data = await res.json();
@@ -1240,7 +1240,7 @@ export default function Dashboard() {
 
     loadActualDurations();
   // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally using .length to avoid re-renders on content changes
-  }, [appointments.length, hasOnlineMeetings, startDate, endDate, syncedEntries.length]);
+  }, [appointments.length, hasOnlineMeetings, startDate, endDate, syncedEntries.length, authFetch]);
 
   // Merge appointments with calls, deduplicating overlapping entries
   const mergedAppointments = useMemo(() => {
