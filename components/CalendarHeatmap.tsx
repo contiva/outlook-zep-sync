@@ -189,7 +189,7 @@ export default function CalendarHeatmap({
     if (zepEntries.length === 0) return false;
 
     // Trim subject for comparison (Outlook may have trailing spaces)
-    const aptSubject = apt.subject.trim();
+    const aptSubject = (apt.subject || "").trim();
 
     return zepEntries.some((entry) => {
       const entryNote = (entry.note || "").trim();
@@ -243,7 +243,7 @@ export default function CalendarHeatmap({
     if (!zepEntries || zepEntries.length === 0) return false;
 
     // Trim subject for comparison (Outlook may have trailing spaces)
-    const aptSubject = apt.subject.trim();
+    const aptSubject = (apt.subject || "").trim();
 
     return zepEntries.some((entry) => {
       const entryNote = (entry.note || "").trim();

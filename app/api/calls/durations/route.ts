@@ -120,10 +120,22 @@ interface DurationsResponse {
 export async function GET(
   request: Request
 ): Promise<NextResponse<DurationsResponse | { error: string }>> {
-  const session = await getServerSession(authOptions);
+  // Support both NextAuth session and Authorization header (for Teams SSO)
+  const authHeader = request.headers.get("Authorization");
+  const bearerToken = authHeader?.startsWith("Bearer ")
+    ? authHeader.slice(7)
+    : null;
+
+  // Prefer Authorization header (Teams SSO), fallback to NextAuth session
+  let userAccessToken: string | null = bearerToken;
+
+  if (!userAccessToken) {
+    const session = await getServerSession(authOptions);
+    userAccessToken = session?.accessToken || null;
+  }
 
   // User must be logged in
-  if (!session?.accessToken) {
+  if (!userAccessToken) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -190,7 +202,7 @@ export async function GET(
 
   try {
     // Get current user from their token (to filter by participation)
-    const currentUser = await getCurrentUserFromToken(session.accessToken);
+    const currentUser = await getCurrentUserFromToken(userAccessToken);
 
     // Use Application token (client credentials) for CallRecords.Read.All
     const accessToken = await getAppToken();

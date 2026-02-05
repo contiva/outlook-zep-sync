@@ -1,0 +1,40 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.17/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.17",
+  "version": "1.0.0",
+  "id": "edf73da0-7ec5-4d6e-8f2e-4a86f2fdb9a6",
+  "packageName": "dev.contiva.zep",
+  "name": {
+    "short": "ZEP Sync",
+    "full": "Outlook ZEP Synchronisation"
+  },
+  "description": {
+    "short": "Outlook-Termine mit ZEP synchronisieren",
+    "full": "Synchronisiere deine Outlook-Kalendertermine mit dem ZEP-Zeiterfassungssystem. Diese App ermöglicht es dir, Termine aus deinem Outlook-Kalender einfach in ZEP zu übertragen und so deine Arbeitszeiten effizient zu erfassen."
+  },
+  "developer": {
+    "name": "Contiva",
+    "websiteUrl": "https://zep.contiva.dev",
+    "privacyUrl": "https://zep.contiva.dev/privacy",
+    "termsOfUseUrl": "https://zep.contiva.dev/terms"
+  },
+  "icons": {
+    "color": "color.png",
+    "outline": "outline.png"
+  },
+  "accentColor": "#4F46E5",
+  "staticTabs": [
+    {
+      "entityId": "dashboard",
+      "name": "Dashboard",
+      "contentUrl": "https://zep.contiva.dev/dashboard?inTeams=true",
+      "scopes": ["personal"]
+    }
+  ],
+  "permissions": ["identity"],
+  "validDomains": ["zep.contiva.dev"],
+  "webApplicationInfo": {
+    "id": "edf73da0-7ec5-4d6e-8f2e-4a86f2fdb9a6",
+    "resource": "api://zep.contiva.dev/edf73da0-7ec5-4d6e-8f2e-4a86f2fdb9a6"
+  }
+}

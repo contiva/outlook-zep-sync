@@ -4,9 +4,21 @@ import { authOptions } from "@/lib/auth";
 import { getCalendarEvents } from "@/lib/microsoft-graph";
 
 export async function GET(request: Request) {
-  const session = await getServerSession(authOptions);
+  // Support both NextAuth session and Authorization header (for Teams SSO)
+  const authHeader = request.headers.get("Authorization");
+  const bearerToken = authHeader?.startsWith("Bearer ")
+    ? authHeader.slice(7)
+    : null;
 
-  if (!session?.accessToken) {
+  // Prefer Authorization header (Teams SSO), fallback to NextAuth session
+  let accessToken: string | null = bearerToken;
+
+  if (!accessToken) {
+    const session = await getServerSession(authOptions);
+    accessToken = session?.accessToken || null;
+  }
+
+  if (!accessToken) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -23,7 +35,7 @@ export async function GET(request: Request) {
 
   try {
     const events = await getCalendarEvents(
-      session.accessToken,
+      accessToken,
       startDate,
       endDate
     );

@@ -14,6 +14,7 @@ import { saveSyncRecords, SyncRecord } from "@/lib/sync-history";
 import { checkAppointmentsForDuplicates, DuplicateCheckResult, ZepAttendance, calculateZepTimes } from "@/lib/zep-api";
 import { ActualDuration, ActualDurationsMap, normalizeJoinUrl, getDurationKey } from "@/lib/teams-utils";
 import { roundToNearest15Min, timesMatch } from "@/lib/time-utils";
+import { useTeamsAuth, checkIsInTeams } from "@/lib/useTeamsAuth";
 
 // Helper: Determine billable status from project/task settings
 // Values: 0=inherited(task only), 1=billable+editable, 2=billable+locked, 3=not billable+editable, 4=not billable+locked
@@ -632,6 +633,41 @@ export default function Dashboard() {
   const { data: session, status } = useSession();
   const router = useRouter();
 
+  // Check if we're in Teams context (client-side only)
+  const [isInTeams, setIsInTeams] = useState(false);
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      setIsInTeams(params.get("inTeams") === "true");
+    }
+  }, []);
+
+  // Teams SSO authentication
+  const teamsAuth = useTeamsAuth();
+
+  // Combined access token: prefer Teams SSO when in Teams, otherwise use NextAuth session
+  const accessToken = isInTeams ? teamsAuth.accessToken : session?.accessToken;
+
+  // Helper to create fetch options with Authorization header when in Teams
+  const getAuthHeaders = useCallback((): HeadersInit | undefined => {
+    if (isInTeams && accessToken) {
+      return { Authorization: `Bearer ${accessToken}` };
+    }
+    return undefined;
+  }, [isInTeams, accessToken]);
+
+  // Wrapper for fetch that adds auth headers when needed
+  const authFetch = useCallback((url: string, options?: RequestInit): Promise<Response> => {
+    const headers = getAuthHeaders();
+    if (headers) {
+      return fetch(url, {
+        ...options,
+        headers: { ...headers, ...(options?.headers || {}) },
+      });
+    }
+    return fetch(url, options);
+  }, [getAuthHeaders]);
+
   // Load initial state from localStorage or use defaults
   const initialState = useMemo(() => {
     const stored = getStoredState();
@@ -724,10 +760,13 @@ export default function Dashboard() {
   }, [appointments]);
 
   useEffect(() => {
+    // Don't redirect in Teams context - Teams SSO handles auth
+    if (isInTeams) return;
+
     if (status === "unauthenticated") {
       router.push("/");
     }
-  }, [status, router]);
+  }, [status, router, isInTeams]);
 
 
   // Persist state to localStorage whenever it changes
@@ -943,12 +982,12 @@ export default function Dashboard() {
       
       // Load appointments (from cache or API), ZEP entries (from cache or API), and projects (from cache or API) in parallel
       const [appointmentsData, zepData, projectsData] = await Promise.all([
-        cachedAppointments 
+        cachedAppointments
           ? Promise.resolve(cachedAppointments)
-          : fetch(`/api/calendar?startDate=${effectiveStartDate}&endDate=${effectiveEndDate}`).then(res => res.json()),
+          : authFetch(`/api/calendar?startDate=${effectiveStartDate}&endDate=${effectiveEndDate}`).then(res => res.json()),
         cachedZepEntries
           ? Promise.resolve(cachedZepEntries)
-          : employeeId 
+          : employeeId
             ? fetch(`/api/zep/timeentries?employeeId=${employeeId}&startDate=${effectiveStartDate}&endDate=${effectiveEndDate}`).then(res => res.json())
             : Promise.resolve(null),
         cachedProjects
@@ -1068,7 +1107,7 @@ export default function Dashboard() {
   const loadCalls = useCallback(async () => {
     setCallsLoading(true);
     try {
-      const res = await fetch(`/api/calls?startDate=${startDate}&endDate=${endDate}`);
+      const res = await authFetch(`/api/calls?startDate=${startDate}&endDate=${endDate}`);
       const data = await res.json();
 
       if (data.calls && Array.isArray(data.calls)) {
@@ -1113,7 +1152,7 @@ export default function Dashboard() {
     } finally {
       setCallsLoading(false);
     }
-  }, [startDate, endDate, toast]);
+  }, [startDate, endDate, toast, authFetch]);
 
   // Load/clear calls when toggle changes
   useEffect(() => {
@@ -2711,10 +2750,37 @@ export default function Dashboard() {
     setSubmitting(false);
   };
 
-  if (status === "loading") {
+  // Show loading state for NextAuth or Teams SSO
+  const isAuthLoading = isInTeams ? teamsAuth.isLoading : status === "loading";
+  const authError = isInTeams ? teamsAuth.error : session?.error;
+
+  if (isAuthLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-gray-500">Laden...</div>
+        <div className="text-gray-500">
+          {isInTeams ? "Teams-Anmeldung..." : "Laden..."}
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state for Teams SSO
+  if (isInTeams && authError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-red-500 font-medium mb-2">Anmeldung fehlgeschlagen</div>
+          <div className="text-gray-500 text-sm">{authError}</div>
+        </div>
+      </div>
+    );
+  }
+
+  // No access token available
+  if (!accessToken && !isAuthLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-gray-500">Keine Anmeldung vorhanden</div>
       </div>
     );
   }
@@ -2732,7 +2798,7 @@ export default function Dashboard() {
           </div>
           <div className="flex items-center gap-3">
             <span className="text-sm text-gray-500">
-              {session?.user?.name || session?.user?.email}
+              {session?.user?.name || session?.user?.email || (isInTeams && "Teams-Benutzer")}
               {employeeLoading && (
                 <span className="ml-1 text-gray-400">(Lade ZEP...)</span>
               )}
@@ -2752,13 +2818,16 @@ export default function Dashboard() {
                 <div><kbd className="px-1 bg-gray-700 rounded">Strg+R</kbd> Termine laden</div>
               </div>
             </div>
-            <button
-              onClick={() => signOut({ callbackUrl: "/?logout=true" })}
-              className="text-gray-300 hover:text-blue-500 transition-colors"
-              title="Abmelden"
-            >
-              <LogOut size={16} />
-            </button>
+            {/* Hide logout button in Teams (can't sign out from Teams tab) */}
+            {!isInTeams && (
+              <button
+                onClick={() => signOut({ callbackUrl: "/?logout=true" })}
+                className="text-gray-300 hover:text-blue-500 transition-colors"
+                title="Abmelden"
+              >
+                <LogOut size={16} />
+              </button>
+            )}
           </div>
         </div>
       </header>
