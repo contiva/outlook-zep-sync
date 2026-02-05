@@ -5,7 +5,7 @@ import { format } from "date-fns";
 import { ChevronDown, ChevronRight, Repeat, ClockArrowUp, Check, Minus, Banknote, Loader2 } from "lucide-react";
 import AppointmentRow from "./AppointmentRow";
 import SearchableSelect, { SelectOption } from "./SearchableSelect";
-import { DuplicateCheckResult } from "@/lib/zep-api";
+import { DuplicateCheckResult, calculateZepTimes } from "@/lib/zep-api";
 import { ActualDuration, ActualDurationsMap, normalizeJoinUrl, getDurationKey } from "@/lib/teams-utils";
 
 // Zugeordnete Tätigkeit (zu Projekt oder Vorgang)
@@ -85,6 +85,7 @@ interface Appointment {
   onlineMeetingProvider?: string;
   onlineMeeting?: { joinUrl?: string };
   useActualTime?: boolean; // true = use actual time from call records, false = use planned time
+  customRemark?: string; // Optional: alternative remark for ZEP (overrides subject)
 }
 
 interface SeriesGroupProps {
@@ -104,6 +105,7 @@ interface SeriesGroupProps {
   onTaskChange: (id: string, taskId: number | null) => void;
   onActivityChange: (id: string, activityId: string) => void;
   onBillableChange: (id: string, billable: boolean) => void;
+  onCustomRemarkChange?: (id: string, customRemark: string) => void;
   // Toggle between planned and actual time for ZEP sync
   onUseActualTimeChange?: (id: string, useActual: boolean) => void;
   onApplyToSeries: (
@@ -141,11 +143,19 @@ function findSyncedEntry(apt: Appointment, syncedEntries: ZepEntry[]): ZepEntry 
 
   const aptDateStr = new Date(apt.start.dateTime).toISOString().split("T")[0];
   const aptSubject = apt.subject.trim();
+  const aptCustomRemark = (apt.customRemark || "").trim();
 
   return syncedEntries.find((entry) => {
     const entryDate = entry.date.split("T")[0];
+    if (entryDate !== aptDateStr) return false;
+
     const entryNote = (entry.note || "").trim();
-    return entryNote === aptSubject && entryDate === aptDateStr;
+    const noteMatches = entryNote === aptSubject || (aptCustomRemark && entryNote === aptCustomRemark);
+    if (noteMatches) return true;
+
+    // Fallback: match by exact time on same day
+    const zepTimes = calculateZepTimes(new Date(apt.start.dateTime), new Date(apt.end.dateTime));
+    return entry.from === zepTimes.start && entry.to === zepTimes.end;
   }) || null;
 }
 
@@ -189,6 +199,7 @@ export default function SeriesGroup({
   onTaskChange,
   onActivityChange,
   onBillableChange,
+  onCustomRemarkChange,
   onUseActualTimeChange,
   onApplyToSeries,
   onSyncSeries,
@@ -683,6 +694,7 @@ export default function SeriesGroup({
               onTaskChange={onTaskChange}
               onActivityChange={onActivityChange}
               onBillableChange={onBillableChange}
+              onCustomRemarkChange={onCustomRemarkChange}
               onUseActualTimeChange={onUseActualTimeChange}
               // Single sync
               onSyncSingle={onSyncSingle}

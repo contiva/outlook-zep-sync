@@ -12,6 +12,7 @@ import AppointmentList from "@/components/AppointmentList";
 import CalendarHeatmap, { CalendarHeatmapLegend, HeatmapStats } from "@/components/CalendarHeatmap";
 import UpcomingMeetingBar from "@/components/UpcomingMeetingBar";
 import { saveSyncRecords, SyncRecord } from "@/lib/sync-history";
+import { batchSaveSyncMappings, RedisSyncMapping } from "@/lib/redis";
 import { checkAppointmentsForDuplicates, DuplicateCheckResult, ZepAttendance, calculateZepTimes } from "@/lib/zep-api";
 import { ActualDuration, ActualDurationsMap, normalizeJoinUrl, getDurationKey } from "@/lib/teams-utils";
 import { roundToNearest15Min, timesMatch } from "@/lib/time-utils";
@@ -152,6 +153,7 @@ interface Appointment {
   isCancelled?: boolean;
   lastModifiedDateTime?: string;
   useActualTime?: boolean; // true = use actual time from call records, false = use planned time
+  customRemark?: string; // Optional: alternative remark for ZEP (overrides subject)
   bodyPreview?: string;
   body?: { contentType?: string; content?: string };
   location?: { displayName?: string; locationType?: string };
@@ -328,14 +330,25 @@ function isAppointmentSynced(apt: Appointment, syncedEntries: ZepEntry[]): boole
 
   const aptDateStr = new Date(apt.start.dateTime).toISOString().split("T")[0];
   const aptSubject = (apt.subject || "").trim();
+  const aptCustomRemark = (apt.customRemark || "").trim();
 
-  // Check if any synced entry matches this appointment by subject and date
+  // Check if any synced entry matches this appointment by subject/customRemark and date
   // We don't check times strictly because the entry could have been synced with
   // planned time OR actual time - we just need to know if it exists
   const result = syncedEntries.some((entry) => {
     const entryDate = entry.date.split("T")[0];
+    if (entryDate !== aptDateStr) return false;
+
     const entryNote = (entry.note || "").trim();
-    return entryNote === aptSubject && entryDate === aptDateStr;
+    const noteMatches = entryNote === aptSubject || (aptCustomRemark && entryNote === aptCustomRemark);
+    if (noteMatches) return true;
+
+    // Fallback: If note doesn't match subject/customRemark (e.g. customRemark was lost after reload),
+    // check if the ZEP entry has the exact same planned time on the same day.
+    // This catches cases where a custom remark was used during sync but is no longer in state.
+    const zepTimes = calculateZepTimes(new Date(apt.start.dateTime), new Date(apt.end.dateTime));
+    const timeMatches = entry.from === zepTimes.start && entry.to === zepTimes.end;
+    return timeMatches;
   });
 
   return result;
@@ -355,12 +368,20 @@ function detectSyncedTimePreference(
 
   const aptDateStr = new Date(apt.start.dateTime).toISOString().split("T")[0];
   const aptSubject = (apt.subject || "").trim();
+  const aptCustomRemark = (apt.customRemark || "").trim();
 
   // Find the matching synced entry
   const syncedEntry = syncedEntries.find((entry) => {
     const entryDate = entry.date.split("T")[0];
+    if (entryDate !== aptDateStr) return false;
+
     const entryNote = (entry.note || "").trim();
-    return entryNote === aptSubject && entryDate === aptDateStr;
+    const noteMatches = entryNote === aptSubject || (aptCustomRemark && entryNote === aptCustomRemark);
+    if (noteMatches) return true;
+
+    // Fallback: match by exact time on same day
+    const zepTimes = calculateZepTimes(new Date(apt.start.dateTime), new Date(apt.end.dateTime));
+    return entry.from === zepTimes.start && entry.to === zepTimes.end;
   });
 
   if (!syncedEntry) {
@@ -806,6 +827,7 @@ export default function Dashboard() {
       .map((apt) => ({
         id: apt.id,
         subject: apt.subject,
+        customRemark: apt.customRemark,
         startDateTime: apt.start.dateTime,
         endDateTime: apt.end.dateTime,
       }));
@@ -1046,6 +1068,7 @@ export default function Dashboard() {
                 activityId: saved.activityId,
                 billable: saved.billable ?? true, // Default true for old saved data
                 canChangeBillable: saved.canChangeBillable ?? true, // Default true for old saved data
+                customRemark: saved.customRemark,
               };
             }
             
@@ -1369,13 +1392,7 @@ export default function Dashboard() {
         if (editingAppointmentIds.has(apt.id)) return true;
 
         // Helper to check if synced
-        const isSynced = syncedEntries.some((entry) => {
-          const entryDate = entry.date.split("T")[0];
-          const aptDate = apt.start.dateTime.split("T")[0];
-          const entryNote = (entry.note || "").trim();
-          const aptSubject = (apt.subject || "").trim();
-          return entryNote === aptSubject && entryDate === aptDate;
-        });
+        const isSynced = isAppointmentSynced(apt, syncedEntries);
 
         if (statusFilter === "synced") {
           return isSynced;
@@ -1525,6 +1542,12 @@ export default function Dashboard() {
       );
     }
   }, [calls]);
+
+  const handleCustomRemarkChange = useCallback((id: string, customRemark: string) => {
+    setAppointments((prev) =>
+      prev.map((a) => (a.id === id ? { ...a, customRemark } : a))
+    );
+  }, []);
 
   // Keyboard navigation for day and appointment switching
   useEffect(() => {
@@ -1837,7 +1860,17 @@ export default function Dashboard() {
       const syncedEntry = syncedEntries.find(entry => {
         const entryDate = entry.date.split("T")[0];
         const aptDate = apt.start.dateTime.split("T")[0];
-        return entryDate === aptDate && (entry.note?.trim() || "") === (apt.subject?.trim() || "");
+        if (entryDate !== aptDate) return false;
+
+        const entryNote = (entry.note?.trim() || "");
+        const aptSubject = (apt.subject?.trim() || "");
+        const aptCustomRemark = (apt.customRemark?.trim() || "");
+        const noteMatches = entryNote === aptSubject || (aptCustomRemark && entryNote === aptCustomRemark);
+        if (noteMatches) return true;
+
+        // Fallback: match by exact time on same day
+        const zepTimes = calculateZepTimes(new Date(apt.start.dateTime), new Date(apt.end.dateTime));
+        return entry.from === zepTimes.start && entry.to === zepTimes.end;
       });
 
       if (syncedEntry) {
@@ -2111,6 +2144,52 @@ export default function Dashboard() {
           von: syncedEntry.from.slice(0, 5),
           bis: syncedEntry.to.slice(0, 5),
           bemerkung: syncedEntry.note || undefined,
+        });
+      }
+      return next;
+    });
+  }, [projects, tasks]);
+
+  // Update a modified entry's bemerkung (remark)
+  const updateModifiedBemerkung = useCallback((
+    appointmentId: string,
+    apt: Appointment,
+    syncedEntry: ZepEntry,
+    bemerkung: string
+  ) => {
+    setModifiedEntries((prev) => {
+      const next = new Map(prev);
+      const existing = next.get(appointmentId);
+
+      if (existing) {
+        next.set(appointmentId, {
+          ...existing,
+          bemerkung: bemerkung || undefined,
+        });
+      } else {
+        // Find current project/task info
+        const project = projects.find((p) => p.id === syncedEntry.project_id);
+        const projectTasks = tasks[syncedEntry.project_id] || [];
+        const task = projectTasks.find((t) => t.id === syncedEntry.project_task_id);
+
+        next.set(appointmentId, {
+          zepId: syncedEntry.id,
+          outlookEventId: appointmentId,
+          originalProjectId: syncedEntry.project_id,
+          originalTaskId: syncedEntry.project_task_id,
+          originalActivityId: syncedEntry.activity_id,
+          originalBillable: syncedEntry.billable,
+          newProjectId: syncedEntry.project_id,
+          newTaskId: syncedEntry.project_task_id,
+          newActivityId: syncedEntry.activity_id,
+          newBillable: syncedEntry.billable,
+          newProjektNr: project?.name || syncedEntry.projektNr || "",
+          newVorgangNr: task?.name || syncedEntry.vorgangNr || "",
+          userId: syncedEntry.employee_id,
+          datum: syncedEntry.date.split("T")[0],
+          von: syncedEntry.from.slice(0, 5),
+          bis: syncedEntry.to.slice(0, 5),
+          bemerkung: bemerkung || undefined,
         });
       }
       return next;
@@ -2438,7 +2517,7 @@ export default function Dashboard() {
         from: zepTimes.start,
         to: zepTimes.end,
         employee_id: employeeId,
-        note: appointment.subject,
+        note: appointment.customRemark || appointment.subject,
         billable: billableValue,
         activity_id: appointment.activityId,
         project_id: appointment.projectId,
@@ -2465,16 +2544,34 @@ export default function Dashboard() {
       console.log('syncSingleAppointment RESULT:', JSON.stringify(result, null, 2));
 
       if (result.succeeded > 0) {
-        // Save sync history
+        // Save sync history (localStorage + Redis)
         if (result.createdEntries && result.createdEntries.length > 0) {
+          const now = new Date().toISOString();
           const syncRecords: SyncRecord[] = [{
             outlookEventId: appointment.id,
             zepAttendanceId: result.createdEntries[0].zepId,
             subject: appointment.subject,
             date: dateStr,
-            syncedAt: new Date().toISOString(),
+            syncedAt: now,
           }];
           saveSyncRecords(syncRecords);
+
+          // Save to Redis for persistent cross-device mapping
+          const redisMappings: RedisSyncMapping[] = [{
+            outlookEventId: appointment.id,
+            zepAttendanceId: Number(result.createdEntries[0].zepId),
+            subject: appointment.subject,
+            date: dateStr,
+            projectId: appointment.projectId!,
+            taskId: appointment.taskId!,
+            activityId: appointment.activityId,
+            syncedAt: now,
+          }];
+          authFetch("/api/sync-history", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ userId: employeeId, mappings: redisMappings }),
+          }).catch((err) => console.error("Failed to save sync mapping to Redis:", err));
         }
 
         // Track submitted ID for heatmap
@@ -2541,7 +2638,7 @@ export default function Dashboard() {
           from: zepTimes.start,
           to: zepTimes.end,
           employee_id: employeeId,
-          note: appointment.subject,
+          note: appointment.customRemark || appointment.subject,
           billable: billableValue,
           activity_id: appointment.activityId,
           project_id: appointment.projectId!,
@@ -2560,16 +2657,34 @@ export default function Dashboard() {
       const result = await res.json();
 
       if (result.succeeded > 0) {
-        // Save sync history
+        // Save sync history (localStorage + Redis)
         if (result.createdEntries && result.createdEntries.length > 0) {
+          const now = new Date().toISOString();
           const syncRecords: SyncRecord[] = result.createdEntries.map((created: { zepId: number }, index: number) => ({
             outlookEventId: entries[index]._appointmentId,
             zepAttendanceId: created.zepId,
             subject: appointmentsToSync[index].subject,
             date: entries[index].date,
-            syncedAt: new Date().toISOString(),
+            syncedAt: now,
           }));
           saveSyncRecords(syncRecords);
+
+          // Save to Redis
+          const redisMappings: RedisSyncMapping[] = result.createdEntries.map((created: { zepId: number }, index: number) => ({
+            outlookEventId: entries[index]._appointmentId,
+            zepAttendanceId: Number(created.zepId),
+            subject: appointmentsToSync[index].subject,
+            date: entries[index].date,
+            projectId: appointmentsToSync[index].projectId!,
+            taskId: appointmentsToSync[index].taskId!,
+            activityId: appointmentsToSync[index].activityId,
+            syncedAt: now,
+          }));
+          authFetch("/api/sync-history", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ userId: employeeId, mappings: redisMappings }),
+          }).catch((err) => console.error("Failed to save sync mappings to Redis:", err));
         }
 
         // Track submitted IDs for heatmap
@@ -2655,7 +2770,7 @@ export default function Dashboard() {
             from: zepTimes.start,
             to: zepTimes.end,
             employee_id: employeeId,
-            note: apt.subject,
+            note: apt.customRemark || apt.subject,
             billable: billableValue,
             activity_id: apt.activityId,
             project_id: apt.projectId!,
@@ -2675,8 +2790,9 @@ export default function Dashboard() {
         if (result.errors) allErrors.push(...result.errors.map(parseErrorMessage));
 
         if (result.succeeded > 0) {
-          // Save sync history with ZEP IDs
+          // Save sync history (localStorage + Redis)
           if (result.createdEntries && result.createdEntries.length > 0) {
+            const now = new Date().toISOString();
             const syncRecords: SyncRecord[] = result.createdEntries.map(
               (entry: { index: number; zepId: number }) => {
                 const apt = syncReadyAppointments[entry.index];
@@ -2685,11 +2801,33 @@ export default function Dashboard() {
                   zepAttendanceId: entry.zepId,
                   subject: apt.subject,
                   date: apt.start.dateTime.split("T")[0],
-                  syncedAt: new Date().toISOString(),
+                  syncedAt: now,
                 };
               }
             );
             saveSyncRecords(syncRecords);
+
+            // Save to Redis
+            const redisMappings: RedisSyncMapping[] = result.createdEntries.map(
+              (entry: { index: number; zepId: number }) => {
+                const apt = syncReadyAppointments[entry.index];
+                return {
+                  outlookEventId: apt.id,
+                  zepAttendanceId: Number(entry.zepId),
+                  subject: apt.subject,
+                  date: apt.start.dateTime.split("T")[0],
+                  projectId: apt.projectId!,
+                  taskId: apt.taskId!,
+                  activityId: apt.activityId,
+                  syncedAt: now,
+                };
+              }
+            );
+            authFetch("/api/sync-history", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ userId: employeeId, mappings: redisMappings }),
+            }).catch((err) => console.error("Failed to save sync mappings to Redis:", err));
           }
           
           // Track submitted IDs for heatmap
@@ -2998,6 +3136,7 @@ export default function Dashboard() {
           onTaskChange={changeTask}
           onActivityChange={changeActivity}
           onBillableChange={changeBillable}
+          onCustomRemarkChange={handleCustomRemarkChange}
           onUseActualTimeChange={changeUseActualTime}
           onApplyToSeries={applyToSeries}
           onSubmit={submitToZep}
@@ -3016,6 +3155,7 @@ export default function Dashboard() {
           onModifyTask={updateModifiedTask}
           onModifyActivity={updateModifiedActivity}
           onModifyBillable={updateModifiedBillable}
+          onModifyBemerkung={updateModifiedBemerkung}
           onModifyTime={updateModifiedTime}
           onSaveModifiedSingle={saveModifiedSingle}
           savingModifiedSingleId={savingModifiedSingleId}

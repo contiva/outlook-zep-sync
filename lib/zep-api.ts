@@ -187,6 +187,7 @@ function timeRangesOverlap(
 export function findRescheduledEntry(
   appointment: {
     subject: string;
+    customRemark?: string;
     startDateTime: string;
     endDateTime: string;
   },
@@ -204,6 +205,7 @@ export function findRescheduledEntry(
   const aptFromTime = zepTimes.start;
   const aptToTime = zepTimes.end;
   const aptSubject = appointment.subject.toLowerCase().trim();
+  const aptCustomRemark = (appointment.customRemark || "").toLowerCase().trim();
 
   if (!aptSubject) return null;
 
@@ -218,7 +220,7 @@ export function findRescheduledEntry(
     }
 
     // Check for exact subject match
-    if (entrySubject === aptSubject) {
+    if (entrySubject === aptSubject || (aptCustomRemark && entrySubject === aptCustomRemark)) {
       const isTimeChanged = entry.from !== aptFromTime || entry.to !== aptToTime;
 
       // If subject matches and time is different, it's rescheduled (within same day)
@@ -235,6 +237,7 @@ export function findRescheduledEntry(
 export function checkForDuplicate(
   appointment: {
     subject: string;
+    customRemark?: string;
     startDateTime: string; // ISO datetime
     endDateTime: string;   // ISO datetime
   },
@@ -255,7 +258,8 @@ export function checkForDuplicate(
   const aptFromTime = zepTimes.start;
   const aptToTime = zepTimes.end;
   const aptSubject = appointment.subject.toLowerCase().trim();
-  
+  const aptCustomRemark = (appointment.customRemark || "").toLowerCase().trim();
+
   // Filter entries for the same day
   const sameDayEntries = syncedEntries.filter((entry) => {
     const entryDate = entry.date.split("T")[0];
@@ -267,7 +271,7 @@ export function checkForDuplicate(
     const entrySubject = (entry.note || "").toLowerCase().trim();
     
     if (
-      entrySubject === aptSubject &&
+      (entrySubject === aptSubject || (aptCustomRemark && entrySubject === aptCustomRemark)) &&
       entry.from === aptFromTime &&
       entry.to === aptToTime
     ) {
@@ -324,7 +328,9 @@ export function checkForDuplicate(
     const entrySubject = (entry.note || "").toLowerCase().trim();
     
     if (entrySubject && aptSubject) {
-      const distance = levenshteinDistance(aptSubject, entrySubject);
+      // Also check against customRemark for Levenshtein distance
+      const remarkToCheck = aptCustomRemark || aptSubject;
+      const distance = levenshteinDistance(remarkToCheck, entrySubject);
       
       // For short strings, use proportional threshold
       const threshold = Math.min(3, Math.floor(Math.min(aptSubject.length, entrySubject.length) * 0.3));
@@ -348,17 +354,19 @@ export function checkAppointmentsForDuplicates(
   appointments: Array<{
     id: string;
     subject: string;
+    customRemark?: string;
     startDateTime: string;
     endDateTime: string;
   }>,
   syncedEntries: ZepAttendance[]
 ): Map<string, DuplicateCheckResult> {
   const results = new Map<string, DuplicateCheckResult>();
-  
+
   for (const apt of appointments) {
     const result = checkForDuplicate(
       {
         subject: apt.subject,
+        customRemark: apt.customRemark,
         startDateTime: apt.startDateTime,
         endDateTime: apt.endDateTime,
       },

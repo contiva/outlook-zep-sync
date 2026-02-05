@@ -3,6 +3,7 @@
 import { useMemo, useEffect } from "react";
 import { format, eachDayOfInterval, parseISO, isWeekend } from "date-fns";
 import { de } from "date-fns/locale";
+import { calculateZepTimes } from "@/lib/zep-api";
 
 interface Attendee {
   emailAddress: {
@@ -24,6 +25,7 @@ interface Appointment {
   callType?: 'Phone' | 'Video' | 'ScreenShare';
   direction?: 'incoming' | 'outgoing';
   attendees?: Attendee[];
+  customRemark?: string; // Optional: alternative remark for ZEP (overrides subject)
 }
 
 interface ZepAttendance {
@@ -190,10 +192,16 @@ export default function CalendarHeatmap({
 
     // Trim subject for comparison (Outlook may have trailing spaces)
     const aptSubject = (apt.subject || "").trim();
+    const aptCustomRemark = (apt.customRemark || "").trim();
 
     return zepEntries.some((entry) => {
       const entryNote = (entry.note || "").trim();
-      return entryNote === aptSubject;
+      const noteMatches = entryNote === aptSubject || (aptCustomRemark && entryNote === aptCustomRemark);
+      if (noteMatches) return true;
+
+      // Fallback: match by exact time on same day
+      const zepTimes = calculateZepTimes(new Date(apt.start.dateTime), new Date(apt.end.dateTime));
+      return entry.from === zepTimes.start && entry.to === zepTimes.end;
     });
   };
 
@@ -244,10 +252,19 @@ export default function CalendarHeatmap({
 
     // Trim subject for comparison (Outlook may have trailing spaces)
     const aptSubject = (apt.subject || "").trim();
+    const aptCustomRemark = (apt.customRemark || "").trim();
 
     return zepEntries.some((entry) => {
       const entryNote = (entry.note || "").trim();
-      return entryNote === aptSubject;
+      const noteMatches = entryNote === aptSubject || (aptCustomRemark && entryNote === aptCustomRemark);
+      if (noteMatches) return true;
+
+      // Fallback: match by exact time on same day (handles lost customRemark after reload)
+      const entryDate = entry.date.split("T")[0];
+      const aptDate = apt.start.dateTime.split("T")[0];
+      if (entryDate !== aptDate) return false;
+      const zepTimes = calculateZepTimes(new Date(apt.start.dateTime), new Date(apt.end.dateTime));
+      return entry.from === zepTimes.start && entry.to === zepTimes.end;
     });
   };
 

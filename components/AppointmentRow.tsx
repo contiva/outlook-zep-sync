@@ -314,6 +314,7 @@ interface Appointment {
   callType?: 'Phone' | 'Video' | 'ScreenShare';
   direction?: 'incoming' | 'outgoing';
   useActualTime?: boolean; // true = use actual time from call records, false = use planned time
+  customRemark?: string; // Optional: alternative remark for ZEP (overrides subject)
   // Location
   location?: {
     displayName?: string;
@@ -342,6 +343,7 @@ interface AppointmentRowProps {
   onTaskChange: (id: string, taskId: number | null) => void;
   onActivityChange: (id: string, activityId: string) => void;
   onBillableChange: (id: string, billable: boolean) => void;
+  onCustomRemarkChange?: (id: string, customRemark: string) => void;
   // Toggle between planned and actual time for ZEP sync
   onUseActualTimeChange?: (id: string, useActual: boolean) => void;
   // Single row sync
@@ -356,6 +358,7 @@ interface AppointmentRowProps {
   onModifyTask?: (appointmentId: string, taskId: number) => void;
   onModifyActivity?: (appointmentId: string, apt: Appointment, syncedEntry: SyncedEntry, activityId: string) => void;
   onModifyBillable?: (appointmentId: string, apt: Appointment, syncedEntry: SyncedEntry, billable: boolean) => void;
+  onModifyBemerkung?: (appointmentId: string, apt: Appointment, syncedEntry: SyncedEntry, bemerkung: string) => void;
   onModifyTime?: (appointmentId: string, apt: Appointment, syncedEntry: SyncedEntry, useActualTime: boolean) => void;
   onSaveModifiedSingle?: (modifiedEntry: ModifiedEntry) => void;
   isSavingModifiedSingle?: boolean;
@@ -881,6 +884,7 @@ export default function AppointmentRow({
   onTaskChange,
   onActivityChange,
   onBillableChange,
+  onCustomRemarkChange,
   onUseActualTimeChange,
   onSyncSingle,
   isSyncingSingle = false,
@@ -892,6 +896,7 @@ export default function AppointmentRow({
   onModifyTask,
   onModifyActivity,
   onModifyBillable,
+  onModifyBemerkung,
   onModifyTime,
   onSaveModifiedSingle,
   isSavingModifiedSingle = false,
@@ -1264,7 +1269,9 @@ export default function AppointmentRow({
       modifiedEntry.newBillable !== syncedEntry.billable;
     // Check time changes
     const hasTimeChanges = modifiedEntry.newVon !== undefined || modifiedEntry.newBis !== undefined;
-    return hasProjectChanges || hasTimeChanges;
+    // Check bemerkung changes
+    const hasBemerkungChanges = modifiedEntry.bemerkung !== undefined && modifiedEntry.bemerkung !== (syncedEntry.note || "");
+    return hasProjectChanges || hasTimeChanges || hasBemerkungChanges;
   }, [modifiedEntry, syncedEntry]);
 
 
@@ -2125,6 +2132,27 @@ export default function AppointmentRow({
             />
           </div>
 
+          {/* Custom Remark (ZEP Bemerkung) - Edit mode */}
+          <div className="flex flex-col flex-1 min-w-48">
+            <label className="text-xs text-gray-500 mb-1">Bemerkung</label>
+            <input
+              type="text"
+              value={modifiedEntry?.bemerkung ?? syncedEntry.note ?? ""}
+              onChange={(e) => {
+                if (onModifyBemerkung && syncedEntry) {
+                  onModifyBemerkung(appointment.id, appointment, syncedEntry, e.target.value);
+                }
+              }}
+              placeholder={appointment.subject}
+              className={`h-9.5 px-3 text-sm rounded-lg border transition-colors ${
+                (modifiedEntry?.bemerkung ?? syncedEntry.note) && (modifiedEntry?.bemerkung ?? syncedEntry.note) !== appointment.subject
+                  ? "bg-blue-50 border-blue-300 text-blue-900 focus:ring-blue-500 focus:border-blue-500"
+                  : "bg-white border-gray-300 text-gray-900 focus:ring-blue-500 focus:border-blue-500 placeholder-gray-400"
+              }`}
+              title={`ZEP-Bemerkung: "${modifiedEntry?.bemerkung ?? syncedEntry.note ?? appointment.subject}"`}
+            />
+          </div>
+
           {/* Billable Toggle */}
           <div className="flex flex-col">
             <label className="text-xs text-gray-500 mb-1">Fakt.</label>
@@ -2297,6 +2325,26 @@ export default function AppointmentRow({
             />
           </div>
 
+          {/* Custom Remark (ZEP Bemerkung) */}
+          <div className="flex flex-col flex-1 min-w-48">
+            <label className={`text-xs mb-1 ${!appointment.taskId ? "text-gray-300" : "text-gray-500"}`}>Bemerkung</label>
+            <input
+              type="text"
+              value={appointment.customRemark || ""}
+              onChange={(e) => onCustomRemarkChange?.(appointment.id, e.target.value)}
+              placeholder={appointment.subject}
+              disabled={!appointment.taskId}
+              className={`h-9.5 px-3 text-sm rounded-lg border transition-colors ${
+                !appointment.taskId
+                  ? "bg-gray-50 border-gray-200 text-gray-300 cursor-not-allowed"
+                  : appointment.customRemark
+                    ? "bg-blue-50 border-blue-300 text-blue-900 focus:ring-blue-500 focus:border-blue-500"
+                    : "bg-white border-gray-300 text-gray-900 focus:ring-blue-500 focus:border-blue-500 placeholder-gray-400"
+              }`}
+              title={appointment.customRemark ? `ZEP-Bemerkung: "${appointment.customRemark}"` : `Standard: "${appointment.subject}"`}
+            />
+          </div>
+
           {/* Billable Toggle */}
           <div className="flex flex-col">
             <label className={`text-xs mb-1 ${!appointment.taskId ? "text-gray-300" : "text-gray-500"}`}>Fakt.</label>
@@ -2312,12 +2360,12 @@ export default function AppointmentRow({
                     : `bg-gray-50 border-gray-300 text-gray-400 ${appointment.canChangeBillable ? "hover:bg-gray-100" : "cursor-not-allowed"}`
               }`}
               title={
-                !appointment.taskId 
-                  ? "Erst Task wählen" 
+                !appointment.taskId
+                  ? "Erst Task wählen"
                   : !appointment.canChangeBillable
                     ? `Fakturierbarkeit vom Projekt/Vorgang festgelegt (${appointment.billable ? "fakturierbar" : "nicht fakturierbar"})`
-                    : appointment.billable 
-                      ? "Fakturierbar - klicken zum Ändern" 
+                    : appointment.billable
+                      ? "Fakturierbar - klicken zum Ändern"
                       : "Nicht fakturierbar (intern) - klicken zum Ändern"
               }
             >

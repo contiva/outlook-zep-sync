@@ -5,7 +5,7 @@ import { Search, X, RotateCcw, ClockArrowUp, Check, Minus, User, ChevronDown } f
 import AppointmentRow from "./AppointmentRow";
 import SeriesGroup from "./SeriesGroup";
 import SyncConfirmDialog from "./SyncConfirmDialog";
-import { DuplicateCheckResult } from "@/lib/zep-api";
+import { DuplicateCheckResult, calculateZepTimes } from "@/lib/zep-api";
 import { ActualDuration, ActualDurationsMap, normalizeJoinUrl, getDurationKey } from "@/lib/teams-utils";
 
 interface Project {
@@ -57,6 +57,7 @@ interface Appointment {
   isOnlineMeeting?: boolean;
   onlineMeeting?: { joinUrl?: string };
   useActualTime?: boolean; // true = use actual time from call records, false = use planned time
+  customRemark?: string; // Optional: alternative remark for ZEP (overrides subject)
 }
 
 interface ZepEntry {
@@ -117,6 +118,7 @@ interface AppointmentListProps {
   onTaskChange: (id: string, taskId: number | null) => void;
   onActivityChange: (id: string, activityId: string) => void;
   onBillableChange: (id: string, billable: boolean) => void;
+  onCustomRemarkChange?: (id: string, customRemark: string) => void;
   // Toggle between planned and actual time for ZEP sync
   onUseActualTimeChange?: (id: string, useActual: boolean) => void;
   onApplyToSeries: (
@@ -143,6 +145,7 @@ interface AppointmentListProps {
   onModifyTask?: (appointmentId: string, taskId: number) => void;
   onModifyActivity?: (appointmentId: string, apt: Appointment, syncedEntry: ZepEntry, activityId: string) => void;
   onModifyBillable?: (appointmentId: string, apt: Appointment, syncedEntry: ZepEntry, billable: boolean) => void;
+  onModifyBemerkung?: (appointmentId: string, apt: Appointment, syncedEntry: ZepEntry, bemerkung: string) => void;
   onModifyTime?: (appointmentId: string, apt: Appointment, syncedEntry: ZepEntry, useActualTime: boolean) => void;
   onSaveModifiedSingle?: (modifiedEntry: ModifiedEntry) => void;
   savingModifiedSingleId?: string | null;
@@ -197,11 +200,19 @@ function findSyncedEntry(apt: Appointment, syncedEntries: ZepEntry[]): ZepEntry 
 
   const aptDateStr = new Date(apt.start.dateTime).toISOString().split("T")[0];
   const aptSubject = apt.subject.trim();
+  const aptCustomRemark = (apt.customRemark || "").trim();
 
   return syncedEntries.find((entry) => {
     const entryDate = entry.date.split("T")[0];
+    if (entryDate !== aptDateStr) return false;
+
     const entryNote = (entry.note || "").trim();
-    return entryNote === aptSubject && entryDate === aptDateStr;
+    const noteMatches = entryNote === aptSubject || (aptCustomRemark && entryNote === aptCustomRemark);
+    if (noteMatches) return true;
+
+    // Fallback: match by exact time on same day
+    const zepTimes = calculateZepTimes(new Date(apt.start.dateTime), new Date(apt.end.dateTime));
+    return entry.from === zepTimes.start && entry.to === zepTimes.end;
   }) || null;
 }
 
@@ -415,6 +426,7 @@ export default function AppointmentList({
   onTaskChange,
   onActivityChange,
   onBillableChange,
+  onCustomRemarkChange,
   onUseActualTimeChange,
   onApplyToSeries,
   onSubmit,
@@ -432,6 +444,7 @@ export default function AppointmentList({
   onModifyTask,
   onModifyActivity,
   onModifyBillable,
+  onModifyBemerkung,
   onModifyTime,
   onSaveModifiedSingle,
   savingModifiedSingleId,
@@ -1044,6 +1057,7 @@ export default function AppointmentList({
                 onTaskChange={onTaskChange}
                 onActivityChange={onActivityChange}
                 onBillableChange={onBillableChange}
+                onCustomRemarkChange={onCustomRemarkChange}
                 onUseActualTimeChange={onUseActualTimeChange}
                 onApplyToSeries={onApplyToSeries}
                 // Series sync
@@ -1092,6 +1106,7 @@ export default function AppointmentList({
                 onTaskChange={onTaskChange}
                 onActivityChange={onActivityChange}
                 onBillableChange={onBillableChange}
+                onCustomRemarkChange={onCustomRemarkChange}
                 onUseActualTimeChange={onUseActualTimeChange}
                 // Single sync
                 onSyncSingle={onSyncSingle}
@@ -1105,6 +1120,7 @@ export default function AppointmentList({
                 onModifyTask={onModifyTask}
                 onModifyActivity={onModifyActivity}
                 onModifyBillable={onModifyBillable}
+                onModifyBemerkung={onModifyBemerkung}
                 onModifyTime={onModifyTime}
                 onSaveModifiedSingle={onSaveModifiedSingle}
                 isSavingModifiedSingle={savingModifiedSingleId === item.appointments[0].id}

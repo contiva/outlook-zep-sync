@@ -45,6 +45,7 @@ interface Appointment {
   type?: 'calendar' | 'call' | 'singleInstance' | 'occurrence' | 'exception' | 'seriesMaster';
   callType?: 'Phone' | 'Video' | 'ScreenShare';
   direction?: 'incoming' | 'outgoing';
+  customRemark?: string; // Optional: alternative remark for ZEP (overrides subject)
 }
 
 interface SyncConfirmDialogProps {
@@ -261,16 +262,25 @@ export default function SyncConfirmDialog({
                           className="w-4 h-4 accent-sky-300 rounded border-gray-300 focus:ring-blue-300 flex-shrink-0"
                           aria-label={isExcluded ? `${apt.subject} einschließen` : `${apt.subject} ausschließen`}
                         />
-                        <div className="flex items-center gap-2 min-w-0 flex-1">
-                          <span className={`font-mono text-xs whitespace-nowrap ${isExcluded ? "text-gray-400" : "text-gray-500"}`}>
+                        <div className="flex items-start gap-2 min-w-0 flex-1">
+                          <span className={`font-mono text-xs whitespace-nowrap pt-0.5 ${isExcluded ? "text-gray-400" : "text-gray-500"}`}>
                             {formatTime(apt.start.dateTime)}-{formatTime(apt.end.dateTime)}
                           </span>
-                          <span className={`truncate ${isExcluded ? "text-gray-400 line-through" : "text-gray-900"}`}>
-                            {apt.subject}
-                          </span>
-                          {duplicateWarnings?.has(apt.id) && !isExcluded && (
-                            <AlertTriangle size={14} className="text-amber-500 flex-shrink-0" />
-                          )}
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1">
+                              <span className={`truncate ${isExcluded ? "text-gray-400 line-through" : "text-gray-900"}`}>
+                                {apt.subject}
+                              </span>
+                              {duplicateWarnings?.has(apt.id) && !isExcluded && (
+                                <AlertTriangle size={14} className="text-amber-500 flex-shrink-0" />
+                              )}
+                            </div>
+                            {apt.customRemark && (
+                              <p className="text-xs text-blue-600 mt-0.5">
+                                ZEP-Bemerkung: &quot;{apt.customRemark}&quot;
+                              </p>
+                            )}
+                          </div>
                         </div>
                         <span className={`text-xs ml-2 whitespace-nowrap ${isExcluded ? "text-gray-400" : "text-gray-500"}`}>
                           {apt.projectId ? projectMap.get(apt.projectId) || "?" : "-"}
