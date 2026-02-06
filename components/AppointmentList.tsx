@@ -9,10 +9,17 @@ import type { DuplicateCheckResult } from "@/lib/zep-api";
 import { ActualDuration, ActualDurationsMap, normalizeJoinUrl, getDurationKey } from "@/lib/teams-utils";
 import { RedisSyncMapping } from "@/lib/redis";
 
+interface WorkLocation {
+  kurzform: string;
+  bezeichnung: string;
+  heimarbeitsort: boolean;
+}
+
 interface Project {
   id: number;
   name: string;
   description: string;
+  workLocations?: string[];
 }
 
 interface Task {
@@ -59,6 +66,7 @@ interface Appointment {
   onlineMeeting?: { joinUrl?: string };
   useActualTime?: boolean; // true = use actual time from call records, false = use planned time
   customRemark?: string; // Optional: alternative remark for ZEP (overrides subject)
+  workLocation?: string;
 }
 
 interface ZepEntry {
@@ -74,6 +82,7 @@ interface ZepEntry {
   billable: boolean;
   projektNr?: string;
   vorgangNr?: string;
+  work_location_id?: string | null;
 }
 
 // Modified entry for rebooking synced entries
@@ -88,6 +97,7 @@ interface ModifiedEntry {
   newTaskId: number;
   newActivityId: string;
   newBillable: boolean;
+  newOrt?: string;
   newProjektNr: string;
   newVorgangNr: string;
   userId: string;
@@ -172,6 +182,9 @@ interface AppointmentListProps {
   focusedAppointmentId?: string | null;
   // Highlighted appointment (from UpcomingMeetingBar jump)
   highlightedAppointment?: { id: string; type: "running" | "upcoming" } | null;
+  globalWorkLocations?: WorkLocation[];
+  onWorkLocationChange?: (id: string, workLocation: string | undefined) => void;
+  onModifyWorkLocation?: (appointmentId: string, apt: Appointment, syncedEntry: ZepEntry, workLocation: string | undefined) => void;
 }
 
 // Status filter options with colors
@@ -473,6 +486,9 @@ export default function AppointmentList({
   onHideSoloMeetingsChange,
   focusedAppointmentId,
   highlightedAppointment,
+  globalWorkLocations,
+  onWorkLocationChange,
+  onModifyWorkLocation,
 }: AppointmentListProps) {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [soloPopoverOpen, setSoloPopoverOpen] = useState(false);
@@ -1094,6 +1110,8 @@ export default function AppointmentList({
                 linkedZepIds={linkedZepIds}
                 // Keyboard navigation focus
                 focusedAppointmentId={focusedAppointmentId}
+                globalWorkLocations={globalWorkLocations}
+                onWorkLocationChange={onWorkLocationChange}
               />
             ) : (
               <div
@@ -1157,6 +1175,9 @@ export default function AppointmentList({
                 linkedZepIds={linkedZepIds}
                 // Keyboard navigation focus
                 isFocused={focusedAppointmentId === item.appointments[0].id}
+                globalWorkLocations={globalWorkLocations}
+                onWorkLocationChange={onWorkLocationChange}
+                onModifyWorkLocation={onModifyWorkLocation}
               />
               </div>
             )

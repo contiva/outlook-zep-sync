@@ -44,6 +44,7 @@ export interface SoapProjektzeit {
   projektNr: string;      // Projektnummer
   vorgangNr: string;      // Vorgangsnummer
   taetigkeit: string;     // Taetigkeitskuerzel (z.B. "be", "ew")
+  ort?: string;           // Arbeitsort (max 32 Zeichen, z.B. "Büro", "Home Office")
   projektId?: number;
   vorgangId?: number;
   created?: string;
@@ -101,6 +102,44 @@ export interface ProjektTaetigkeit {
   defaultFakt?: number;  // 0=Einstellung vom Vorgang, 1-4=Fakt-Einstellung
 }
 
+// Projekt-Arbeitsort: Ein dem Projekt zugeordneter Arbeitsort (Einschränkung)
+export interface ProjektOrt {
+  ort: string;           // Kurzform des Arbeitsortes (String32, max 32 Zeichen)
+  action?: string;       // z.B. "delete" (nur für SOAP-Mutations)
+}
+
+// Globaler Arbeitsort aus der ZEP-Ortsliste
+export interface SoapOrt {
+  kurzform: string;      // Kürzel (String32, z.B. "H", "O", "D")
+  bezeichnung?: string;  // Volltext (String64, z.B. "Homeoffice")
+  heimarbeitsort?: boolean;
+  inland?: boolean;
+  waehrung?: string;
+}
+
+// Ortsliste (kann mehrere gültige Listen geben, nach Datum gefiltert)
+interface SoapOrtsliste {
+  id?: number;
+  gueltigAb?: string;
+  gueltigBis?: string;
+  bemerkung?: string;
+  ort?: SoapOrt | SoapOrt[];
+}
+
+interface ReadOrtslisteRequest {
+  requestHeader: RequestHeader;
+  readOrtslisteSearchCriteria?: {
+    datum?: string;       // IsoDate - liefert Ortsliste gültig an diesem Datum
+  };
+}
+
+interface ReadOrtslisteResponse {
+  responseHeader: ResponseHeader;
+  ortslisteListe?: {
+    ortsliste?: SoapOrtsliste | SoapOrtsliste[];
+  };
+}
+
 export interface SoapProjekt {
   id?: number;
   projektNr: string;
@@ -119,6 +158,9 @@ export interface SoapProjekt {
   };
   projekttaetigkeitListe?: {
     taetigkeit?: ProjektTaetigkeit | ProjektTaetigkeit[];
+  };
+  projektortListe?: {
+    ort?: ProjektOrt | ProjektOrt[];
   };
   // Fakturierbarkeits-Voreinstellungen
   // voreinstFakturierbarkeit (int1_4): 
@@ -689,6 +731,66 @@ export async function readTaetigkeit(
 }
 
 // =============================================================================
+// PUBLIC API - Ortsliste (Work Locations)
+// =============================================================================
+
+/**
+ * Read global work locations from ZEP via SOAP.
+ * Returns all OrtType entries from the Ortsliste valid on the given date.
+ */
+export async function readOrtsliste(
+  token: string,
+  datum?: string
+): Promise<SoapOrt[]> {
+  const client = await getClient();
+
+  const request: ReadOrtslisteRequest = {
+    requestHeader: { authorizationToken: token },
+    readOrtslisteSearchCriteria: datum ? { datum } : undefined,
+  };
+
+  return new Promise((resolve, reject) => {
+    client.readOrtsliste(request, (err: Error | null, result: ReadOrtslisteResponse) => {
+      if (err) {
+        reject(new Error(`SOAP readOrtsliste failed: ${err.message}`));
+        return;
+      }
+
+      try {
+        checkResponse(result.responseHeader, "readOrtsliste");
+        const ortslisten = ensureArray(result.ortslisteListe?.ortsliste);
+        // Flatten all OrtType entries from all valid Ortslisten, deduplicate by kurzform
+        const seen = new Set<string>();
+        const allOrte: SoapOrt[] = [];
+        for (const liste of ortslisten) {
+          const orte = ensureArray(liste.ort);
+          for (const ort of orte) {
+            if (!seen.has(ort.kurzform)) {
+              seen.add(ort.kurzform);
+              allOrte.push(ort);
+            }
+          }
+        }
+        resolve(allOrte);
+      } catch (e) {
+        reject(e);
+      }
+    });
+  });
+}
+
+/**
+ * Map SoapOrt to a simpler format for the frontend.
+ */
+export function mapOrtToRestFormat(ort: SoapOrt) {
+  return {
+    kurzform: ort.kurzform,
+    bezeichnung: ort.bezeichnung || ort.kurzform,
+    heimarbeitsort: ort.heimarbeitsort || false,
+  };
+}
+
+// =============================================================================
 // PUBLIC API - Projektzeiten (Time Entries)
 // =============================================================================
 
@@ -897,6 +999,16 @@ export function mapProjektToRestFormat(projekt: SoapProjekt) {
     }));
   }
 
+  // Extract work locations from projektortListe
+  let workLocations: string[] = [];
+  if (projekt.projektortListe?.ort) {
+    const ortData = projekt.projektortListe.ort;
+    const ortArray = Array.isArray(ortData) ? ortData : [ortData];
+    workLocations = ortArray
+      .filter(o => o.action !== "delete")
+      .map(o => o.ort);
+  }
+
   return {
     id: projekt.id || 0,
     name: projekt.projektNr,           // REST uses projektNr as name
@@ -912,6 +1024,7 @@ export function mapProjektToRestFormat(projekt: SoapProjekt) {
     end_date: projekt.endeDatum || null,
     projektNr: projekt.projektNr, // Keep original for SOAP calls
     activities, // Zugeordnete Tätigkeiten
+    workLocations,
     // Fakturierbarkeits-Voreinstellungen
     voreinstFakturierbarkeit: projekt.voreinstFakturierbarkeit,
     defaultFakt: projekt.defaultFakt,
@@ -1032,7 +1145,7 @@ export function mapProjektzeitToRestFormat(projektzeit: SoapProjektzeit) {
     activity_id: projektzeit.taetigkeit,
     project_id: projektzeit.projektId || 0,
     project_task_id: projektzeit.vorgangId || 0,
-    work_location_id: null,
+    work_location_id: projektzeit.ort || null,
     // Keep SOAP-specific fields for reference
     projektNr: projektzeit.projektNr,
     vorgangNr: projektzeit.vorgangNr,

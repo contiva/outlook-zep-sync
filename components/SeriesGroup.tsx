@@ -15,11 +15,18 @@ interface AssignedActivity {
   standard: boolean; // true wenn Standard-Tätigkeit
 }
 
+interface WorkLocation {
+  kurzform: string;
+  bezeichnung: string;
+  heimarbeitsort: boolean;
+}
+
 interface Project {
   id: number;
   name: string;
   description: string;
   activities?: AssignedActivity[]; // Dem Projekt zugeordnete Tätigkeiten
+  workLocations?: string[];
 }
 
 interface Task {
@@ -87,6 +94,7 @@ interface Appointment {
   onlineMeeting?: { joinUrl?: string };
   useActualTime?: boolean; // true = use actual time from call records, false = use planned time
   customRemark?: string; // Optional: alternative remark for ZEP (overrides subject)
+  workLocation?: string;
 }
 
 interface SeriesGroupProps {
@@ -131,6 +139,8 @@ interface SeriesGroupProps {
   linkedZepIds?: Set<number>;
   // Keyboard navigation focus
   focusedAppointmentId?: string | null;
+  globalWorkLocations?: WorkLocation[];
+  onWorkLocationChange?: (id: string, workLocation: string | undefined) => void;
 }
 
 // Helper: Check if an appointment is synced to ZEP
@@ -220,6 +230,8 @@ export default function SeriesGroup({
   onLinkToZep,
   linkedZepIds,
   focusedAppointmentId,
+  globalWorkLocations,
+  onWorkLocationChange,
 }: SeriesGroupProps) {
   const [expanded, setExpanded] = useState(false);
 
@@ -720,6 +732,8 @@ export default function SeriesGroup({
               linkedZepIds={linkedZepIds}
               // Keyboard navigation focus
               isFocused={focusedAppointmentId === appointment.id}
+              globalWorkLocations={globalWorkLocations}
+              onWorkLocationChange={onWorkLocationChange}
             />
           ))}
         </div>

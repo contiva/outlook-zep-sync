@@ -32,7 +32,7 @@ export default function SearchableSelect({
   options,
   value,
   onChange,
-  placeholder = "-- Auswählen --",
+  placeholder = "Auswählen",
   disabled = false,
   disabledMessage,
   loading = false,
@@ -142,27 +142,7 @@ export default function SearchableSelect({
               
               <div className="overflow-auto max-h-52 py-1">
                 {/* Option zum Abwählen - nur wenn nicht gesucht wird */}
-                {!searchQuery && (
-                  <ListboxOption
-                    value={null}
-                    className={({ focus }) =>
-                      `relative cursor-pointer select-none py-2 pl-10 pr-4 ${
-                        focus ? "bg-blue-600 text-white" : "text-gray-500"
-                      }`
-                    }
-                  >
-                    {({ selected }) => (
-                      <>
-                        <span className="block truncate italic">{placeholder}</span>
-                        {selected && (
-                          <span className="absolute inset-y-0 left-0 flex items-center pl-3">
-                            <Check className="h-4 w-4" aria-hidden="true" />
-                          </span>
-                        )}
-                      </>
-                    )}
-                  </ListboxOption>
-                )}
+                {/* Null-Option entfernt — Placeholder wird nur im Button angezeigt */}
 
                 {/* Filtered options */}
                 {filteredOptions.map((option) => (

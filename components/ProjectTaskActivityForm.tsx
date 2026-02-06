@@ -34,6 +34,12 @@ interface Activity {
   description: string;
 }
 
+interface WorkLocation {
+  kurzform: string;
+  bezeichnung: string;
+  heimarbeitsort: boolean;
+}
+
 export interface ProjectTaskActivityFormProps {
   // === Datenquellen für Options ===
   projects: Project[];
@@ -51,6 +57,11 @@ export interface ProjectTaskActivityFormProps {
   billable: boolean;
   canChangeBillable: boolean;
   useActualTime: boolean;
+
+  // === Arbeitsort ===
+  workLocations: WorkLocation[];
+  workLocation?: string; // kurzform des gewählten Orts
+  onWorkLocationChange: (workLocation: string | undefined) => void;
 
   // === Zeit-Anzeige ===
   plannedTimeLabel: string;
@@ -90,6 +101,9 @@ export default function ProjectTaskActivityForm({
   billable,
   canChangeBillable,
   useActualTime,
+  workLocations,
+  workLocation,
+  onWorkLocationChange,
   plannedTimeLabel,
   actualTimeLabel,
   hasActualTime,
@@ -183,6 +197,17 @@ export default function ProjectTaskActivityForm({
     }));
   }, [activities, projects, tasks, projectId, taskId]);
 
+  // === workLocationOptions ===
+  const workLocationOptions: SelectOption[] = useMemo(
+    () =>
+      workLocations.map((loc) => ({
+        value: loc.kurzform,
+        label: loc.kurzform,
+        description: loc.bezeichnung !== loc.kurzform ? loc.bezeichnung : null,
+      })),
+    [workLocations]
+  );
+
   return (
     <>
       {/* Projekt-Dropdown */}
@@ -192,7 +217,7 @@ export default function ProjectTaskActivityForm({
           options={projectOptions}
           value={projectId}
           onChange={(val) => onProjectChange(val !== null ? Number(val) : null)}
-          placeholder="-- Projekt wählen --"
+          placeholder="Projekt wählen"
         />
       </div>
 
@@ -207,7 +232,7 @@ export default function ProjectTaskActivityForm({
           options={taskOptions}
           value={taskId}
           onChange={(val) => onTaskChange(val !== null ? Number(val) : null)}
-          placeholder="-- Task wählen --"
+          placeholder="Task wählen"
           disabled={isTaskDisabled}
           disabledMessage={
             !projectId
@@ -231,7 +256,7 @@ export default function ProjectTaskActivityForm({
           options={activityOptions}
           value={activityId}
           onChange={(val) => onActivityChange(String(val ?? "be"))}
-          placeholder="-- Tätigkeit wählen --"
+          placeholder="Tätigkeit"
           disabled={isFieldDisabled}
           disabledMessage={
             !projectId ? "Erst Projekt wählen" : "Erst Task wählen"
@@ -239,6 +264,26 @@ export default function ProjectTaskActivityForm({
           compact
         />
       </div>
+
+      {/* Arbeitsort-Dropdown - nur sichtbar wenn Projekt Arbeitsorte hat */}
+      {workLocations.length > 0 && (
+        <div className="flex flex-col w-28 shrink-0">
+          <label
+            className={`text-xs mb-1 ${isFieldDisabled ? "text-gray-300" : "text-gray-500"}`}
+          >
+            Ort
+          </label>
+          <SearchableSelect
+            options={workLocationOptions}
+            value={workLocation || null}
+            onChange={(val) => onWorkLocationChange(val ? String(val) : undefined)}
+            placeholder="Ort"
+            disabled={isFieldDisabled}
+            disabledMessage={!projectId ? "Erst Projekt wählen" : "Erst Task wählen"}
+            compact
+          />
+        </div>
+      )}
 
       {/* Bemerkung */}
       <div className="flex flex-col flex-2 min-w-0">
@@ -255,7 +300,7 @@ export default function ProjectTaskActivityForm({
           disabled={isFieldDisabled}
           className={`h-9.5 px-3 text-sm rounded-lg border transition-colors ${
             isFieldDisabled
-              ? "bg-gray-50 border-gray-200 text-gray-300 cursor-not-allowed"
+              ? "bg-gray-50 border-gray-200 text-gray-300 cursor-not-allowed opacity-40"
               : isCustomBemerkung
                 ? "bg-blue-50 border-blue-300 text-blue-900 focus:ring-blue-500 focus:border-blue-500"
                 : "bg-white border-gray-300 text-gray-900 focus:ring-blue-500 focus:border-blue-500 placeholder-gray-400"

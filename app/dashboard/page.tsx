@@ -12,11 +12,11 @@ import AppointmentList from "@/components/AppointmentList";
 import CalendarHeatmap, { CalendarHeatmapLegend, HeatmapStats } from "@/components/CalendarHeatmap";
 import UpcomingMeetingBar from "@/components/UpcomingMeetingBar";
 import { saveSyncRecords, SyncRecord } from "@/lib/sync-history";
-import { batchSaveSyncMappings, RedisSyncMapping } from "@/lib/redis";
+import { RedisSyncMapping } from "@/lib/redis";
 import { checkAppointmentsForDuplicates, DuplicateCheckResult, ZepAttendance, calculateZepTimes } from "@/lib/zep-api";
 import { ActualDuration, ActualDurationsMap, normalizeJoinUrl, getDurationKey } from "@/lib/teams-utils";
 import { roundToNearest15Min, timesMatch } from "@/lib/time-utils";
-import { useTeamsAuth, checkIsInTeams } from "@/lib/useTeamsAuth";
+import { useTeamsAuth } from "@/lib/useTeamsAuth";
 
 // Helper: Determine billable status from project/task settings
 // Values: 0=inherited(task only), 1=billable+editable, 2=billable+locked, 3=not billable+editable, 4=not billable+locked
@@ -62,6 +62,13 @@ interface AssignedActivity {
   standard: boolean; // true wenn Standard-Tätigkeit
 }
 
+// Globaler Arbeitsort aus ZEP-Ortsliste
+interface WorkLocation {
+  kurzform: string;     // Kürzel (z.B. "H", "O", "D")
+  bezeichnung: string;  // Volltext (z.B. "Homeoffice")
+  heimarbeitsort: boolean;
+}
+
 interface Project {
   id: number;
   name: string;
@@ -69,6 +76,7 @@ interface Project {
   activities?: AssignedActivity[]; // Dem Projekt zugeordnete Tätigkeiten
   voreinstFakturierbarkeit?: number; // 1-4: Projekt-Level Fakturierbarkeit
   defaultFakt?: number; // 1-4: Projekt-Level Fakturierbarkeit (alternative)
+  workLocations?: string[]; // Projektspezifische Einschränkungen (Kurzformen)
 }
 
 interface Task {
@@ -154,6 +162,7 @@ interface Appointment {
   lastModifiedDateTime?: string;
   useActualTime?: boolean; // true = use actual time from call records, false = use planned time
   customRemark?: string; // Optional: alternative remark for ZEP (overrides subject)
+  workLocation?: string;
   bodyPreview?: string;
   body?: { contentType?: string; content?: string };
   location?: { displayName?: string; locationType?: string };
@@ -172,6 +181,7 @@ interface ZepEntry {
   billable: boolean;
   projektNr?: string;
   vorgangNr?: string;
+  work_location_id?: string | null;
 }
 
 // Modified entry for rebooking synced entries
@@ -186,6 +196,7 @@ export interface ModifiedEntry {
   newTaskId: number;
   newActivityId: string;
   newBillable: boolean;
+  newOrt?: string;
   newProjektNr: string;
   newVorgangNr: string;
   // Original entry data needed for SOAP modify call
@@ -713,6 +724,7 @@ export default function Dashboard() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [tasks, setTasks] = useState<Record<number, Task[]>>({});
   const [activities, setActivities] = useState<Activity[]>([]);
+  const [globalWorkLocations, setGlobalWorkLocations] = useState<WorkLocation[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
@@ -841,12 +853,20 @@ export default function Dashboard() {
   }, [appointments, syncedEntries.length, syncMappings]);
 
   useEffect(() => {
-    // Load activities (global, not per employee)
+    // Load activities and global work locations (both global, not per employee)
     fetch("/api/zep/activities")
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {
           setActivities(data);
+        }
+      })
+      .catch(console.error);
+    fetch(`/api/zep/work-locations?date=${new Date().toISOString().split("T")[0]}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setGlobalWorkLocations(data);
         }
       })
       .catch(console.error);
@@ -973,7 +993,7 @@ export default function Dashboard() {
         return next;
       });
     }
-  }, [tasks, employeeId, projects]);
+  }, [tasks, employeeId, projects, authFetch]);
 
   // Load tasks for projects that were restored from localStorage
   // This runs after projects are loaded and appointments/syncedEntries exist from localStorage
@@ -1690,6 +1710,11 @@ export default function Dashboard() {
     setEditingAppointmentIds(new Set());
   };
 
+  // Default work location: always "- erste Tätigkeitsstätte -" (ZEP system value for primary workplace)
+  const getDefaultWorkLocation = (): string => {
+    return "- erste Tätigkeitsstätte -";
+  };
+
   const changeProject = async (id: string, projectId: number | null) => {
     // Mark as being edited only when setting a project (not when clearing)
     // This prevents the appointment from disappearing due to status filter while editing
@@ -1732,6 +1757,7 @@ export default function Dashboard() {
                   activityId: standardActivity?.name || apt.activityId,
                   billable: newBillable,
                   canChangeBillable: newCanChangeBillable,
+                  workLocation: getDefaultWorkLocation(),
                 }
               : apt
           )
@@ -1740,7 +1766,7 @@ export default function Dashboard() {
         // Multiple tasks or no tasks - just set project, clear task, reset billable settings
         setItems((prev) =>
           prev.map((apt) =>
-            apt.id === id ? { ...apt, projectId, taskId: null, canChangeBillable: true } : apt
+            apt.id === id ? { ...apt, projectId, taskId: null, canChangeBillable: true, workLocation: getDefaultWorkLocation() } : apt
           )
         );
       }
@@ -1748,7 +1774,7 @@ export default function Dashboard() {
       // No project selected - clear everything, reset billable settings
       setItems((prev) =>
         prev.map((apt) =>
-          apt.id === id ? { ...apt, projectId, taskId: null, canChangeBillable: true } : apt
+          apt.id === id ? { ...apt, projectId, taskId: null, canChangeBillable: true, workLocation: undefined } : apt
         )
       );
     }
@@ -1833,6 +1859,14 @@ export default function Dashboard() {
 
     setItems((prev) =>
       prev.map((apt) => (apt.id === id ? { ...apt, useActualTime: useActual } : apt))
+    );
+  };
+
+  const changeWorkLocation = (id: string, workLocation: string | undefined) => {
+    const isCall = calls.some((c) => c.id === id);
+    const setItems = isCall ? setCalls : setAppointments;
+    setItems((prev) =>
+      prev.map((apt) => (apt.id === id ? { ...apt, workLocation } : apt))
     );
   };
 
@@ -1968,13 +2002,14 @@ export default function Dashboard() {
               newTaskId: syncedEntry.project_task_id,
               newActivityId: syncedEntry.activity_id,
               newBillable: correctBillable,
+              newOrt: syncedEntry?.work_location_id || undefined,
               newProjektNr: project?.name || syncedEntry.projektNr || "",
               newVorgangNr: task?.name || syncedEntry.vorgangNr || "",
               userId: syncedEntry.employee_id,
               datum: syncedEntry.date.split("T")[0],
               von: zepVon,
               bis: zepBis,
-              bemerkung: syncedEntry.note || undefined,
+              // bemerkung intentionally omitted — preserved from syncedEntry.note in save logic
               // Only set new times if they need correction (use planned time as the correction target)
               ...(timesNeedCorrection ? { newVon: plannedVon, newBis: plannedBis } : {}),
             });
@@ -2047,7 +2082,7 @@ export default function Dashboard() {
           datum: syncedEntry.date.split("T")[0],
           von: syncedEntry.from.slice(0, 5),
           bis: syncedEntry.to.slice(0, 5),
-          bemerkung: syncedEntry.note || undefined,
+          // bemerkung intentionally omitted — preserved from syncedEntry.note in save logic
         });
       }
       return next;
@@ -2117,7 +2152,7 @@ export default function Dashboard() {
           datum: syncedEntry.date.split("T")[0],
           von: syncedEntry.from.slice(0, 5),
           bis: syncedEntry.to.slice(0, 5),
-          bemerkung: syncedEntry.note || undefined,
+          // bemerkung intentionally omitted — preserved from syncedEntry.note in save logic
         });
       }
       return next;
@@ -2163,7 +2198,7 @@ export default function Dashboard() {
           datum: syncedEntry.date.split("T")[0],
           von: syncedEntry.from.slice(0, 5),
           bis: syncedEntry.to.slice(0, 5),
-          bemerkung: syncedEntry.note || undefined,
+          // bemerkung intentionally omitted — preserved from syncedEntry.note in save logic
         });
       }
       return next;
@@ -2210,6 +2245,48 @@ export default function Dashboard() {
           von: syncedEntry.from.slice(0, 5),
           bis: syncedEntry.to.slice(0, 5),
           bemerkung,
+        });
+      }
+      return next;
+    });
+  }, [projects, tasks]);
+
+  const modifyWorkLocation = useCallback((
+    appointmentId: string,
+    apt: Appointment,
+    syncedEntry: ZepEntry,
+    workLocation: string | undefined
+  ) => {
+    setModifiedEntries((prev) => {
+      const next = new Map(prev);
+      const existing = next.get(appointmentId);
+
+      if (existing) {
+        next.set(appointmentId, { ...existing, newOrt: workLocation });
+      } else {
+        const project = projects.find((p) => p.id === syncedEntry.project_id);
+        const projectTasks = tasks[syncedEntry.project_id] || [];
+        const task = projectTasks.find((t) => t.id === syncedEntry.project_task_id);
+
+        next.set(appointmentId, {
+          zepId: syncedEntry.id,
+          outlookEventId: appointmentId,
+          originalProjectId: syncedEntry.project_id,
+          originalTaskId: syncedEntry.project_task_id,
+          originalActivityId: syncedEntry.activity_id,
+          originalBillable: syncedEntry.billable,
+          newProjectId: syncedEntry.project_id,
+          newTaskId: syncedEntry.project_task_id,
+          newActivityId: syncedEntry.activity_id,
+          newBillable: syncedEntry.billable,
+          newOrt: workLocation,
+          newProjektNr: project?.name || syncedEntry.projektNr || "",
+          newVorgangNr: task?.name || syncedEntry.vorgangNr || "",
+          userId: syncedEntry.employee_id,
+          datum: syncedEntry.date.split("T")[0],
+          von: syncedEntry.from.slice(0, 5),
+          bis: syncedEntry.to.slice(0, 5),
+          // bemerkung intentionally omitted — preserved from syncedEntry.note in save logic
         });
       }
       return next;
@@ -2311,7 +2388,7 @@ export default function Dashboard() {
           datum: syncedEntry.date.split("T")[0],
           von: syncedEntry.from.slice(0, 5),
           bis: syncedEntry.to.slice(0, 5),
-          bemerkung: syncedEntry.note || undefined,
+          // bemerkung intentionally omitted — preserved from syncedEntry.note in save logic
           newVon,
           newBis,
         });
@@ -2337,7 +2414,7 @@ export default function Dashboard() {
     } catch (e) {
       console.error("Failed to reload synced entries:", e);
     }
-  }, [employeeId, startDate, endDate]);
+  }, [employeeId, startDate, endDate, authFetch]);
 
   // Correct time for a rescheduled appointment
   const correctRescheduledTime = useCallback(async (
@@ -2406,7 +2483,7 @@ export default function Dashboard() {
         return next;
       });
     }
-  }, [loadSyncedEntries, toast]);
+  }, [loadSyncedEntries, toast, authFetch]);
 
   // Link an Outlook appointment to an existing ZEP entry (from conflict popover)
   const linkToZep = useCallback(async (
@@ -2452,9 +2529,15 @@ export default function Dashboard() {
   const saveModifiedSingle = useCallback(async (modifiedEntry: ModifiedEntry) => {
     setSavingModifiedSingleId(modifiedEntry.outlookEventId);
 
-    // Resolve bemerkung: if cleared (empty string), fall back to appointment subject
+    // Resolve bemerkung:
+    // - undefined: not modified → preserve original ZEP note
+    // - "" (empty): user cleared → fall back to appointment subject
+    // - "text": user set custom → use it
     const apt = appointments.find(a => a.id === modifiedEntry.outlookEventId);
-    const resolvedBemerkung = modifiedEntry.bemerkung || apt?.subject || modifiedEntry.bemerkung;
+    const originalEntry = syncedEntries.find(e => e.id === modifiedEntry.zepId);
+    const resolvedBemerkung = modifiedEntry.bemerkung !== undefined
+      ? (modifiedEntry.bemerkung || apt?.subject || "")
+      : (originalEntry?.note || apt?.subject || "");
 
     try {
       const response = await authFetch("/api/zep/timeentries", {
@@ -2472,6 +2555,7 @@ export default function Dashboard() {
             bis: modifiedEntry.newBis || modifiedEntry.bis,
             bemerkung: resolvedBemerkung,
             istFakturierbar: modifiedEntry.newBillable,
+            ort: modifiedEntry.newOrt || undefined,
           }],
         }),
       });
@@ -2507,7 +2591,7 @@ export default function Dashboard() {
     } finally {
       setSavingModifiedSingleId(null);
     }
-  }, [loadSyncedEntries, toast]);
+  }, [loadSyncedEntries, toast, authFetch, appointments, syncedEntries]);
 
   // Helper to get effective start/end times for an appointment
   // Uses actual time from call records if useActualTime is true and data is available
@@ -2851,6 +2935,7 @@ export default function Dashboard() {
             activity_id: apt.activityId,
             project_id: apt.projectId!,
             project_task_id: apt.taskId!,
+            ort: apt.workLocation || undefined,
           };
         });
 
@@ -2937,8 +3022,8 @@ export default function Dashboard() {
       // 2. Modify existing entries (rebooking)
       if (modificationsToSubmit.length > 0) {
         const modifyEntries = modificationsToSubmit.map((mod) => {
-          // Resolve bemerkung: if cleared (empty string), fall back to appointment subject
           const modApt = appointments.find(a => a.id === mod.outlookEventId);
+          const origEntry = syncedEntries.find(e => e.id === mod.zepId);
           return {
             id: String(mod.zepId),
             projektNr: mod.newProjektNr,
@@ -2948,8 +3033,11 @@ export default function Dashboard() {
             datum: mod.datum,
             von: mod.newVon || mod.von,
             bis: mod.newBis || mod.bis,
-            bemerkung: mod.bemerkung || modApt?.subject || mod.bemerkung,
+            bemerkung: mod.bemerkung !== undefined
+              ? (mod.bemerkung || modApt?.subject || "")
+              : (origEntry?.note || modApt?.subject || ""),
             istFakturierbar: mod.newBillable,
+            ort: mod.newOrt || undefined,
           };
         });
 
@@ -3226,6 +3314,9 @@ export default function Dashboard() {
           onBillableChange={changeBillable}
           onCustomRemarkChange={handleCustomRemarkChange}
           onUseActualTimeChange={changeUseActualTime}
+          globalWorkLocations={globalWorkLocations}
+          onWorkLocationChange={changeWorkLocation}
+          onModifyWorkLocation={modifyWorkLocation}
           onApplyToSeries={applyToSeries}
           onSubmit={submitToZep}
           onSyncSingle={syncSingleAppointment}

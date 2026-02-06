@@ -213,11 +213,18 @@ interface AssignedActivity {
   standard: boolean; // true wenn Standard-Tätigkeit
 }
 
+interface WorkLocation {
+  kurzform: string;
+  bezeichnung: string;
+  heimarbeitsort: boolean;
+}
+
 interface Project {
   id: number;
   name: string;
   description: string;
   activities?: AssignedActivity[]; // Dem Projekt zugeordnete Tätigkeiten
+  workLocations?: string[]; // Projektspezifische Einschränkungen (Kurzformen)
   voreinstFakturierbarkeit?: number; // 1-4: Projekt-Level Fakturierbarkeit
   defaultFakt?: number; // 1-4: Projekt-Level Fakturierbarkeit (alternative)
 }
@@ -249,6 +256,7 @@ interface SyncedEntry {
   billable: boolean;
   projektNr?: string;
   vorgangNr?: string;
+  work_location_id?: string | null;
 }
 
 // Modified entry for rebooking
@@ -263,6 +271,7 @@ interface ModifiedEntry {
   newTaskId: number;
   newActivityId: string;
   newBillable: boolean;
+  newOrt?: string;
   newProjektNr: string;
   newVorgangNr: string;
   userId: string;
@@ -316,6 +325,7 @@ interface Appointment {
   direction?: 'incoming' | 'outgoing';
   useActualTime?: boolean; // true = use actual time from call records, false = use planned time
   customRemark?: string; // Optional: alternative remark for ZEP (overrides subject)
+  workLocation?: string;
   // Location
   location?: {
     displayName?: string;
@@ -361,6 +371,9 @@ interface AppointmentRowProps {
   onModifyBillable?: (appointmentId: string, apt: Appointment, syncedEntry: SyncedEntry, billable: boolean) => void;
   onModifyBemerkung?: (appointmentId: string, apt: Appointment, syncedEntry: SyncedEntry, bemerkung: string) => void;
   onModifyTime?: (appointmentId: string, apt: Appointment, syncedEntry: SyncedEntry, useActualTime: boolean) => void;
+  globalWorkLocations?: WorkLocation[];
+  onWorkLocationChange?: (id: string, workLocation: string | undefined) => void;
+  onModifyWorkLocation?: (appointmentId: string, apt: Appointment, syncedEntry: SyncedEntry, workLocation: string | undefined) => void;
   onSaveModifiedSingle?: (modifiedEntry: ModifiedEntry) => void;
   isSavingModifiedSingle?: boolean;
   // Rescheduled appointment correction
@@ -1076,6 +1089,9 @@ export default function AppointmentRow({
   onModifyBillable,
   onModifyBemerkung,
   onModifyTime,
+  globalWorkLocations,
+  onWorkLocationChange,
+  onModifyWorkLocation,
   onSaveModifiedSingle,
   isSavingModifiedSingle = false,
   onCorrectTime,
@@ -1348,6 +1364,55 @@ export default function AppointmentRow({
     return canChangeBillableForTask(projektFakt, vorgangFakt);
   }, [isEditing, allTasks, projects, modifiedEntry?.newProjectId, modifiedEntry?.newTaskId, syncedEntry?.project_id, syncedEntry?.project_task_id]);
 
+  // Get effective work locations for the current project
+  // "- erste Tätigkeitsstätte -" is a ZEP system value (primary workplace), always available
+  // If project has projektortListe → filter global list to those orte
+  // If project has no projektortListe → all global orte available
+  const currentWorkLocations = useMemo(() => {
+    if (!globalWorkLocations || globalWorkLocations.length === 0) return [];
+    const pid = isEditing
+      ? (modifiedEntry?.newProjectId || syncedEntry?.project_id)
+      : appointment.projectId;
+    if (!pid) return [];
+    const project = projects.find((p) => p.id === pid);
+    if (!project) return [];
+
+    const ERSTE_TAETIGKEIT: WorkLocation = {
+      kurzform: "- erste Tätigkeitsstätte -",
+      bezeichnung: "Erste Tätigkeitsstätte",
+      heimarbeitsort: false,
+    };
+
+    let locations: WorkLocation[];
+    if (project.workLocations && project.workLocations.length > 0) {
+      // Project has specific restrictions — filter global list, but always include system value
+      const allowed = new Set(project.workLocations);
+      locations = globalWorkLocations.filter(wl => allowed.has(wl.kurzform));
+      // Add any restriction entries not in global list (like "- erste Tätigkeitsstätte -")
+      for (const wlKey of project.workLocations) {
+        if (!globalWorkLocations.some(g => g.kurzform === wlKey) && wlKey !== ERSTE_TAETIGKEIT.kurzform) {
+          locations.push({ kurzform: wlKey, bezeichnung: wlKey, heimarbeitsort: false });
+        }
+      }
+    } else {
+      // No restrictions → all global work locations
+      locations = [...globalWorkLocations];
+    }
+
+    // Always prepend "- erste Tätigkeitsstätte -" as first option if not already present
+    if (!locations.some(wl => wl.kurzform === ERSTE_TAETIGKEIT.kurzform)) {
+      locations.unshift(ERSTE_TAETIGKEIT);
+    } else {
+      // Move it to the front
+      locations = [
+        ERSTE_TAETIGKEIT,
+        ...locations.filter(wl => wl.kurzform !== ERSTE_TAETIGKEIT.kurzform),
+      ];
+    }
+
+    return locations;
+  }, [globalWorkLocations, projects, appointment.projectId, isEditing, modifiedEntry?.newProjectId, syncedEntry?.project_id]);
+
   // Bemerkung values for synced editing mode
   const syncedBemerkungValues = useMemo(() => {
     if (!syncedEntry) return { bemerkung: "", isCustom: false };
@@ -1378,7 +1443,9 @@ export default function AppointmentRow({
     const hasTimeChanges = modifiedEntry.newVon !== undefined || modifiedEntry.newBis !== undefined;
     // Check bemerkung changes
     const hasBemerkungChanges = modifiedEntry.bemerkung !== undefined && modifiedEntry.bemerkung !== (syncedEntry.note || "");
-    return hasProjectChanges || hasTimeChanges || hasBemerkungChanges;
+    // Check work location changes
+    const hasOrtChanges = modifiedEntry.newOrt !== undefined && modifiedEntry.newOrt !== (syncedEntry.work_location_id || undefined);
+    return hasProjectChanges || hasTimeChanges || hasBemerkungChanges || hasOrtChanges;
   }, [modifiedEntry, syncedEntry]);
 
 
@@ -2305,6 +2372,13 @@ export default function AppointmentRow({
                 onModifyTime(appointment.id, appointment, syncedEntry, useActual);
               }
             }}
+            workLocations={currentWorkLocations}
+            workLocation={modifiedEntry?.newOrt ?? syncedEntry?.work_location_id ?? undefined}
+            onWorkLocationChange={(val) => {
+              if (onModifyWorkLocation && syncedEntry) {
+                onModifyWorkLocation(appointment.id, appointment, syncedEntry, val);
+              }
+            }}
             onSync={() => modifiedEntry && isModified && onSaveModifiedSingle?.(modifiedEntry)}
             isSyncing={isSavingModifiedSingle}
             isSyncReady={isModified}
@@ -2341,6 +2415,9 @@ export default function AppointmentRow({
             onBemerkungChange={(val) => onCustomRemarkChange?.(appointment.id, val)}
             onBillableChange={(val) => onBillableChange(appointment.id, val)}
             onTimeChange={(useActual) => onUseActualTimeChange?.(appointment.id, useActual)}
+            workLocations={currentWorkLocations}
+            workLocation={appointment.workLocation}
+            onWorkLocationChange={(val) => onWorkLocationChange?.(appointment.id, val)}
             onSync={() => isSyncReady && onSyncSingle?.(appointment)}
             isSyncing={!!isSyncingSingle}
             isSyncReady={!!isSyncReady}

@@ -97,6 +97,7 @@ interface AttendanceInput {
   activity_id: string;
   project_id: number;
   project_task_id: number;
+  ort?: string;
   // SOAP-specific fields (optional, will be looked up if not provided)
   projektNr?: string;
   vorgangNr?: string;
@@ -220,6 +221,7 @@ export async function POST(request: Request) {
           taetigkeit: entry.activity_id,
           bemerkung: entry.note || undefined,
           istFakturierbar: istFakturierbar,
+          ort: entry.ort || undefined,
         };
 
         const id = await createProjektzeit(token, soapEntry);
@@ -277,6 +279,7 @@ interface ModifyEntryInput {
   von: string;
   bis: string;
   bemerkung?: string;
+  ort?: string;
   istFakturierbar?: boolean;  // Optional - will be recalculated if not provided
   // Optional: project/task IDs for billability lookup
   project_id?: number;
@@ -394,6 +397,7 @@ export async function PATCH(request: Request) {
           taetigkeit: entry.taetigkeit,
           bemerkung: entry.bemerkung,
           istFakturierbar: istFakturierbar,
+          ort: entry.ort || undefined,
         };
 
         await updateProjektzeit(token, soapEntry);
