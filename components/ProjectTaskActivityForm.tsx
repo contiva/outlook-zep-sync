@@ -129,11 +129,13 @@ export default function ProjectTaskActivityForm({
 
   useEffect(() => {
     if (isSyncReady) {
-      setShowHopAnimation(true);
-      const timer = setTimeout(() => setShowHopAnimation(false), 5000);
-      return () => clearTimeout(timer);
+      // Use setTimeout to avoid synchronous setState in effect body
+      const startTimer = setTimeout(() => setShowHopAnimation(true), 0);
+      const endTimer = setTimeout(() => setShowHopAnimation(false), 5000);
+      return () => { clearTimeout(startTimer); clearTimeout(endTimer); };
     } else {
-      setShowHopAnimation(false);
+      const timer = setTimeout(() => setShowHopAnimation(false), 0);
+      return () => clearTimeout(timer);
     }
   }, [isSyncReady]);
 

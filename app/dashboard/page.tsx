@@ -218,6 +218,7 @@ const STORAGE_KEY = "outlook-zep-sync-state";
 const CALENDAR_CACHE_KEY = "outlook-calendar-cache";
 const ZEP_CACHE_KEY = "zep-entries-cache";
 const PROJECTS_CACHE_KEY = "zep-projects-cache";
+const EMPLOYEE_CACHE_KEY = "zep-employee-cache";
 
 // Cache duration: 1 hour in milliseconds
 const CACHE_DURATION_MS = 60 * 60 * 1000;
@@ -618,6 +619,42 @@ const setCachedProjects = (employeeId: string, date: string, projects: Project[]
   }
 };
 
+// Employee cache helper functions
+interface EmployeeCacheEntry {
+  employee: { username: string; firstname: string; lastname: string; email: string };
+  cachedAt: number;
+}
+
+const getCachedEmployee = (email: string): EmployeeCacheEntry["employee"] | null => {
+  if (typeof window === "undefined") return null;
+  try {
+    const stored = localStorage.getItem(EMPLOYEE_CACHE_KEY);
+    if (!stored) return null;
+    const entry = JSON.parse(stored) as Record<string, EmployeeCacheEntry>;
+    const cached = entry[email.toLowerCase()];
+    if (!cached) return null;
+    // Employee cache valid for 24h (rarely changes)
+    if (Date.now() - cached.cachedAt > 24 * 60 * 60 * 1000) {
+      return null;
+    }
+    return cached.employee;
+  } catch {
+    return null;
+  }
+};
+
+const setCachedEmployee = (email: string, employee: EmployeeCacheEntry["employee"]) => {
+  if (typeof window === "undefined") return;
+  try {
+    const stored = localStorage.getItem(EMPLOYEE_CACHE_KEY);
+    const cache = stored ? JSON.parse(stored) as Record<string, EmployeeCacheEntry> : {};
+    cache[email.toLowerCase()] = { employee, cachedAt: Date.now() };
+    localStorage.setItem(EMPLOYEE_CACHE_KEY, JSON.stringify(cache));
+  } catch {
+    // Ignore storage errors
+  }
+};
+
 export default function Dashboard() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -864,10 +901,20 @@ export default function Dashboard() {
   const userEmail = session?.user?.email || teamsAuth.user?.email;
 
   useEffect(() => {
-    const loadEmployee = async () => {
-      if (!userEmail) return;
+    if (!userEmail) return;
 
-      setEmployeeLoading(true);
+    // Try cached employee first for instant load
+    const cached = getCachedEmployee(userEmail);
+    if (cached && !zepEmployee) {
+      setZepEmployee(cached);
+    }
+
+    // Always revalidate in background (updates cache silently)
+    const loadEmployee = async () => {
+      // Only show loading spinner if no cached data
+      if (!cached) {
+        setEmployeeLoading(true);
+      }
       setEmployeeError(null);
 
       try {
@@ -875,6 +922,7 @@ export default function Dashboard() {
 
         if (res.ok) {
           const data = await res.json();
+          setCachedEmployee(userEmail, data);
           setZepEmployee(data);
         } else if (res.status === 404) {
           setEmployeeError(`Kein ZEP-Benutzer für ${userEmail} gefunden. Bitte kontaktiere den Administrator.`);
@@ -884,21 +932,56 @@ export default function Dashboard() {
         }
       } catch (error) {
         console.error("Failed to load ZEP employee:", error);
-        setEmployeeError("Verbindung zu ZEP fehlgeschlagen");
+        // Only show error if we don't have cached data to work with
+        if (!cached) {
+          setEmployeeError("Verbindung zu ZEP fehlgeschlagen");
+        }
       } finally {
         setEmployeeLoading(false);
       }
     };
 
     loadEmployee();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userEmail, authFetch]);
+
+  // Prefetch calendar data as soon as access token is available (doesn't need employeeId)
+  const prefetchedCalendarRef = useRef<CalendarEvent[] | null>(null);
+  const hasPrefetchedCalendar = useRef(false);
+  useEffect(() => {
+    if (hasPrefetchedCalendar.current) return;
+    if (!accessToken) return;
+    // Skip prefetch if we already have employee (loadAppointments will run immediately anyway)
+    if (zepEmployee) return;
+
+    hasPrefetchedCalendar.current = true;
+
+    // Check localStorage cache first
+    const cached = getCachedAppointments(startDate, endDate);
+    if (cached) {
+      prefetchedCalendarRef.current = cached;
+      return;
+    }
+
+    // Fetch calendar in background while waiting for employee
+    authFetch(`/api/calendar?startDate=${startDate}&endDate=${endDate}`)
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          prefetchedCalendarRef.current = data;
+          setCachedAppointments(startDate, endDate, data);
+        }
+      })
+      .catch(console.error);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accessToken, zepEmployee]);
 
   // Auto-load appointments when page opens (after employee is loaded)
   const hasAutoLoaded = useRef(false);
   useEffect(() => {
     if (hasAutoLoaded.current) return;
     if (!zepEmployee) return; // Wait for employee to load
-    
+
     hasAutoLoaded.current = true;
     loadAppointments();
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -986,11 +1069,15 @@ export default function Dashboard() {
       // Build projects URL with today's date for filtering bookable projects
       const today = new Date().toISOString().split("T")[0];
 
-      // Check if we have cached data (unless force refresh)
-      const cachedAppointments = forceRefresh ? null : getCachedAppointments(effectiveStartDate, effectiveEndDate);
+      // Check if we have cached or prefetched data (unless force refresh)
+      const prefetched = forceRefresh ? null : prefetchedCalendarRef.current;
+      const cachedAppointments = forceRefresh ? null : (prefetched || getCachedAppointments(effectiveStartDate, effectiveEndDate));
       const cachedZepEntries = forceRefresh || !employeeId ? null : getCachedZepEntries(employeeId, effectiveStartDate, effectiveEndDate);
       const cachedProjects = forceRefresh || !employeeId ? null : getCachedProjects(employeeId, today);
-      
+
+      // Clear prefetch ref after consuming it
+      if (prefetched) prefetchedCalendarRef.current = null;
+
       // Load appointments, ZEP entries, projects, and Redis sync mappings in parallel
       const [appointmentsData, zepData, projectsData, redisMappingsData] = await Promise.all([
         cachedAppointments

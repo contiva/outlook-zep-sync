@@ -14,6 +14,7 @@ const montserrat = Montserrat({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXTAUTH_URL || "http://localhost:3000"),
   title: "Outlook ZEP Sync",
   description: "Übertrage Outlook-Termine zu ZEP Zeiterfassung",
   robots: {

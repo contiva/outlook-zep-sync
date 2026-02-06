@@ -65,13 +65,11 @@ function MeetingProviderButton({
   url,
   isLive,
   isUpcoming,
-  isMuted,
 }: {
   provider: "teams" | "zoom" | "calendly" | "meet";
   url: string | null;
   isLive: boolean;
   isUpcoming: boolean;
-  isMuted: boolean;
 }) {
   const colors = providerColors[provider];
   const labels = providerJoinLabels[provider];
@@ -200,7 +198,6 @@ export default function AppointmentHeader({
               url={teamsUrl}
               isLive={isLive}
               isUpcoming={isUpcoming}
-              isMuted={isMuted}
             />
           )}
           {isZoom && showJoinButton && (
@@ -209,7 +206,6 @@ export default function AppointmentHeader({
               url={zoomUrl}
               isLive={isLive}
               isUpcoming={isUpcoming}
-              isMuted={isMuted}
             />
           )}
           {isCalendly && showJoinButton && (
@@ -218,7 +214,6 @@ export default function AppointmentHeader({
               url={calendlyUrl}
               isLive={isLive}
               isUpcoming={isUpcoming}
-              isMuted={isMuted}
             />
           )}
           {isGoogleMeet && showJoinButton && (
@@ -227,7 +222,6 @@ export default function AppointmentHeader({
               url={meetUrl}
               isLive={isLive}
               isUpcoming={isUpcoming}
-              isMuted={isMuted}
             />
           )}
         </div>
