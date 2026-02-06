@@ -462,11 +462,11 @@ export default function CalendarHeatmap({
               }
             }}
             disabled={seriesData.count === 0}
-            className={`w-10 h-10 rounded overflow-hidden flex items-center justify-center focus:outline-none transition-transform ${
+            className={`w-10 h-10 rounded overflow-hidden flex items-center justify-center focus:outline-none transition-transform shadow-[inset_1px_1px_2px_rgba(0,0,0,0.08)] ${
               seriesData.count === 0
                 ? "bg-gray-100 border border-gray-200 cursor-default"
-                : seriesFilterActive 
-                  ? "cursor-pointer ring-2 ring-blue-600 ring-offset-1 scale-110" 
+                : seriesFilterActive
+                  ? "cursor-pointer ring-2 ring-blue-600 ring-offset-1 scale-110"
                   : "cursor-pointer hover:brightness-110 hover:shadow-md"
             }`}
             aria-label={`Terminserien filtern: ${seriesData.count} Serien mit ${seriesData.totalAppointments} Terminen`}
@@ -479,7 +479,7 @@ export default function CalendarHeatmap({
                   return (
                     <div
                       key={seriesId}
-                      className={`flex-1 ${getSeriesStatusColor(seriesStatus)} border-b border-white/30 last:border-b-0`}
+                      className={`flex-1 ${getSeriesStatusColor(seriesStatus)} border-b border-white/30 last:border-b-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.25),inset_0_-1px_0_rgba(0,0,0,0.1)]`}
                       aria-hidden="true"
                     />
                   );
@@ -528,9 +528,9 @@ export default function CalendarHeatmap({
               <button
                 type="button"
                 onClick={() => onDayClick(isSelected ? null : dateStr)}
-                className={`w-full max-w-8 h-10 rounded overflow-hidden cursor-pointer focus:outline-none transition-transform ${
+                className={`group w-full max-w-8 h-10 rounded overflow-hidden cursor-pointer focus:outline-none transition-transform shadow-[inset_1px_1px_2px_rgba(0,0,0,0.08)] ${
                   status === "weekend" ? "bg-gray-100" : totalCount === 0 ? "bg-gray-100 border border-gray-200" : ""
-                } ${isSelected ? "ring-2 ring-blue-600 ring-offset-1 scale-110" : "hover:brightness-110 hover:shadow-md"}`}
+                } ${isSelected ? "ring-2 ring-blue-600 ring-offset-1 scale-110" : totalCount > 0 ? "hover:brightness-110 hover:shadow-md" : "hover:bg-gray-200 hover:shadow-md"}`}
                 aria-label={`${format(day, "EEEE, d. MMMM", { locale: de })}: ${totalCount} Termine, ${selectedCount} ausgewählt, Status: ${getStatusLabel(status)}`}
                 aria-pressed={isSelected}
               >
@@ -542,12 +542,14 @@ export default function CalendarHeatmap({
                       return (
                         <div
                           key={apt.id}
-                          className={`flex-1 ${getAppointmentStatusColor(aptStatus)} border-b border-white/30 last:border-b-0`}
+                          className={`flex-1 ${getAppointmentStatusColor(aptStatus)} border-b border-white/30 last:border-b-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.25),inset_0_-1px_0_rgba(0,0,0,0.1)]`}
                           aria-hidden="true"
                         />
                       );
                     })}
                   </div>
+                ) : status === "weekend" ? (
+                  <span className="text-sm opacity-0 grayscale group-hover:grayscale-0 group-hover:opacity-100 transition-all duration-300" aria-hidden="true">🎉</span>
                 ) : null}
               </button>
               
