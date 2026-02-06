@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { RefreshCw } from "lucide-react";
 import { startOfMonth, endOfMonth, subMonths, subDays, format, formatDistanceToNow } from "date-fns";
 import { de } from "date-fns/locale";
@@ -188,7 +189,7 @@ export default function DateRangePicker({
           className="flex items-center self-stretch ps-3 pe-1 text-sm font-medium text-gray-600 hover:bg-gray-50 transition whitespace-nowrap"
         >
           <span className="hidden sm:inline">Direkt zu</span>
-          <img src="/zep-logo.png" alt="ZEP" className="h-6 relative -top-[1.2px] -ml-[2px]" />
+          <Image src="/zep-logo.png" alt="ZEP" width={61} height={24} className="h-6 w-auto relative -top-[1.2px] -ml-0.5" />
         </a>
 
         {/* Load button */}
