@@ -57,7 +57,7 @@ const providerJoinLabels: Record<string, { title: string; label: string }> = {
   meet: { title: "Google Meet beitreten", label: "Beitreten" },
 };
 
-/** Shared join button / idle icon for any meeting provider */
+/** Shared join button for any meeting provider (only renders the clickable button variant) */
 function MeetingProviderButton({
   provider,
   url,
@@ -81,7 +81,7 @@ function MeetingProviderButton({
         target="_blank"
         rel="noopener noreferrer"
         onClick={(e) => e.stopPropagation()}
-        className={`group inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium shrink-0 transition-all ${
+        className={`group inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium shrink-0 transition-all ${
           isLive ? colors.live : colors.idle
         }`}
         title={labels.title}
@@ -92,7 +92,7 @@ function MeetingProviderButton({
     );
   }
 
-  return <MeetingProviderIcon provider={provider} variant="idle" isMuted={isMuted} />;
+  return null;
 }
 
 /** Whether the location text should be hidden (it's a meeting service URL, redundant with icons) */
@@ -147,55 +147,104 @@ export default function AppointmentHeader({
   const zepNote = isSynced && syncedEntry?.note ? syncedEntry.note.trim() : null;
   const hasAltTitle = zepNote && zepNote !== (appointment.subject || "").trim();
 
+  // Whether the join button is shown in row 1 (live/upcoming with a provider)
+  const showJoinButton = isLive || isUpcoming;
+
+  // Collect provider URLs for the join button area
+  const teamsUrl = isTeams ? (appointment.onlineMeeting?.joinUrl || getTeamsJoinUrlFromBody(appointment)) : null;
+  const zoomUrl = isZoom ? getZoomJoinUrl(appointment) : null;
+  const calendlyUrl = isCalendly ? getCalendlyUrl(appointment) : null;
+  const meetUrl = isGoogleMeet ? getGoogleMeetUrl(appointment) : null;
+
   return (
     <>
-      {/* Title row with duration */}
-      <div className="flex items-center gap-1.5 min-h-5">
-        {/* Title and organizer grouped with center alignment */}
-        <div className="flex items-center gap-1.5 min-w-0">
-          {/* Live Badge */}
-          {isLive && (
-            <span className="inline-flex items-center gap-0.5 px-1 rounded text-[10px] font-bold uppercase tracking-wide bg-red-100 text-red-600 shrink-0 leading-4">
-              <span className="w-2 h-2 rounded-full bg-red-500 motion-safe:animate-pulse" />
-              Jetzt
-            </span>
+      {/* Row 1: Badges + Title + Join Button */}
+      <div className="flex items-center gap-2 min-h-5">
+        {/* Live Badge */}
+        {isLive && (
+          <span className="inline-flex items-center gap-0.5 px-1 rounded text-xs font-bold uppercase tracking-wide bg-red-100 text-red-600 shrink-0 leading-4">
+            <span className="w-2 h-2 rounded-full bg-red-500 motion-safe:animate-pulse" />
+            Jetzt
+          </span>
+        )}
+        {/* Upcoming Badge */}
+        {!isLive && isUpcoming && (
+          <span className="inline-flex items-center gap-1 px-1 rounded text-xs text-blue-500 uppercase border border-blue-300 bg-blue-50 shrink-0 leading-4">
+            {isStartingSoon && (
+              <span className="inline-flex gap-0.5">
+                <span className="w-1 h-1 rounded-full bg-blue-500 motion-safe:animate-bounce" style={{ animationDelay: "0ms" }} />
+                <span className="w-1 h-1 rounded-full bg-blue-500 motion-safe:animate-bounce" style={{ animationDelay: "150ms" }} />
+                <span className="w-1 h-1 rounded-full bg-blue-500 motion-safe:animate-bounce" style={{ animationDelay: "300ms" }} />
+              </span>
+            )}
+            In K{"\u00fc"}rze
+          </span>
+        )}
+        {/* Title */}
+        {hasAltTitle ? (
+          <span className={`font-semibold text-sm truncate ${isMuted ? "text-gray-400" : "text-gray-900"}`}>{zepNote}</span>
+        ) : appointment.subject ? (
+          <span className={`font-semibold text-sm truncate ${isMuted ? "text-gray-400" : "text-gray-900"}`}>{appointment.subject}</span>
+        ) : (
+          <span className="font-medium text-gray-400 text-sm italic">Kein Titel definiert</span>
+        )}
+        {/* Join Button(s) - only when live/upcoming, pushed to right */}
+        <div className="ml-auto flex items-center gap-1.5 shrink-0">
+          {isTeams && showJoinButton && (
+            <MeetingProviderButton
+              provider="teams"
+              url={teamsUrl}
+              isLive={isLive}
+              isUpcoming={isUpcoming}
+              isMuted={isMuted}
+            />
           )}
-          {/* Upcoming Badge */}
-          {!isLive && isUpcoming && (
-            <span className="inline-flex items-center gap-1 px-1 rounded text-[10px] text-blue-500 uppercase border border-blue-300 bg-blue-50 shrink-0 leading-4">
-              {isStartingSoon && (
-                <span className="inline-flex gap-0.5">
-                  <span className="w-1 h-1 rounded-full bg-blue-500 motion-safe:animate-bounce" style={{ animationDelay: "0ms" }} />
-                  <span className="w-1 h-1 rounded-full bg-blue-500 motion-safe:animate-bounce" style={{ animationDelay: "150ms" }} />
-                  <span className="w-1 h-1 rounded-full bg-blue-500 motion-safe:animate-bounce" style={{ animationDelay: "300ms" }} />
-                </span>
-              )}
-              In K\u00fcrze
-            </span>
+          {isZoom && showJoinButton && (
+            <MeetingProviderButton
+              provider="zoom"
+              url={zoomUrl}
+              isLive={isLive}
+              isUpcoming={isUpcoming}
+              isMuted={isMuted}
+            />
           )}
-          {/* Title */}
-          {hasAltTitle ? (
-            <span className={`font-bold text-sm truncate ${isMuted ? "text-gray-400" : "text-gray-900"}`}>{zepNote}</span>
-          ) : appointment.subject ? (
-            <span className={`font-bold text-sm truncate ${isMuted ? "text-gray-400" : "text-gray-900"}`}>{appointment.subject}</span>
-          ) : (
-            <span className="font-medium text-gray-400 text-sm italic">Kein Titel definiert</span>
+          {isCalendly && showJoinButton && (
+            <MeetingProviderButton
+              provider="calendly"
+              url={calendlyUrl}
+              isLive={isLive}
+              isUpcoming={isUpcoming}
+              isMuted={isMuted}
+            />
           )}
-          {/* Organizer - inline after title */}
-          {appointment.organizer && (
-            <span
-              className={`text-xs font-light shrink-0 ${isMuted ? "text-gray-400" : "text-gray-500"}`}
-              title={appointment.organizer.emailAddress.address}
-            >
-              {appointment.isOrganizer
-                ? "von Dir"
-                : `von ${formatName(appointment.organizer.emailAddress.name) || appointment.organizer.emailAddress.address}`}
-            </span>
+          {isGoogleMeet && showJoinButton && (
+            <MeetingProviderButton
+              provider="meet"
+              url={meetUrl}
+              isLive={isLive}
+              isUpcoming={isUpcoming}
+              isMuted={isMuted}
+            />
           )}
         </div>
-        {/* Separator after organizer */}
+      </div>
+
+      {/* Row 2: Metadata line */}
+      <div className={`flex items-center gap-1.5 text-xs mt-0.5 ${isMuted ? "text-gray-400" : "text-gray-500"}`}>
+        {/* Organizer */}
         {appointment.organizer && (
-          <span className={`text-xs ${isMuted ? "text-gray-200" : "text-gray-300"}`}>&bull;</span>
+          <span
+            className="shrink-0"
+            title={appointment.organizer.emailAddress.address}
+          >
+            {appointment.isOrganizer
+              ? "von Dir"
+              : `von ${formatName(appointment.organizer.emailAddress.name) || appointment.organizer.emailAddress.address}`}
+          </span>
+        )}
+        {/* Separator after organizer */}
+        {appointment.organizer && attendeeCount > 0 && (
+          <span className={isMuted ? "text-gray-200" : "text-gray-300"}>&bull;</span>
         )}
         {/* Attendees with Popover */}
         {attendeeCount > 0 && (
@@ -208,22 +257,35 @@ export default function AppointmentHeader({
         )}
         {/* Separator after attendees */}
         {attendeeCount > 0 && hasAfterAttendeesContent && (
-          <span className={`text-xs ${isMuted ? "text-gray-200" : "text-gray-300"}`}>&bull;</span>
+          <span className={isMuted ? "text-gray-200" : "text-gray-300"}>&bull;</span>
         )}
         {/* Location */}
         {hasVisibleLocation && (
           <span
-            className={`inline-flex items-center gap-0.5 text-xs ${isMuted ? "text-gray-400" : "text-gray-500"}`}
+            className="inline-flex items-center gap-0.5"
             title={locationName}
           >
             <MapPin size={12} className="shrink-0" />
             <span className="truncate max-w-30">{locationName}</span>
           </span>
         )}
+        {/* Meeting Provider Icons (idle variant - shown when NOT live/upcoming) */}
+        {isTeams && !showJoinButton && (
+          <MeetingProviderIcon provider="teams" variant="idle" isMuted={isMuted} />
+        )}
+        {isZoom && !showJoinButton && (
+          <MeetingProviderIcon provider="zoom" variant="idle" isMuted={isMuted} />
+        )}
+        {isCalendly && !showJoinButton && (
+          <MeetingProviderIcon provider="calendly" variant="idle" isMuted={isMuted} />
+        )}
+        {isGoogleMeet && !showJoinButton && (
+          <MeetingProviderIcon provider="meet" variant="idle" isMuted={isMuted} />
+        )}
         {/* Cancelled badge */}
         {appointment.isCancelled && (
           <span
-            className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-medium cursor-help"
+            className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-medium cursor-help"
             title={
               appointment.lastModifiedDateTime
                 ? `Abgesagt am ${format(new Date(appointment.lastModifiedDateTime), "dd.MM.yyyy 'um' HH:mm", { locale: de })}`
@@ -239,58 +301,18 @@ export default function AppointmentHeader({
             )}
           </span>
         )}
-        {/* Teams Meeting */}
-        {isTeams && (
-          <MeetingProviderButton
-            provider="teams"
-            url={appointment.onlineMeeting?.joinUrl || getTeamsJoinUrlFromBody(appointment)}
-            isLive={isLive}
-            isUpcoming={isUpcoming}
-            isMuted={isMuted}
-          />
-        )}
-        {/* Zoom Meeting */}
-        {isZoom && (
-          <MeetingProviderButton
-            provider="zoom"
-            url={getZoomJoinUrl(appointment)}
-            isLive={isLive}
-            isUpcoming={isUpcoming}
-            isMuted={isMuted}
-          />
-        )}
-        {/* Calendly Meeting */}
-        {isCalendly && (
-          <MeetingProviderButton
-            provider="calendly"
-            url={getCalendlyUrl(appointment)}
-            isLive={isLive}
-            isUpcoming={isUpcoming}
-            isMuted={isMuted}
-          />
-        )}
-        {/* Google Meet */}
-        {isGoogleMeet && (
-          <MeetingProviderButton
-            provider="meet"
-            url={getGoogleMeetUrl(appointment)}
-            isLive={isLive}
-            isUpcoming={isUpcoming}
-            isMuted={isMuted}
-          />
-        )}
         {/* Call badges */}
         {appointment.type === "call" && (
           <>
             <span
-              className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-blue-100 text-blue-800"
+              className="px-1.5 py-0.5 text-xs font-medium rounded bg-blue-100 text-blue-800"
               title="Anruf"
             >
               Call
             </span>
             {appointment.callType && (
               <span
-                className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-gray-100 text-gray-600"
+                className="px-1.5 py-0.5 text-xs font-medium rounded bg-gray-100 text-gray-600"
                 title={`Anruftyp: ${appointment.callType}`}
               >
                 {appointment.callType}
@@ -298,7 +320,7 @@ export default function AppointmentHeader({
             )}
             {appointment.direction && (
               <span
-                className="text-[10px]"
+                className="text-xs"
                 title={appointment.direction === "incoming" ? "Eingehender Anruf" : "Ausgehender Anruf"}
               >
                 {appointment.direction === "incoming" ? "\ud83d\udce5" : "\ud83d\udce4"}
@@ -308,9 +330,9 @@ export default function AppointmentHeader({
         )}
       </div>
 
-      {/* Original Outlook title - shown below when synced with different remark */}
+      {/* Row 3: Original Outlook title - shown below when synced with different remark */}
       {isSynced && syncedEntry?.note && syncedEntry.note.trim() !== (appointment.subject || "").trim() && (
-        <div className={`text-[11px] truncate line-through ml-0.5 -mt-0.5 ${isMuted ? "text-gray-300" : "text-gray-400"}`}>
+        <div className={`text-xs truncate line-through ml-0.5 -mt-0.5 ${isMuted ? "text-gray-300" : "text-gray-400"}`}>
           {appointment.subject}
         </div>
       )}

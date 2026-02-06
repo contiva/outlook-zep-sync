@@ -46,14 +46,14 @@ export default function AppointmentStatusBar({
     <div className="shrink-0 flex items-center gap-1.5" role="status">
       {/* Editing badge */}
       {isSynced && isEditing && (
-        <span className="text-xs px-2 py-0.5 rounded font-medium text-yellow-700 bg-yellow-50">
+        <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded font-medium text-violet-700 bg-violet-50">
           In Bearbeitung
         </span>
       )}
 
       {/* Synced badge */}
       {isSynced && (
-        <span className="text-xs px-2 py-0.5 rounded font-medium text-green-700 bg-green-50">
+        <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded font-medium text-green-700 bg-green-50">
           Synced
         </span>
       )}
@@ -62,14 +62,14 @@ export default function AppointmentStatusBar({
       {attendeeCount > 0 && (
         isInternalOnly ? (
           <span
-            className="text-xs px-2 py-0.5 rounded font-medium bg-gray-100 text-gray-600"
+            className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded font-medium bg-gray-100 text-gray-600"
             title="Internes Meeting - nur Contiva-Teilnehmer"
           >
             Intern
           </span>
         ) : (
           <span
-            className="text-xs px-2 py-0.5 rounded font-medium bg-amber-100 text-amber-700"
+            className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded font-medium bg-amber-100 text-amber-700"
             title="Externes Meeting - externe Teilnehmer"
           >
             Extern
@@ -90,7 +90,7 @@ export default function AppointmentStatusBar({
             onLink={onLinkToZep}
           >
             <span
-              className="text-xs px-2 py-0.5 rounded font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 transition cursor-pointer"
+              className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded font-medium text-orange-700 bg-orange-50 hover:bg-orange-100 transition cursor-pointer"
               title={`${duplicateWarning.message} — Klicken zum Verknüpfen`}
             >
               {duplicateWarning.type === 'exact' ? 'Duplikat' : duplicateWarning.type === 'timeOverlap' ? 'Zeitüberschneidung' : 'Ähnlich'}
@@ -98,7 +98,7 @@ export default function AppointmentStatusBar({
           </ConflictLinkPopover>
         ) : (
           <span
-            className="text-xs px-2 py-0.5 rounded font-medium text-amber-700 bg-amber-50"
+            className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded font-medium text-orange-700 bg-orange-50"
             title={duplicateWarning.message}
           >
             {duplicateWarning.type === 'exact' ? 'Duplikat' : duplicateWarning.type === 'timeOverlap' ? 'Zeitüberschneidung' : 'Ähnlich'}
@@ -131,7 +131,7 @@ export default function AppointmentStatusBar({
               onLink={onLinkToZep}
             >
               <span
-                className="text-xs px-2 py-0.5 rounded font-medium text-green-700 bg-green-50 hover:bg-green-100 transition cursor-pointer"
+                className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded font-medium text-green-700 bg-green-50 hover:bg-green-100 transition cursor-pointer"
                 title="Als verknüpft markieren"
               >
                 Verknüpfen

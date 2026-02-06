@@ -5,9 +5,9 @@ import { Banknote, ClockArrowUp, Loader2 } from "lucide-react";
 import SearchableSelect, { SelectOption } from "./SearchableSelect";
 
 // === Shared Styles ===
-const labelBase = "text-xs mb-1";
-const labelEnabled = `${labelBase} text-gray-500`;
-const labelDisabled = `${labelBase} text-gray-300`;
+const labelBase = "text-xs mb-1 font-medium";
+const labelEnabled = `${labelBase} text-gray-600`;
+const labelDisabled = `${labelBase} text-gray-400`;
 
 // === Interfaces (duplicated per project pattern) ===
 
@@ -225,7 +225,13 @@ export default function ProjectTaskActivityForm({
   );
 
   return (
-    <>
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (isSyncReady && !isSyncing) onSync();
+      }}
+      className="contents"
+    >
       {/* Projekt-Dropdown */}
       <div className="flex flex-col flex-3 min-w-0">
         <label className={labelEnabled}>Projekt</label>
@@ -436,8 +442,7 @@ export default function ProjectTaskActivityForm({
       {/* Sync Button */}
       <div className="flex flex-col justify-end shrink-0">
         <button
-          type="button"
-          onClick={() => isSyncReady && !isSyncing && onSync()}
+          type="submit"
           disabled={!isSyncReady || isSyncing}
           className={`group flex items-center justify-center w-8 h-8 border transition-all ${
             isSyncing
@@ -458,6 +463,6 @@ export default function ProjectTaskActivityForm({
           )}
         </button>
       </div>
-    </>
+    </form>
   );
 }

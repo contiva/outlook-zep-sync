@@ -440,11 +440,11 @@ export default function AppointmentRow({
 
   // Row state → visual style mapping
   const rowStateClass = isSynced && isModified
-    ? "border-l-amber-400 border-gray-200 bg-amber-50/40"
+    ? "border-l-violet-400 border-gray-200 bg-violet-50/30"
     : isSynced
       ? "border-l-green-600 border-gray-200 bg-green-50/30"
       : isSyncReady
-        ? "border-l-amber-400 border-gray-200 bg-amber-50/30"
+        ? "border-l-blue-500 border-gray-200 bg-blue-50/20"
         : appointment.selected
           ? "border-l-blue-400 border-gray-200 bg-white"
           : "border-l-gray-300 border-gray-200 bg-gray-50/50";
@@ -468,7 +468,7 @@ export default function AppointmentRow({
                 role="img"
                 aria-label="Änderungen ausstehend"
               >
-                <ClockArrowUp className="h-5 w-5 text-amber-500" aria-hidden="true" />
+                <ClockArrowUp className="h-5 w-5 text-violet-500" aria-hidden="true" />
               </div>
             ) : isSynced ? (
               <div
@@ -484,7 +484,7 @@ export default function AppointmentRow({
                 role="img"
                 aria-label="Bereit zur Synchronisierung"
               >
-                <ClockArrowUp className="h-5 w-5 text-amber-500" aria-hidden="true" />
+                <ClockArrowUp className="h-5 w-5 text-blue-500" aria-hidden="true" />
               </div>
             ) : (
               <button
@@ -541,7 +541,7 @@ export default function AppointmentRow({
               canSwitch={(!isSynced || isEditing) && !!actualDurationInfo && actualDurationInfo.difference !== 0}
               onTimeTypeChange={handleTimeTypeChange}
             >
-              <span className="relative pr-2">
+              <span className="relative pr-2 cursor-pointer decoration-dotted decoration-gray-300 underline underline-offset-2 hover:decoration-blue-400 hover:text-gray-900 transition-colors">
                 {isSynced && !isEditing && zepBookedDuration ? (
                   <span className={`font-semibold ${isMuted ? "text-gray-400" : "text-gray-700"}`}>{zepBookedDuration.from}–{zepBookedDuration.to}</span>
                 ) : actualDurationInfo ? (
@@ -567,7 +567,7 @@ export default function AppointmentRow({
             {/* Duration badge - shows both times for synced entries with checkmark on synced one */}
             {isSynced && !isEditing && zepBookedDuration ? (
               <span
-                className={`inline-flex items-center gap-0.5 text-xs rounded ${isMuted ? "bg-gray-100 text-gray-400" : "bg-gray-100"}`}
+                className={`inline-flex items-center gap-0.5 text-xs rounded-md ${isMuted ? "bg-gray-100 text-gray-400" : "bg-gray-100"}`}
                 title={`In ZEP gebucht: ${zepBookedDuration.from}–${zepBookedDuration.to}`}
               >
                 {/* Planned time - with checkmark if synced */}
@@ -613,7 +613,7 @@ export default function AppointmentRow({
             ) : (
               // Not synced or editing: Show both times as toggle buttons
               <span
-                className={`inline-flex items-center gap-0.5 text-xs rounded ring-1 ${isMuted ? "bg-gray-100 text-gray-400 ring-gray-200" : "bg-gray-100 ring-blue-300"}`}
+                className={`inline-flex items-center gap-0.5 text-xs rounded-md ring-1 shadow-sm ${isMuted ? "bg-gray-100 text-gray-400 ring-gray-200" : "bg-white ring-blue-300"}`}
                 title={actualDurationInfo
                   ? `Geplant: ${formatDuration(plannedDurationRounded.totalMinutes)} | Tats\u00e4chlich: ${formatDuration(actualDurationInfo.totalMinutes)}`
                   : `Geplant: ${formatDuration(plannedDurationRounded.totalMinutes)} | Tats\u00e4chlich: keine Daten`
@@ -630,8 +630,8 @@ export default function AppointmentRow({
                   disabled={!actualDurationInfo}
                   className={`inline-flex items-center gap-0.5 px-1.5 py-1 rounded-l transition-colors ${
                     !appointment.useActualTime || !actualDurationInfo
-                      ? "bg-blue-100 text-blue-700 font-medium"
-                      : "text-gray-400 hover:text-gray-600 hover:bg-gray-200"
+                      ? "bg-blue-500 text-white font-semibold"
+                      : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
                   } ${!actualDurationInfo ? "cursor-default" : "cursor-pointer"}`}
                   title={`Geplant (gerundet): ${formatDuration(plannedDurationRounded.totalMinutes)} - f\u00fcr ZEP verwenden`}
                 >
@@ -652,8 +652,8 @@ export default function AppointmentRow({
                     !actualDurationInfo || actualDurationInfo.difference === 0
                       ? "text-gray-300 cursor-default"
                       : appointment.useActualTime
-                        ? `bg-blue-100 font-medium ${actualDurationInfo.color}`
-                        : `${actualDurationInfo.color} hover:bg-gray-200`
+                        ? `bg-blue-500 text-white font-semibold`
+                        : `${actualDurationInfo.color} hover:bg-gray-100`
                   }`}
                   title={!actualDurationInfo
                     ? "Keine tats\u00e4chliche Zeit verf\u00fcgbar"
@@ -694,35 +694,31 @@ export default function AppointmentRow({
         />
       </div>
 
-      {/* Synced entry info - compact inline */}
+      {/* Synced entry info - badge */}
       {isSynced && syncedInfo && !isEditing && (
-        <div className="mt-2 pt-2 ml-8 border-t border-gray-100 flex items-center gap-2 text-xs text-gray-500" role="status">
-          <span className="font-medium text-gray-600">{syncedInfo.projectName}</span>
-          {syncedInfo.taskName && (
-            <>
-              <span className="text-gray-300">/</span>
-              <span title={syncedInfo.activityName}>
-                {syncedInfo.taskName} <span className="text-gray-400">({syncedInfo.activityId})</span>
-              </span>
-            </>
-          )}
-          <span
-            title={syncedInfo.billable ? "Fakturierbar" : "Nicht fakturierbar (intern)"}
-            aria-label={syncedInfo.billable ? "Fakturierbar" : "Nicht fakturierbar (intern)"}
-          >
-            <Banknote
-              size={14}
-              className={syncedInfo.billable ? "text-amber-500" : "text-gray-400"}
-              aria-hidden="true"
-            />
+        <div className="mt-2 ml-8 flex items-center gap-2" role="status">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-50 border border-green-200 rounded-md text-xs">
+            <ClockCheck size={12} className="text-green-600 shrink-0" />
+            <span className="font-medium text-green-700">{syncedInfo.projectName}</span>
+            {syncedInfo.taskName && (
+              <>
+                <span className="text-green-300">/</span>
+                <span className="text-green-600" title={syncedInfo.activityName}>
+                  {syncedInfo.taskName} <span className="text-green-400">({syncedInfo.activityId})</span>
+                </span>
+              </>
+            )}
+            <span title={syncedInfo.billable ? "Fakturierbar" : "Nicht fakturierbar (intern)"} aria-label={syncedInfo.billable ? "Fakturierbar" : "Nicht fakturierbar (intern)"}>
+              <Banknote size={12} className={syncedInfo.billable ? "text-emerald-600" : "text-gray-400"} aria-hidden="true" />
+            </span>
           </span>
-          {isModified && <span className="text-amber-600 font-medium">Ge\u00e4ndert</span>}
+          {isModified && <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded font-medium text-violet-700 bg-violet-50">Ge\u00e4ndert</span>}
         </div>
       )}
 
       {/* Rescheduled appointment info */}
       {duplicateWarning?.type === 'rescheduled' && !isSynced && duplicateWarning.originalTime && duplicateWarning.newTime && (
-        <div className="mt-1 ml-8 text-xs space-y-0.5">
+        <div className="mt-2 ml-8 text-xs space-y-0.5">
           <div className="flex items-center gap-2">
             <span className="text-gray-500 w-14">In ZEP:</span>
             <span className="text-red-500 line-through">
@@ -740,7 +736,7 @@ export default function AppointmentRow({
 
       {/* Editing UI for synced entries */}
       {isSynced && isEditing && syncedEntry && (
-        <div className="mt-2 ml-8 flex items-end gap-2">
+        <div className="mt-3 pt-2 border-t border-gray-100 ml-8 flex items-end gap-2">
           <ProjectTaskActivityForm
             projects={projects}
             tasks={
@@ -810,7 +806,7 @@ export default function AppointmentRow({
 
       {/* Dropdowns for selected unsynchronized appointments */}
       {appointment.selected && !isSynced && (
-        <div className="mt-2 ml-8 flex items-end gap-2">
+        <div className="mt-3 pt-2 border-t border-gray-100 ml-8 flex items-end gap-2">
           <ProjectTaskActivityForm
             projects={projects}
             tasks={tasks}
