@@ -1,6 +1,7 @@
 import { NextAuthOptions } from "next-auth";
 import AzureADProvider from "next-auth/providers/azure-ad";
 import { JWT } from "next-auth/jwt";
+import { registerUserForNotifications } from "@/lib/redis";
 
 // Allowed email domains for login
 const ALLOWED_DOMAINS = ["contiva.com"];
@@ -89,6 +90,13 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, account }) {
       // Initial sign in
       if (account) {
+        // Register user for month-end notifications
+        if (account.providerAccountId && token.email) {
+          registerUserForNotifications(account.providerAccountId, token.email as string).catch((err) =>
+            console.error("[Auth] Failed to register user for notifications:", err)
+          );
+        }
+
         return {
           ...token,
           accessToken: account.access_token,

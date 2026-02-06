@@ -42,6 +42,11 @@
         "type": "pendingAppointments",
         "description": "Unbearbeitete Termine für heute",
         "templateText": "{actor} hat {count} unbearbeitete Termine für heute"
+      },
+      {
+        "type": "monthEndReminder",
+        "description": "Monatsabschluss-Erinnerung",
+        "templateText": "{message}"
       }
     ]
   },

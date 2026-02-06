@@ -69,3 +69,12 @@ body {
 .animate-sync-hop {
   animation: sync-hop 1.5s ease-in-out infinite;
 }
+
+/* Month-end reminder glow animation */
+@keyframes month-end-glow {
+  0%, 100% { background-color: #fef2f2; }
+  50% { background-color: #fee2e2; }
+}
+.animate-month-end-glow {
+  animation: month-end-glow 3s ease-in-out infinite;
+}

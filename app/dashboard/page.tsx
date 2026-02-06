@@ -17,6 +17,7 @@ import { checkAppointmentsForDuplicates, DuplicateCheckResult, ZepAttendance, ca
 import { ActualDuration, ActualDurationsMap, normalizeJoinUrl, getDurationKey } from "@/lib/teams-utils";
 import { roundToNearest15Min, timesMatch } from "@/lib/time-utils";
 import { useTeamsAuth } from "@/lib/useTeamsAuth";
+import { isLastBusinessDayOfMonth } from "@/lib/date-utils";
 
 // Helper: Determine billable status from project/task settings
 // Values: 0=inherited(task only), 1=billable+editable, 2=billable+locked, 3=not billable+editable, 4=not billable+locked
@@ -3449,6 +3450,12 @@ export default function Dashboard() {
         </div>
       )}
 
+      {isLastBusinessDayOfMonth(new Date()) && (
+        <div className="animate-month-end-glow bg-red-50 border-b border-red-200 text-red-700 text-center py-2 text-sm font-bold">
+          Letzter Werktag — Bitte alle Zeiten bis Tagesende buchen und freigeben
+        </div>
+      )}
+
       <main className="max-w-6xl mx-auto px-4 pt-4 pb-8 space-y-1">
         {/* Combined Date Picker and Calendar Heatmap with Legend */}
         <div className="relative">
@@ -3620,9 +3627,10 @@ export default function Dashboard() {
         />
 
         <footer className="flex flex-col items-center gap-2 pt-4 pb-2">
-          <span className="text-xs text-white [-webkit-text-stroke:0.5px_rgb(160,160,160)] [text-shadow:0_1px_0_rgba(255,255,255,0.5),0_-1px_0_rgba(0,0,0,0.08)]">
-            Copyright 2026 by Contiva GmbH — v{process.env.APP_VERSION}
+          <span className="text-xs text-gray-300 [-webkit-text-stroke:0.5px_rgb(160,160,160)]">
+            Copyright 2026 by Contiva GmbH  /  v{process.env.APP_VERSION}
           </span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/contiva_color.svg" alt="Contiva" className="h-5 opacity-30" />
         </footer>
       </main>

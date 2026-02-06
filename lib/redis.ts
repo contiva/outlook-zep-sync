@@ -109,3 +109,31 @@ export async function batchSaveSyncMappings(
     mappings.map((mapping) => saveSyncMapping(userId, mapping))
   );
 }
+
+// --- Notification user registration ---
+
+const NOTIFICATION_USERS_KEY = "notification-users";
+
+/**
+ * Register a user for notifications (stores azureId → email mapping).
+ */
+export async function registerUserForNotifications(
+  azureId: string,
+  email: string
+): Promise<void> {
+  await redis.hset(NOTIFICATION_USERS_KEY, { [azureId]: email });
+}
+
+/**
+ * Get all registered users for notifications.
+ * Returns an array of { azureId, email } objects.
+ */
+export async function getRegisteredUsers(): Promise<
+  { azureId: string; email: string }[]
+> {
+  const data = await redis.hgetall<Record<string, string>>(
+    NOTIFICATION_USERS_KEY
+  );
+  if (!data) return [];
+  return Object.entries(data).map(([azureId, email]) => ({ azureId, email }));
+}
