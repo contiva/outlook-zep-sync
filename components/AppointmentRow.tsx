@@ -6,6 +6,7 @@ import { de } from "date-fns/locale";
 import { Users, ClockCheck, ClockArrowUp, AlertTriangle, Pencil, X, Check, RefreshCw, RotateCcw, Ban, Banknote, Loader2, MapPin } from "lucide-react";
 import SearchableSelect, { SelectOption } from "./SearchableSelect";
 import { DuplicateCheckResult } from "@/lib/zep-api";
+import { RedisSyncMapping } from "@/lib/redis";
 import { ActualDuration } from "@/lib/teams-utils";
 import { calculateDisplayTimes, roundToNearest15Min } from "@/lib/time-utils";
 
@@ -365,6 +366,11 @@ interface AppointmentRowProps {
   // Rescheduled appointment correction
   onCorrectTime?: (appointmentId: string, duplicateWarning: DuplicateCheckResult) => void;
   isCorrectingTime?: boolean;
+  // Conflict link popover
+  onLinkToZep?: (appointmentId: string, zepEntryId: number) => void;
+  syncedEntries?: SyncedEntry[];
+  syncMappings?: Map<string, RedisSyncMapping>;
+  linkedZepIds?: Set<number>;
   // Keyboard navigation focus
   isFocused?: boolean;
 }
@@ -867,6 +873,178 @@ function DurationInfoPopover({
   );
 }
 
+// Conflict Link Popover - allows linking an Outlook appointment to an existing ZEP entry
+interface ConflictLinkPopoverProps {
+  appointmentId: string;
+  appointmentDate: string; // ISO datetime
+  suggestedEntryId?: number;
+  suggestedEntry?: { note: string | null; from: string; to: string; projektNr?: string; vorgangNr?: string };
+  syncedEntries: SyncedEntry[];
+  linkedZepIds?: Set<number>;
+  onLink: (appointmentId: string, zepEntryId: number) => void;
+  children: React.ReactNode;
+}
+
+function ConflictLinkPopover({
+  appointmentId,
+  appointmentDate,
+  suggestedEntryId,
+  suggestedEntry,
+  syncedEntries,
+  linkedZepIds,
+  onLink,
+  children,
+}: ConflictLinkPopoverProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [openAbove, setOpenAbove] = useState(false);
+  const [selectedEntryId, setSelectedEntryId] = useState<number | null>(suggestedEntryId ?? null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  const aptDateStr = new Date(appointmentDate).toISOString().split("T")[0];
+  const sameDayEntries = syncedEntries.filter((entry) => {
+    const entryDate = entry.date.split("T")[0];
+    if (entryDate !== aptDateStr) return false;
+    if (entry.id && linkedZepIds?.has(entry.id)) return false;
+    return true;
+  }).sort((a, b) => b.from.localeCompare(a.from));
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        popoverRef.current &&
+        !popoverRef.current.contains(event.target as Node) &&
+        triggerRef.current &&
+        !triggerRef.current.contains(event.target as Node)
+      ) {
+        setIsOpen(false);
+      }
+    }
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [isOpen]);
+
+  const handleToggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!isOpen) {
+      // Reset selection when opening
+      setSelectedEntryId(suggestedEntryId ?? null);
+      if (triggerRef.current) {
+        const rect = triggerRef.current.getBoundingClientRect();
+        const spaceBelow = window.innerHeight - rect.bottom;
+        const popoverHeight = 280;
+        setOpenAbove(spaceBelow < popoverHeight && rect.top > popoverHeight);
+      }
+    }
+    setIsOpen(!isOpen);
+  };
+
+  const handleLink = () => {
+    if (selectedEntryId !== null) {
+      onLink(appointmentId, selectedEntryId);
+      setIsOpen(false);
+    }
+  };
+
+  return (
+    <span className="relative inline-flex items-center">
+      <button
+        ref={triggerRef}
+        onClick={handleToggle}
+        className="cursor-pointer"
+      >
+        {children}
+      </button>
+
+      {isOpen && (
+        <div
+          ref={popoverRef}
+          className={`absolute right-0 z-50 bg-white rounded-lg shadow-lg border border-gray-200 p-3 min-w-72 max-w-96 font-[Inter] ${
+            openAbove ? "bottom-full mb-1" : "top-full mt-1"
+          }`}
+        >
+          <div className="text-xs font-medium text-gray-700 mb-2">
+            ZEP-Eintrag verknüpfen
+          </div>
+
+          {sameDayEntries.length === 0 ? (
+            <div className="text-xs text-gray-500 py-2 space-y-2">
+              <div>Keine verfügbaren ZEP-Einträge an diesem Tag.</div>
+              {suggestedEntry && (
+                <div className="p-2 bg-amber-50 rounded-lg border border-amber-200">
+                  <div className="text-[11px] text-amber-600 mb-1">Überschneidung mit:</div>
+                  <div className="text-xs font-medium text-gray-800 truncate">
+                    {suggestedEntry.note || "Ohne Bemerkung"}
+                  </div>
+                  <div className="text-[11px] text-gray-500">
+                    {suggestedEntry.from.slice(0, 5)}–{suggestedEntry.to.slice(0, 5)}
+                    {suggestedEntry.projektNr && (
+                      <span className="ml-1.5 text-gray-400">
+                        {suggestedEntry.projektNr}{suggestedEntry.vorgangNr ? `/${suggestedEntry.vorgangNr}` : ""}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[10px] text-amber-500 mt-1">Bereits einem anderen Termin zugeordnet</div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-1 max-h-48 overflow-y-auto">
+              {sameDayEntries.map((entry) => (
+                <label
+                  key={entry.id}
+                  className={`flex items-start gap-2 p-2 rounded-lg cursor-pointer transition ${
+                    selectedEntryId === entry.id
+                      ? "bg-blue-50 border border-blue-200"
+                      : entry.id === suggestedEntryId
+                        ? "bg-amber-50 border border-amber-200 hover:bg-amber-100"
+                        : "hover:bg-gray-50 border border-transparent"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name={`link-zep-${appointmentId}`}
+                    checked={selectedEntryId === entry.id}
+                    onChange={() => setSelectedEntryId(entry.id)}
+                    className="mt-0.5 accent-blue-600"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-medium text-gray-800 truncate">
+                      {entry.note || "Ohne Bemerkung"}
+                    </div>
+                    <div className="text-[11px] text-gray-500">
+                      {entry.from.slice(0, 5)}–{entry.to.slice(0, 5)}
+                      {entry.projektNr && (
+                        <span className="ml-1.5 text-gray-400">
+                          {entry.projektNr}{entry.vorgangNr ? `/${entry.vorgangNr}` : ""}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </label>
+              ))}
+            </div>
+          )}
+
+          {sameDayEntries.length > 0 && (
+            <div className="mt-2 pt-2 border-t border-gray-100 flex justify-end">
+              <button
+                onClick={handleLink}
+                disabled={selectedEntryId === null}
+                className="px-3 py-1 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700 transition disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Verknüpfen
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </span>
+  );
+}
+
 export default function AppointmentRow({
   appointment,
   projects,
@@ -902,6 +1080,10 @@ export default function AppointmentRow({
   isSavingModifiedSingle = false,
   onCorrectTime,
   isCorrectingTime = false,
+  onLinkToZep,
+  syncedEntries,
+  syncMappings,
+  linkedZepIds: linkedZepIdsProp,
   isFocused = false,
 }: AppointmentRowProps) {
   const startDate = new Date(appointment.start.dateTime);
@@ -1222,8 +1404,8 @@ export default function AppointmentRow({
         const assigned = assignedActivities.find(aa => aa.name === a.name);
         return {
           value: a.name,
-          label: assigned?.standard ? `${a.name} (Standard)` : a.name,
-          description: a.description,
+          label: a.name,
+          description: assigned?.standard ? `${a.description} (Standard)` : a.description,
         };
       });
     }
@@ -1309,6 +1491,18 @@ export default function AppointmentRow({
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [isEditing, isModified, appointment.id, onCancelEditSynced]);
+
+  // ZEP entry IDs already linked to any appointment (to exclude from popover)
+  // Prefer prop from parent (includes both Redis + subject matches), fallback to syncMappings only
+  const linkedZepIds = useMemo(() => {
+    if (linkedZepIdsProp) return linkedZepIdsProp;
+    if (!syncMappings || syncMappings.size === 0) return undefined;
+    const ids = new Set<number>();
+    for (const mapping of syncMappings.values()) {
+      ids.add(mapping.zepAttendanceId);
+    }
+    return ids;
+  }, [linkedZepIdsProp, syncMappings]);
 
   // Get synced project/task info for display
   const syncedInfo = useMemo(() => {
@@ -1449,11 +1643,23 @@ export default function AppointmentRow({
                   In Kürze
                 </span>
               )}
-              {appointment.subject ? (
-                <span className={`font-bold text-sm truncate ${isMuted ? "text-gray-400" : "text-gray-900"}`}>{appointment.subject}</span>
-              ) : (
-                <span className="font-medium text-gray-400 text-sm italic">Kein Titel definiert</span>
-              )}
+              {(() => {
+                // In synced mode: show ZEP note as primary title if it differs from Outlook subject
+                const zepNote = isSynced && syncedEntry?.note ? syncedEntry.note.trim() : null;
+                const hasAltTitle = zepNote && zepNote !== (appointment.subject || "").trim();
+
+                if (hasAltTitle) {
+                  return (
+                    <span className={`font-bold text-sm truncate ${isMuted ? "text-gray-400" : "text-gray-900"}`}>{zepNote}</span>
+                  );
+                }
+
+                return appointment.subject ? (
+                  <span className={`font-bold text-sm truncate ${isMuted ? "text-gray-400" : "text-gray-900"}`}>{appointment.subject}</span>
+                ) : (
+                  <span className="font-medium text-gray-400 text-sm italic">Kein Titel definiert</span>
+                );
+              })()}
               {/* Organizer - inline after title */}
               {appointment.organizer && (
                 <span
@@ -1504,7 +1710,7 @@ export default function AppointmentRow({
                 title={appointment.location.displayName}
               >
                 <MapPin size={11} className="shrink-0" />
-                <span className="truncate max-w-[120px]">{appointment.location.displayName}</span>
+                <span className="truncate max-w-30">{appointment.location.displayName}</span>
               </span>
             )}
             {/* Cancelled badge */}
@@ -1741,7 +1947,14 @@ export default function AppointmentRow({
               </>
             )}
           </div>
-          
+
+          {/* Original Outlook title - shown below when synced with different remark */}
+          {isSynced && syncedEntry?.note && syncedEntry.note.trim() !== (appointment.subject || "").trim() && (
+            <div className={`text-[11px] truncate line-through ml-0.5 -mt-0.5 ${isMuted ? "text-gray-300" : "text-gray-400"}`}>
+              {appointment.subject}
+            </div>
+          )}
+
           {/* Details row - Date/Time, Organizer, Attendee Domains */}
           <div className={`flex items-center gap-2 text-xs mt-0.5 ${isMuted ? "text-gray-400" : "text-gray-500"}`}>
             {/* Date and Time - clickable to show time options popover */}
@@ -1989,21 +2202,56 @@ export default function AppointmentRow({
             )
           )}
           {duplicateWarning?.hasDuplicate && !isSynced && duplicateWarning.type !== 'rescheduled' && (
-            <span className="px-2 py-0.5 text-xs font-medium text-amber-700 bg-amber-50 rounded" title={duplicateWarning.message}>
-              {duplicateWarning.type === 'exact' ? 'Duplikat' : duplicateWarning.type === 'timeOverlap' ? 'Doppelbuchung' : 'Ähnlich'}
-            </span>
+            onLinkToZep && syncedEntries ? (
+              <ConflictLinkPopover
+                appointmentId={appointment.id}
+                appointmentDate={appointment.start.dateTime}
+                suggestedEntryId={duplicateWarning.existingEntry?.id}
+                suggestedEntry={duplicateWarning.existingEntry}
+                syncedEntries={syncedEntries}
+                linkedZepIds={linkedZepIds}
+                onLink={onLinkToZep}
+              >
+                <span className="px-2 py-0.5 text-xs font-medium text-amber-700 bg-amber-50 rounded hover:bg-amber-100 transition cursor-pointer" title={`${duplicateWarning.message} — Klicken zum Verknüpfen`}>
+                  {duplicateWarning.type === 'exact' ? 'Duplikat' : duplicateWarning.type === 'timeOverlap' ? 'Zeitüberschneidung' : 'Ähnlich'}
+                </span>
+              </ConflictLinkPopover>
+            ) : (
+              <span className="px-2 py-0.5 text-xs font-medium text-amber-700 bg-amber-50 rounded" title={duplicateWarning.message}>
+                {duplicateWarning.type === 'exact' ? 'Duplikat' : duplicateWarning.type === 'timeOverlap' ? 'Zeitüberschneidung' : 'Ähnlich'}
+              </span>
+            )
           )}
-          {/* Rescheduled appointment - show correction button */}
-          {duplicateWarning?.type === 'rescheduled' && !isSynced && onCorrectTime && (
-            <button
-              onClick={() => onCorrectTime(appointment.id, duplicateWarning)}
-              disabled={isCorrectingTime}
-              className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium text-blue-700 bg-blue-50 rounded hover:bg-blue-100 transition disabled:opacity-50"
-              title={duplicateWarning.message}
-            >
-              <RefreshCw size={10} className={isCorrectingTime ? "animate-spin" : ""} />
-              Zeiten korrigieren
-            </button>
+          {/* Rescheduled appointment - show correction button and link option */}
+          {duplicateWarning?.type === 'rescheduled' && !isSynced && (
+            <>
+              {onCorrectTime && (
+                <button
+                  onClick={() => onCorrectTime(appointment.id, duplicateWarning)}
+                  disabled={isCorrectingTime}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium text-blue-700 bg-blue-50 rounded hover:bg-blue-100 transition disabled:opacity-50"
+                  title={duplicateWarning.message}
+                >
+                  <RefreshCw size={10} className={isCorrectingTime ? "animate-spin" : ""} />
+                  Zeiten korrigieren
+                </button>
+              )}
+              {onLinkToZep && syncedEntries && (
+                <ConflictLinkPopover
+                  appointmentId={appointment.id}
+                  appointmentDate={appointment.start.dateTime}
+                  suggestedEntryId={duplicateWarning.existingEntry?.id}
+                  suggestedEntry={duplicateWarning.existingEntry}
+                  syncedEntries={syncedEntries}
+                  linkedZepIds={linkedZepIds}
+                  onLink={onLinkToZep}
+                >
+                  <span className="px-2 py-0.5 text-xs font-medium text-green-700 bg-green-50 rounded hover:bg-green-100 transition cursor-pointer" title="Als verknüpft markieren">
+                    Verknüpfen
+                  </span>
+                </ConflictLinkPopover>
+              )}
+            </>
           )}
           
           {/* Reset button for unsynchronized entries being edited */}
@@ -2079,9 +2327,9 @@ export default function AppointmentRow({
 
       {/* Editing UI for synced entries - inline like normal appointments */}
       {isSynced && isEditing && syncedEntry && (
-        <div className="mt-3 pt-3 ml-8 border-t border-gray-100 flex flex-wrap items-end gap-3">
+        <div className="mt-3 pt-3 ml-8 border-t border-gray-100 flex items-end gap-2">
           {/* Projekt-Dropdown */}
-          <div className="flex flex-col min-w-0">
+          <div className="flex flex-col flex-3 min-w-0">
             <label className="text-xs text-gray-500 mb-1">Projekt</label>
             <SearchableSelect
               options={projectOptions}
@@ -2092,12 +2340,11 @@ export default function AppointmentRow({
                 }
               }}
               placeholder="-- Projekt wählen --"
-              className="w-64 sm:w-72"
             />
           </div>
 
           {/* Task-Dropdown */}
-          <div className="flex flex-col min-w-0">
+          <div className="flex flex-col flex-3 min-w-0">
             <label className="text-xs text-gray-500 mb-1">Task</label>
             <SearchableSelect
               options={editingTaskOptions}
@@ -2110,12 +2357,11 @@ export default function AppointmentRow({
               placeholder="-- Task wählen --"
               disabled={editingTaskOptions.length === 0}
               disabledMessage={editingTaskOptions.length === 0 ? "Laden..." : undefined}
-              className="w-64 sm:w-72"
             />
           </div>
 
           {/* Activity-Dropdown */}
-          <div className="flex flex-col min-w-0">
+          <div className="flex flex-col w-24 shrink-0">
             <label className="text-xs text-gray-500 mb-1">Tätigkeit</label>
             <SearchableSelect
               options={activityOptions}
@@ -2128,33 +2374,44 @@ export default function AppointmentRow({
               placeholder="-- Tätigkeit wählen --"
               disabled={!(modifiedEntry?.newTaskId || syncedEntry.project_task_id)}
               disabledMessage={!(modifiedEntry?.newProjectId || syncedEntry.project_id) ? "Erst Projekt wählen" : "Erst Task wählen"}
-              className="w-40 sm:w-48"
+              compact
             />
           </div>
 
           {/* Custom Remark (ZEP Bemerkung) - Edit mode */}
-          <div className="flex flex-col flex-1 min-w-48">
-            <label className="text-xs text-gray-500 mb-1">Bemerkung</label>
-            <input
-              type="text"
-              value={modifiedEntry?.bemerkung ?? syncedEntry.note ?? ""}
-              onChange={(e) => {
-                if (onModifyBemerkung && syncedEntry) {
-                  onModifyBemerkung(appointment.id, appointment, syncedEntry, e.target.value);
-                }
-              }}
-              placeholder={appointment.subject}
-              className={`h-9.5 px-3 text-sm rounded-lg border transition-colors ${
-                (modifiedEntry?.bemerkung ?? syncedEntry.note) && (modifiedEntry?.bemerkung ?? syncedEntry.note) !== appointment.subject
-                  ? "bg-blue-50 border-blue-300 text-blue-900 focus:ring-blue-500 focus:border-blue-500"
-                  : "bg-white border-gray-300 text-gray-900 focus:ring-blue-500 focus:border-blue-500 placeholder-gray-400"
-              }`}
-              title={`ZEP-Bemerkung: "${modifiedEntry?.bemerkung ?? syncedEntry.note ?? appointment.subject}"`}
-            />
-          </div>
+          {(() => {
+            // Show custom remark only if it differs from the Outlook subject
+            const hasCustomRemark = syncedEntry.note && syncedEntry.note.trim() !== (appointment.subject || "").trim();
+            const displayValue = modifiedEntry?.bemerkung !== undefined
+              ? modifiedEntry.bemerkung
+              : (hasCustomRemark ? syncedEntry.note : "");
+            const isCustom = displayValue && displayValue.trim() !== (appointment.subject || "").trim();
+
+            return (
+              <div className="flex flex-col flex-2 min-w-0">
+                <label className="text-xs text-gray-500 mb-1">Bemerkung</label>
+                <input
+                  type="text"
+                  value={displayValue ?? ""}
+                  onChange={(e) => {
+                    if (onModifyBemerkung && syncedEntry) {
+                      onModifyBemerkung(appointment.id, appointment, syncedEntry, e.target.value);
+                    }
+                  }}
+                  placeholder={appointment.subject}
+                  className={`h-9.5 px-3 text-sm rounded-lg border transition-colors ${
+                    isCustom
+                      ? "bg-blue-50 border-blue-300 text-blue-900 focus:ring-blue-500 focus:border-blue-500"
+                      : "bg-white border-gray-300 text-gray-900 focus:ring-blue-500 focus:border-blue-500 placeholder-gray-400"
+                  }`}
+                  title={isCustom ? `ZEP-Bemerkung: "${displayValue}"` : `Standard: "${appointment.subject}"`}
+                />
+              </div>
+            );
+          })()}
 
           {/* Billable Toggle */}
-          <div className="flex flex-col">
+          <div className="flex flex-col shrink-0">
             <label className="text-xs text-gray-500 mb-1">Fakt.</label>
             <button
               type="button"
@@ -2191,7 +2448,7 @@ export default function AppointmentRow({
           </div>
 
           {/* Time Type Toggle (Plan/Ist) */}
-          <div className="flex flex-col">
+          <div className="flex flex-col shrink-0">
             <label className={`text-xs mb-1 ${!(modifiedEntry?.newTaskId || syncedEntry.project_task_id) ? "text-gray-300" : "text-gray-500"}`}>Zeit</label>
             <div className={`inline-flex items-center h-9.5 rounded-lg border text-xs overflow-hidden ${
               !(modifiedEntry?.newTaskId || syncedEntry.project_task_id) ? "border-gray-200 bg-gray-50 opacity-40" : "border-gray-300 bg-gray-50"
@@ -2238,7 +2495,7 @@ export default function AppointmentRow({
           </div>
 
           {/* Sync button for pending changes */}
-          <div className="flex flex-col">
+          <div className="flex flex-col shrink-0">
             <label className={`text-xs mb-1 ${!isModified ? "text-gray-300" : "text-gray-500"}`}>Sync</label>
             <button
               type="button"
@@ -2265,9 +2522,9 @@ export default function AppointmentRow({
 
       {/* Dropdowns for selected unsynchronized appointments */}
       {appointment.selected && !isSynced && (
-        <div className="mt-3 pt-3 ml-8 border-t border-gray-100 flex flex-wrap items-end gap-3">
+        <div className="mt-3 pt-3 ml-8 border-t border-gray-100 flex items-end gap-2">
           {/* Projekt-Dropdown */}
-          <div className="flex flex-col min-w-0">
+          <div className="flex flex-col flex-3 min-w-0">
             <label className="text-xs text-gray-500 mb-1">Projekt</label>
             <SearchableSelect
               options={projectOptions}
@@ -2279,12 +2536,11 @@ export default function AppointmentRow({
                 )
               }
               placeholder="-- Projekt wählen --"
-              className="w-64 sm:w-72"
             />
           </div>
 
           {/* Task-Dropdown */}
-          <div className="flex flex-col min-w-0">
+          <div className="flex flex-col flex-3 min-w-0">
             <label className={`text-xs mb-1 ${!appointment.projectId ? "text-gray-300" : "text-gray-500"}`}>Task</label>
             <SearchableSelect
               options={taskOptions}
@@ -2305,12 +2561,11 @@ export default function AppointmentRow({
                     : "Keine Tasks vorhanden"
               }
               loading={loadingTasks}
-              className="w-64 sm:w-72"
             />
           </div>
 
           {/* Activity-Dropdown */}
-          <div className="flex flex-col min-w-0">
+          <div className="flex flex-col w-24 shrink-0">
             <label className={`text-xs mb-1 ${!appointment.taskId ? "text-gray-300" : "text-gray-500"}`}>Tätigkeit</label>
             <SearchableSelect
               options={activityOptions}
@@ -2321,32 +2576,37 @@ export default function AppointmentRow({
               placeholder="-- Tätigkeit wählen --"
               disabled={!appointment.taskId}
               disabledMessage={!appointment.projectId ? "Erst Projekt wählen" : "Erst Task wählen"}
-              className="w-40 sm:w-48"
+              compact
             />
           </div>
 
           {/* Custom Remark (ZEP Bemerkung) */}
-          <div className="flex flex-col flex-1 min-w-48">
+          <div className="flex flex-col flex-2 min-w-0">
             <label className={`text-xs mb-1 ${!appointment.taskId ? "text-gray-300" : "text-gray-500"}`}>Bemerkung</label>
-            <input
-              type="text"
-              value={appointment.customRemark || ""}
-              onChange={(e) => onCustomRemarkChange?.(appointment.id, e.target.value)}
-              placeholder={appointment.subject}
-              disabled={!appointment.taskId}
-              className={`h-9.5 px-3 text-sm rounded-lg border transition-colors ${
-                !appointment.taskId
-                  ? "bg-gray-50 border-gray-200 text-gray-300 cursor-not-allowed"
-                  : appointment.customRemark
-                    ? "bg-blue-50 border-blue-300 text-blue-900 focus:ring-blue-500 focus:border-blue-500"
-                    : "bg-white border-gray-300 text-gray-900 focus:ring-blue-500 focus:border-blue-500 placeholder-gray-400"
-              }`}
-              title={appointment.customRemark ? `ZEP-Bemerkung: "${appointment.customRemark}"` : `Standard: "${appointment.subject}"`}
-            />
+            {(() => {
+              const hasCustomRemark = appointment.customRemark && appointment.customRemark.trim() !== (appointment.subject || "").trim();
+              return (
+                <input
+                  type="text"
+                  value={hasCustomRemark ? appointment.customRemark : ""}
+                  onChange={(e) => onCustomRemarkChange?.(appointment.id, e.target.value)}
+                  placeholder={appointment.subject}
+                  disabled={!appointment.taskId}
+                  className={`h-9.5 px-3 text-sm rounded-lg border transition-colors ${
+                    !appointment.taskId
+                      ? "bg-gray-50 border-gray-200 text-gray-300 cursor-not-allowed"
+                      : hasCustomRemark
+                        ? "bg-blue-50 border-blue-300 text-blue-900 focus:ring-blue-500 focus:border-blue-500"
+                        : "bg-white border-gray-300 text-gray-900 focus:ring-blue-500 focus:border-blue-500 placeholder-gray-400"
+                  }`}
+                  title={hasCustomRemark ? `ZEP-Bemerkung: "${appointment.customRemark}"` : `Standard: "${appointment.subject}"`}
+                />
+              );
+            })()}
           </div>
 
           {/* Billable Toggle */}
-          <div className="flex flex-col">
+          <div className="flex flex-col shrink-0">
             <label className={`text-xs mb-1 ${!appointment.taskId ? "text-gray-300" : "text-gray-500"}`}>Fakt.</label>
             <button
               type="button"
@@ -2374,7 +2634,7 @@ export default function AppointmentRow({
           </div>
 
           {/* Time Type Toggle (Plan/Ist) */}
-          <div className="flex flex-col">
+          <div className="flex flex-col shrink-0">
             <label className={`text-xs mb-1 ${!appointment.taskId ? "text-gray-300" : "text-gray-500"}`}>Zeit</label>
             <div className={`inline-flex items-center h-9.5 rounded-lg border text-xs overflow-hidden ${
               !appointment.taskId ? "border-gray-200 bg-gray-50 opacity-40" : "border-gray-300 bg-gray-50"
@@ -2422,7 +2682,7 @@ export default function AppointmentRow({
 
           {/* Single Sync Button */}
           {onSyncSingle && (
-            <div className="flex flex-col">
+            <div className="flex flex-col shrink-0">
               <label className={`text-xs mb-1 ${!isSyncReady ? "text-gray-300" : "text-gray-500"}`}>Sync</label>
               <button
                 type="button"

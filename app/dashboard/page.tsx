@@ -321,9 +321,15 @@ function parseErrorMessage(error: string): string {
 }
 
 // Helper: Check if an appointment is already synced to ZEP
-// Uses rounded times (same as when syncing to ZEP) for accurate comparison
-// Trims subject/note for comparison (Outlook may have trailing spaces that ZEP trims)
-function isAppointmentSynced(apt: Appointment, syncedEntries: ZepEntry[]): boolean {
+// Priority 1: Redis mapping (outlookEventId -> zepAttendanceId) - verified against syncedEntries
+// Priority 2: Subject/customRemark match on same date - fallback for pre-Redis entries
+function isAppointmentSynced(apt: Appointment, syncedEntries: ZepEntry[], syncMappings?: Map<string, RedisSyncMapping>): boolean {
+  // Priority 1: Redis mapping lookup - only valid if the ZEP entry still exists in syncedEntries
+  const redisMapping = syncMappings?.get(apt.id);
+  if (redisMapping && syncedEntries?.some((e) => e.id === redisMapping.zepAttendanceId)) {
+    return true;
+  }
+
   if (!syncedEntries || syncedEntries.length === 0) {
     return false;
   }
@@ -332,26 +338,14 @@ function isAppointmentSynced(apt: Appointment, syncedEntries: ZepEntry[]): boole
   const aptSubject = (apt.subject || "").trim();
   const aptCustomRemark = (apt.customRemark || "").trim();
 
-  // Check if any synced entry matches this appointment by subject/customRemark and date
-  // We don't check times strictly because the entry could have been synced with
-  // planned time OR actual time - we just need to know if it exists
-  const result = syncedEntries.some((entry) => {
+  // Priority 2: Subject/customRemark match on same date
+  return syncedEntries.some((entry) => {
     const entryDate = entry.date.split("T")[0];
     if (entryDate !== aptDateStr) return false;
 
     const entryNote = (entry.note || "").trim();
-    const noteMatches = entryNote === aptSubject || (aptCustomRemark && entryNote === aptCustomRemark);
-    if (noteMatches) return true;
-
-    // Fallback: If note doesn't match subject/customRemark (e.g. customRemark was lost after reload),
-    // check if the ZEP entry has the exact same planned time on the same day.
-    // This catches cases where a custom remark was used during sync but is no longer in state.
-    const zepTimes = calculateZepTimes(new Date(apt.start.dateTime), new Date(apt.end.dateTime));
-    const timeMatches = entry.from === zepTimes.start && entry.to === zepTimes.end;
-    return timeMatches;
+    return entryNote === aptSubject || (aptCustomRemark && entryNote === aptCustomRemark);
   });
-
-  return result;
 }
 
 // Helper: Detect which time was synced to ZEP (planned or actual)
@@ -360,7 +354,8 @@ function isAppointmentSynced(apt: Appointment, syncedEntries: ZepEntry[]): boole
 function detectSyncedTimePreference(
   apt: Appointment,
   syncedEntries: ZepEntry[],
-  actualDuration: ActualDuration | undefined
+  actualDuration: ActualDuration | undefined,
+  syncMappings?: Map<string, RedisSyncMapping>
 ): boolean | undefined {
   if (!syncedEntries || syncedEntries.length === 0) {
     return undefined;
@@ -371,18 +366,23 @@ function detectSyncedTimePreference(
   const aptCustomRemark = (apt.customRemark || "").trim();
 
   // Find the matching synced entry
-  const syncedEntry = syncedEntries.find((entry) => {
-    const entryDate = entry.date.split("T")[0];
-    if (entryDate !== aptDateStr) return false;
+  // Priority 1: Redis mapping lookup
+  let syncedEntry: ZepEntry | undefined;
+  const redisMapping = syncMappings?.get(apt.id);
+  if (redisMapping) {
+    syncedEntry = syncedEntries.find((entry) => entry.id === redisMapping.zepAttendanceId);
+  }
 
-    const entryNote = (entry.note || "").trim();
-    const noteMatches = entryNote === aptSubject || (aptCustomRemark && entryNote === aptCustomRemark);
-    if (noteMatches) return true;
+  // Priority 2: Subject/customRemark match on same date
+  if (!syncedEntry) {
+    syncedEntry = syncedEntries.find((entry) => {
+      const entryDate = entry.date.split("T")[0];
+      if (entryDate !== aptDateStr) return false;
 
-    // Fallback: match by exact time on same day
-    const zepTimes = calculateZepTimes(new Date(apt.start.dateTime), new Date(apt.end.dateTime));
-    return entry.from === zepTimes.start && entry.to === zepTimes.end;
-  });
+      const entryNote = (entry.note || "").trim();
+      return entryNote === aptSubject || (aptCustomRemark && entryNote === aptCustomRemark);
+    });
+  }
 
   if (!syncedEntry) {
     return undefined;
@@ -762,6 +762,9 @@ export default function Dashboard() {
   const [callsLoading, setCallsLoading] = useState(false);
   const [calls, setCalls] = useState<Appointment[]>([]);
 
+  // State for Redis sync mappings (outlookEventId -> RedisSyncMapping)
+  const [syncMappings, setSyncMappings] = useState<Map<string, RedisSyncMapping>>(new Map());
+
   // State for actual meeting durations (from call records)
   const [actualDurations, setActualDurations] = useState<ActualDurationsMap>(new Map());
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -823,7 +826,7 @@ export default function Dashboard() {
     }
     
     const appointmentsToCheck = appointments
-      .filter((apt) => apt.selected && !isAppointmentSynced(apt, syncedEntries))
+      .filter((apt) => apt.selected && !isAppointmentSynced(apt, syncedEntries, syncMappings))
       .map((apt) => ({
         id: apt.id,
         subject: apt.subject,
@@ -835,7 +838,7 @@ export default function Dashboard() {
     const warnings = checkAppointmentsForDuplicates(appointmentsToCheck, syncedEntries as unknown as ZepAttendance[]);
     setDuplicateWarnings(warnings);
   // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally using .length to avoid re-renders on content changes
-  }, [appointments, syncedEntries.length]);
+  }, [appointments, syncedEntries.length, syncMappings]);
 
   useEffect(() => {
     // Load activities (global, not per employee)
@@ -1012,8 +1015,8 @@ export default function Dashboard() {
       const cachedZepEntries = forceRefresh || !employeeId ? null : getCachedZepEntries(employeeId, effectiveStartDate, effectiveEndDate);
       const cachedProjects = forceRefresh || !employeeId ? null : getCachedProjects(employeeId, today);
       
-      // Load appointments (from cache or API), ZEP entries (from cache or API), and projects (from cache or API) in parallel
-      const [appointmentsData, zepData, projectsData] = await Promise.all([
+      // Load appointments, ZEP entries, projects, and Redis sync mappings in parallel
+      const [appointmentsData, zepData, projectsData, redisMappingsData] = await Promise.all([
         cachedAppointments
           ? Promise.resolve(cachedAppointments)
           : authFetch(`/api/calendar?startDate=${effectiveStartDate}&endDate=${effectiveEndDate}`).then(res => res.json()),
@@ -1027,6 +1030,9 @@ export default function Dashboard() {
           : employeeId
             ? authFetch(`/api/zep/employee-projects?${new URLSearchParams({ employeeId, date: today })}`).then(res => res.json())
             : Promise.resolve(null),
+        employeeId
+          ? authFetch(`/api/sync-history?userId=${encodeURIComponent(employeeId)}`).then(res => res.ok ? res.json() : []).catch(() => [])
+          : Promise.resolve([]),
       ]);
       
       // Cache the appointments if we fetched them fresh
@@ -1123,7 +1129,16 @@ export default function Dashboard() {
       if (Array.isArray(projectsData)) {
         setProjects(projectsData);
       }
-      
+
+      // Set Redis sync mappings (outlookEventId -> RedisSyncMapping)
+      if (Array.isArray(redisMappingsData)) {
+        const mappingsMap = new Map<string, RedisSyncMapping>();
+        for (const mapping of redisMappingsData) {
+          mappingsMap.set(mapping.outlookEventId, mapping);
+        }
+        setSyncMappings(mappingsMap);
+      }
+
       // Update last loaded timestamp
       setLastLoadedAt(new Date());
 
@@ -1244,7 +1259,7 @@ export default function Dashboard() {
 
                   // First, check if this appointment is already synced
                   // and detect which time was used
-                  const detectedPreference = detectSyncedTimePreference(apt, syncedEntries, actual);
+                  const detectedPreference = detectSyncedTimePreference(apt, syncedEntries, actual, syncMappings);
                   if (detectedPreference !== undefined) {
                     // Use the detected preference from the synced entry
                     return { ...apt, useActualTime: detectedPreference };
@@ -1392,7 +1407,7 @@ export default function Dashboard() {
         if (editingAppointmentIds.has(apt.id)) return true;
 
         // Helper to check if synced
-        const isSynced = isAppointmentSynced(apt, syncedEntries);
+        const isSynced = isAppointmentSynced(apt, syncedEntries, syncMappings);
 
         if (statusFilter === "synced") {
           return isSynced;
@@ -1410,7 +1425,7 @@ export default function Dashboard() {
     }
 
     return filtered;
-  }, [mergedAppointments, filterDate, seriesFilterActive, validSeriesIds, searchQuery, hideSoloMeetings, userEmail, statusFilter, syncedEntries, editingAppointmentIds]);
+  }, [mergedAppointments, filterDate, seriesFilterActive, validSeriesIds, searchQuery, hideSoloMeetings, userEmail, statusFilter, syncedEntries, syncMappings, editingAppointmentIds]);
 
   // Get unique sorted dates from appointments for day navigation
   const availableDates = useMemo(() => {
@@ -1620,7 +1635,7 @@ export default function Dashboard() {
         // Nur Termine ändern die in der gefilterten Liste sichtbar sind
         if (!visibleIds.has(apt.id)) return apt;
         // Bereits gesynced? Nicht ändern
-        if (isAppointmentSynced(apt, syncedEntries)) return apt;
+        if (isAppointmentSynced(apt, syncedEntries, syncMappings)) return apt;
         return { ...apt, selected };
       })
     );
@@ -1642,7 +1657,7 @@ export default function Dashboard() {
     setAppointments((prev) =>
       prev.map((apt) => {
         // Bereits gesynced? Nicht ändern
-        if (isAppointmentSynced(apt, syncedEntries)) return apt;
+        if (isAppointmentSynced(apt, syncedEntries, syncMappings)) return apt;
         // Nur Zuweisungen zurücksetzen, selected bleibt unverändert
         return {
           ...apt,
@@ -1857,21 +1872,26 @@ export default function Dashboard() {
     // Find the synced entry to get the project ID
     const apt = appointments.find(a => a.id === appointmentId);
     if (apt) {
-      const syncedEntry = syncedEntries.find(entry => {
-        const entryDate = entry.date.split("T")[0];
+      // Priority 1: Redis mapping lookup
+      let syncedEntry: ZepEntry | undefined;
+      const redisMapping = syncMappings.get(apt.id);
+      if (redisMapping) {
+        syncedEntry = syncedEntries.find((entry) => entry.id === redisMapping.zepAttendanceId);
+      }
+
+      // Priority 2: Subject/customRemark match on same date
+      if (!syncedEntry) {
         const aptDate = apt.start.dateTime.split("T")[0];
-        if (entryDate !== aptDate) return false;
+        syncedEntry = syncedEntries.find(entry => {
+          const entryDate = entry.date.split("T")[0];
+          if (entryDate !== aptDate) return false;
 
-        const entryNote = (entry.note?.trim() || "");
-        const aptSubject = (apt.subject?.trim() || "");
-        const aptCustomRemark = (apt.customRemark?.trim() || "");
-        const noteMatches = entryNote === aptSubject || (aptCustomRemark && entryNote === aptCustomRemark);
-        if (noteMatches) return true;
-
-        // Fallback: match by exact time on same day
-        const zepTimes = calculateZepTimes(new Date(apt.start.dateTime), new Date(apt.end.dateTime));
-        return entry.from === zepTimes.start && entry.to === zepTimes.end;
-      });
+          const entryNote = (entry.note?.trim() || "");
+          const aptSubject = (apt.subject?.trim() || "");
+          const aptCustomRemark = (apt.customRemark?.trim() || "");
+          return entryNote === aptSubject || (aptCustomRemark && entryNote === aptCustomRemark);
+        });
+      }
 
       if (syncedEntry) {
         // Load tasks for the project before enabling edit mode
@@ -1965,7 +1985,7 @@ export default function Dashboard() {
     }
 
     setEditingAppointments((prev) => new Set(prev).add(appointmentId));
-  }, [appointments, syncedEntries, loadTasksForProject, projects, tasks, actualDurations]);
+  }, [appointments, syncedEntries, syncMappings, loadTasksForProject, projects, tasks, actualDurations]);
 
   // Cancel editing a synced appointment
   const cancelEditingSyncedAppointment = useCallback((appointmentId: string) => {
@@ -2164,7 +2184,7 @@ export default function Dashboard() {
       if (existing) {
         next.set(appointmentId, {
           ...existing,
-          bemerkung: bemerkung || undefined,
+          bemerkung,
         });
       } else {
         // Find current project/task info
@@ -2189,7 +2209,7 @@ export default function Dashboard() {
           datum: syncedEntry.date.split("T")[0],
           von: syncedEntry.from.slice(0, 5),
           bis: syncedEntry.to.slice(0, 5),
-          bemerkung: bemerkung || undefined,
+          bemerkung,
         });
       }
       return next;
@@ -2388,9 +2408,53 @@ export default function Dashboard() {
     }
   }, [loadSyncedEntries, toast]);
 
+  // Link an Outlook appointment to an existing ZEP entry (from conflict popover)
+  const linkToZep = useCallback(async (
+    appointmentId: string,
+    zepEntryId: number
+  ) => {
+    if (!employeeId) return;
+
+    const apt = mergedAppointments.find((a) => a.id === appointmentId);
+    if (!apt) return;
+
+    const zepEntry = syncedEntries.find((e) => e.id === zepEntryId);
+    if (!zepEntry) return;
+
+    const now = new Date().toISOString();
+    const mapping: RedisSyncMapping = {
+      outlookEventId: appointmentId,
+      zepAttendanceId: zepEntryId,
+      subject: apt.subject,
+      date: zepEntry.date.split("T")[0],
+      projectId: zepEntry.project_id,
+      taskId: zepEntry.project_task_id,
+      activityId: zepEntry.activity_id,
+      syncedAt: now,
+    };
+
+    setSyncMappings((prev) => {
+      const next = new Map(prev);
+      next.set(appointmentId, mapping);
+      return next;
+    });
+
+    toast({ text: `Verknüpft mit "${zepEntry.note || 'ZEP-Eintrag'}"`, type: "success" });
+
+    authFetch("/api/sync-history", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: employeeId, mappings: [mapping] }),
+    }).catch((err) => console.error("Failed to save link mapping to Redis:", err));
+  }, [employeeId, mergedAppointments, syncedEntries, authFetch, toast]);
+
   // Save a single modified entry (for inline sync button)
   const saveModifiedSingle = useCallback(async (modifiedEntry: ModifiedEntry) => {
     setSavingModifiedSingleId(modifiedEntry.outlookEventId);
+
+    // Resolve bemerkung: if cleared (empty string), fall back to appointment subject
+    const apt = appointments.find(a => a.id === modifiedEntry.outlookEventId);
+    const resolvedBemerkung = modifiedEntry.bemerkung || apt?.subject || modifiedEntry.bemerkung;
 
     try {
       const response = await authFetch("/api/zep/timeentries", {
@@ -2406,7 +2470,7 @@ export default function Dashboard() {
             datum: modifiedEntry.datum,
             von: modifiedEntry.newVon || modifiedEntry.von,
             bis: modifiedEntry.newBis || modifiedEntry.bis,
-            bemerkung: modifiedEntry.bemerkung,
+            bemerkung: resolvedBemerkung,
             istFakturierbar: modifiedEntry.newBillable,
           }],
         }),
@@ -2567,6 +2631,12 @@ export default function Dashboard() {
             activityId: appointment.activityId,
             syncedAt: now,
           }];
+          // Update local syncMappings state immediately
+          setSyncMappings((prev) => {
+            const next = new Map(prev);
+            for (const m of redisMappings) next.set(m.outlookEventId, m);
+            return next;
+          });
           authFetch("/api/sync-history", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -2680,6 +2750,12 @@ export default function Dashboard() {
             activityId: appointmentsToSync[index].activityId,
             syncedAt: now,
           }));
+          // Update local syncMappings state immediately
+          setSyncMappings((prev) => {
+            const next = new Map(prev);
+            for (const m of redisMappings) next.set(m.outlookEventId, m);
+            return next;
+          });
           authFetch("/api/sync-history", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -2823,6 +2899,12 @@ export default function Dashboard() {
                 };
               }
             );
+            // Update local syncMappings state immediately
+            setSyncMappings((prev) => {
+              const next = new Map(prev);
+              for (const m of redisMappings) next.set(m.outlookEventId, m);
+              return next;
+            });
             authFetch("/api/sync-history", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -2854,18 +2936,22 @@ export default function Dashboard() {
 
       // 2. Modify existing entries (rebooking)
       if (modificationsToSubmit.length > 0) {
-        const modifyEntries = modificationsToSubmit.map((mod) => ({
-          id: String(mod.zepId),
-          projektNr: mod.newProjektNr,
-          vorgangNr: mod.newVorgangNr,
-          taetigkeit: mod.newActivityId,
-          userId: mod.userId,
-          datum: mod.datum,
-          von: mod.newVon || mod.von, // Use new time if set, otherwise original
-          bis: mod.newBis || mod.bis, // Use new time if set, otherwise original
-          bemerkung: mod.bemerkung,
-          istFakturierbar: mod.newBillable,
-        }));
+        const modifyEntries = modificationsToSubmit.map((mod) => {
+          // Resolve bemerkung: if cleared (empty string), fall back to appointment subject
+          const modApt = appointments.find(a => a.id === mod.outlookEventId);
+          return {
+            id: String(mod.zepId),
+            projektNr: mod.newProjektNr,
+            vorgangNr: mod.newVorgangNr,
+            taetigkeit: mod.newActivityId,
+            userId: mod.userId,
+            datum: mod.datum,
+            von: mod.newVon || mod.von,
+            bis: mod.newBis || mod.bis,
+            bemerkung: mod.bemerkung || modApt?.subject || mod.bemerkung,
+            istFakturierbar: mod.newBillable,
+          };
+        });
 
         const modRes = await authFetch("/api/zep/timeentries", {
           method: "PATCH",
@@ -3096,6 +3182,7 @@ export default function Dashboard() {
               endDate={endDate}
               appointments={appointments}
               syncedEntries={syncedEntries}
+              syncMappings={syncMappings}
               submittedIds={submittedIds}
               modifiedEntries={modifiedEntries}
               selectedDate={filterDate}
@@ -3124,6 +3211,7 @@ export default function Dashboard() {
           tasks={tasks}
           activities={activities}
           syncedEntries={syncedEntries}
+          syncMappings={syncMappings}
           duplicateWarnings={duplicateWarnings}
           loadingTasks={loadingTasks}
           loading={loading}
@@ -3162,6 +3250,7 @@ export default function Dashboard() {
           // Correcting rescheduled appointment times
           onCorrectTime={correctRescheduledTime}
           correctingTimeIds={correctingTimeIds}
+          onLinkToZep={linkToZep}
           // Filter controls
           totalAppointmentsCount={mergedAppointments.length}
           searchQuery={searchQuery}

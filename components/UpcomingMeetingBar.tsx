@@ -117,7 +117,7 @@ export default function UpcomingMeetingBar({ appointments, onJumpToAppointment }
     >
       <div className="flex items-center gap-2.5 min-w-0 flex-1">
         <div
-          className={`flex-shrink-0 w-1.5 h-1.5 rounded-full ${
+          className={`shrink-0 w-1.5 h-1.5 rounded-full ${
             meeting.isRunning ? "bg-red-500 animate-pulse" : "bg-amber-500"
           }`}
         />
@@ -130,12 +130,12 @@ export default function UpcomingMeetingBar({ appointments, onJumpToAppointment }
         </span>
         <span className="text-gray-300">|</span>
         <span className="text-gray-700 truncate font-medium">{meeting.subject || "(Kein Titel)"}</span>
-        <span className="text-gray-400 text-xs flex-shrink-0">
+        <span className="text-gray-400 text-xs shrink-0">
           {startTime}–{endTime}
         </span>
       </div>
 
-      <div className="flex items-center gap-2 flex-shrink-0 ml-3">
+      <div className="flex items-center gap-2 shrink-0 ml-3">
         {onJumpToAppointment && (
           <button
             onClick={() => onJumpToAppointment(meeting.id, meeting.isRunning ? "running" : "upcoming")}

@@ -5,8 +5,9 @@ import { Search, X, RotateCcw, ClockArrowUp, Check, Minus, User, ChevronDown } f
 import AppointmentRow from "./AppointmentRow";
 import SeriesGroup from "./SeriesGroup";
 import SyncConfirmDialog from "./SyncConfirmDialog";
-import { DuplicateCheckResult, calculateZepTimes } from "@/lib/zep-api";
+import type { DuplicateCheckResult } from "@/lib/zep-api";
 import { ActualDuration, ActualDurationsMap, normalizeJoinUrl, getDurationKey } from "@/lib/teams-utils";
+import { RedisSyncMapping } from "@/lib/redis";
 
 interface Project {
   id: number;
@@ -105,6 +106,7 @@ interface AppointmentListProps {
   tasks: Record<number, Task[]>;
   activities: Activity[];
   syncedEntries: ZepEntry[];
+  syncMappings?: Map<string, RedisSyncMapping>;
   duplicateWarnings?: Map<string, DuplicateCheckResult>;
   loadingTasks?: Set<number>;
   // Loading state for skeleton
@@ -152,6 +154,8 @@ interface AppointmentListProps {
   // Rescheduled appointment time correction
   onCorrectTime?: (appointmentId: string, duplicateWarning: DuplicateCheckResult) => void;
   correctingTimeIds?: Set<string>;
+  // Conflict link popover
+  onLinkToZep?: (appointmentId: string, zepEntryId: number) => void;
   // Filter props
   totalAppointmentsCount?: number;
   searchQuery?: string;
@@ -186,18 +190,26 @@ interface GroupedItem {
 }
 
 // Helper: Check if an appointment is synced to ZEP
-function isAppointmentSynced(apt: Appointment, syncedEntries: ZepEntry[]): boolean {
-  return findSyncedEntry(apt, syncedEntries) !== null;
+function isAppointmentSynced(apt: Appointment, syncedEntries: ZepEntry[], syncMappings?: Map<string, RedisSyncMapping>): boolean {
+  return findSyncedEntry(apt, syncedEntries, syncMappings) !== null;
 }
 
 // Helper: Find the matching synced entry for an appointment
-// Matches by subject and date only (not times) because entry could be synced with
-// planned time OR actual time - we need to find the entry regardless
-function findSyncedEntry(apt: Appointment, syncedEntries: ZepEntry[]): ZepEntry | null {
+// Priority 1: Redis mapping (outlookEventId -> zepAttendanceId) - most reliable
+// Priority 2: Subject/customRemark match on same date - fallback for pre-Redis entries
+function findSyncedEntry(apt: Appointment, syncedEntries: ZepEntry[], syncMappings?: Map<string, RedisSyncMapping>): ZepEntry | null {
   if (!syncedEntries || syncedEntries.length === 0) {
     return null;
   }
 
+  // Priority 1: Redis mapping lookup
+  const redisMapping = syncMappings?.get(apt.id);
+  if (redisMapping) {
+    const entry = syncedEntries.find((e) => e.id === redisMapping.zepAttendanceId);
+    if (entry) return entry;
+  }
+
+  // Priority 2: Subject/customRemark match on same date
   const aptDateStr = new Date(apt.start.dateTime).toISOString().split("T")[0];
   const aptSubject = apt.subject.trim();
   const aptCustomRemark = (apt.customRemark || "").trim();
@@ -207,20 +219,15 @@ function findSyncedEntry(apt: Appointment, syncedEntries: ZepEntry[]): ZepEntry 
     if (entryDate !== aptDateStr) return false;
 
     const entryNote = (entry.note || "").trim();
-    const noteMatches = entryNote === aptSubject || (aptCustomRemark && entryNote === aptCustomRemark);
-    if (noteMatches) return true;
-
-    // Fallback: match by exact time on same day
-    const zepTimes = calculateZepTimes(new Date(apt.start.dateTime), new Date(apt.end.dateTime));
-    return entry.from === zepTimes.start && entry.to === zepTimes.end;
+    return entryNote === aptSubject || (aptCustomRemark && entryNote === aptCustomRemark);
   }) || null;
 }
 
 // Helper: Check if an appointment is ready to sync (selected, complete, not yet synced)
-function isAppointmentSyncReady(apt: Appointment, syncedEntries: ZepEntry[]): boolean {
+function isAppointmentSyncReady(apt: Appointment, syncedEntries: ZepEntry[], syncMappings?: Map<string, RedisSyncMapping>): boolean {
   if (!apt.selected) return false;
   if (!apt.projectId || !apt.taskId) return false;
-  if (isAppointmentSynced(apt, syncedEntries)) return false;
+  if (isAppointmentSynced(apt, syncedEntries, syncMappings)) return false;
   return true;
 }
 
@@ -415,6 +422,7 @@ export default function AppointmentList({
   tasks,
   activities,
   syncedEntries,
+  syncMappings,
   duplicateWarnings,
   loadingTasks,
   loading,
@@ -450,6 +458,7 @@ export default function AppointmentList({
   savingModifiedSingleId,
   onCorrectTime,
   correctingTimeIds,
+  onLinkToZep,
   // Filter props
   totalAppointmentsCount,
   searchQuery,
@@ -566,8 +575,18 @@ export default function AppointmentList({
 
   // Termine die auswählbar sind (nicht bereits gesynced)
   const selectableAppointments = useMemo(() => {
-    return appointments.filter(apt => !isAppointmentSynced(apt, syncedEntries));
-  }, [appointments, syncedEntries]);
+    return appointments.filter(apt => !isAppointmentSynced(apt, syncedEntries, syncMappings));
+  }, [appointments, syncedEntries, syncMappings]);
+
+  // Collect ZEP entry IDs already linked to any appointment (via Redis or subject match)
+  const linkedZepIds = useMemo(() => {
+    const ids = new Set<number>();
+    for (const apt of appointments) {
+      const entry = findSyncedEntry(apt, syncedEntries, syncMappings);
+      if (entry?.id) ids.add(entry.id);
+    }
+    return ids;
+  }, [appointments, syncedEntries, syncMappings]);
 
   // Gruppiere Termine nach Serien
   const groupedItems = useMemo(() => {
@@ -625,11 +644,11 @@ export default function AppointmentList({
   const selectedAppointments = appointments.filter((a) => a.selected);
 
   // Appointments that are ready to sync (selected, complete, NOT already synced)
-  const syncReadyAppointments = appointments.filter((a) => isAppointmentSyncReady(a, syncedEntries));
+  const syncReadyAppointments = appointments.filter((a) => isAppointmentSyncReady(a, syncedEntries, syncMappings));
 
   // Selected appointments that are NOT synced and still need project/task assignment
   const incompleteUnsyncedAppointments = selectedAppointments.filter(
-    (a) => !isAppointmentSynced(a, syncedEntries) && (!a.projectId || !a.taskId)
+    (a) => !isAppointmentSynced(a, syncedEntries, syncMappings) && (!a.projectId || !a.taskId)
   );
 
   const totalMinutes = selectedAppointments.reduce((acc, apt) => {
@@ -960,7 +979,7 @@ export default function AppointmentList({
                     <ClockArrowUp size={18} />
                     <span>ZEP Sync</span>
                     {(syncReadyAppointments.length > 0 || completeModificationsCount > 0) && (
-                      <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 text-xs font-medium bg-white/20 rounded-full">
+                      <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 text-xs font-medium bg-white/20 rounded-full">
                         {syncReadyAppointments.length + completeModificationsCount}
                       </span>
                     )}
@@ -1012,7 +1031,7 @@ export default function AppointmentList({
                     <ClockArrowUp size={18} />
                     <span>ZEP Sync</span>
                     {(syncReadyAppointments.length > 0 || completeModificationsCount > 0) && (
-                      <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 text-xs font-medium bg-white/20 rounded-full">
+                      <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 text-xs font-medium bg-white/20 rounded-full">
                         {syncReadyAppointments.length + completeModificationsCount}
                       </span>
                     )}
@@ -1047,6 +1066,7 @@ export default function AppointmentList({
                 tasks={tasks}
                 activities={activities}
                 syncedEntries={syncedEntries}
+                syncMappings={syncMappings}
                 duplicateWarnings={duplicateWarnings}
                 loadingTasks={loadingTasks}
                 // Actual meeting durations from call records
@@ -1069,6 +1089,9 @@ export default function AppointmentList({
                 // Rescheduled time correction
                 onCorrectTime={onCorrectTime}
                 correctingTimeIds={correctingTimeIds}
+                // Conflict link popover
+                onLinkToZep={onLinkToZep}
+                linkedZepIds={linkedZepIds}
                 // Keyboard navigation focus
                 focusedAppointmentId={focusedAppointmentId}
               />
@@ -1094,9 +1117,9 @@ export default function AppointmentList({
                 }
                 allTasks={tasks}
                 activities={activities}
-                isSynced={isAppointmentSynced(item.appointments[0], syncedEntries)}
-                isSyncReady={isAppointmentSyncReady(item.appointments[0], syncedEntries)}
-                syncedEntry={findSyncedEntry(item.appointments[0], syncedEntries)}
+                isSynced={isAppointmentSynced(item.appointments[0], syncedEntries, syncMappings)}
+                isSyncReady={isAppointmentSyncReady(item.appointments[0], syncedEntries, syncMappings)}
+                syncedEntry={findSyncedEntry(item.appointments[0], syncedEntries, syncMappings)}
                 duplicateWarning={duplicateWarnings?.get(item.appointments[0].id)}
                 loadingTasks={item.appointments[0].projectId ? loadingTasks?.has(item.appointments[0].projectId) : false}
                 // Actual meeting duration from call records
@@ -1127,6 +1150,11 @@ export default function AppointmentList({
                 // Rescheduled time correction
                 onCorrectTime={onCorrectTime}
                 isCorrectingTime={correctingTimeIds?.has(item.appointments[0].id) || false}
+                // Conflict link popover
+                onLinkToZep={onLinkToZep}
+                syncedEntries={syncedEntries}
+                syncMappings={syncMappings}
+                linkedZepIds={linkedZepIds}
                 // Keyboard navigation focus
                 isFocused={focusedAppointmentId === item.appointments[0].id}
               />

@@ -3,7 +3,7 @@
 import { useMemo, useEffect } from "react";
 import { format, eachDayOfInterval, parseISO, isWeekend } from "date-fns";
 import { de } from "date-fns/locale";
-import { calculateZepTimes } from "@/lib/zep-api";
+import { RedisSyncMapping } from "@/lib/redis";
 
 interface Attendee {
   emailAddress: {
@@ -68,6 +68,7 @@ interface CalendarHeatmapProps {
   endDate: string;
   appointments: Appointment[];
   syncedEntries: ZepAttendance[];
+  syncMappings?: Map<string, RedisSyncMapping>;
   submittedIds: Set<string>;
   modifiedEntries?: Map<string, ModifiedEntry>;
   selectedDate: string | null;
@@ -87,6 +88,7 @@ export default function CalendarHeatmap({
   endDate,
   appointments,
   syncedEntries,
+  syncMappings,
   submittedIds,
   modifiedEntries,
   selectedDate,
@@ -184,24 +186,23 @@ export default function CalendarHeatmap({
   }, [filteredAppointments]);
 
   // Helper: Check if a specific appointment is synced to ZEP (needs to be before getSeriesStatus)
-  // Matches by subject and date only (not times) because entry could be synced with
-  // planned time OR actual time
+  // Priority 1: Redis mapping lookup
+  // Priority 2: Subject/customRemark match on same date
   const isAppointmentSyncedCheck = (apt: Appointment): boolean => {
+    // Priority 1: Redis mapping lookup - verify ZEP entry still exists
+    const redisMapping = syncMappings?.get(apt.id);
+    if (redisMapping && syncedEntries.some((e) => e.id === redisMapping.zepAttendanceId)) return true;
+
     const zepEntries = syncedByDate.get(apt.start.dateTime.split("T")[0]) || [];
     if (zepEntries.length === 0) return false;
 
-    // Trim subject for comparison (Outlook may have trailing spaces)
+    // Priority 2: Subject/customRemark match
     const aptSubject = (apt.subject || "").trim();
     const aptCustomRemark = (apt.customRemark || "").trim();
 
     return zepEntries.some((entry) => {
       const entryNote = (entry.note || "").trim();
-      const noteMatches = entryNote === aptSubject || (aptCustomRemark && entryNote === aptCustomRemark);
-      if (noteMatches) return true;
-
-      // Fallback: match by exact time on same day
-      const zepTimes = calculateZepTimes(new Date(apt.start.dateTime), new Date(apt.end.dateTime));
-      return entry.from === zepTimes.start && entry.to === zepTimes.end;
+      return entryNote === aptSubject || (aptCustomRemark && entryNote === aptCustomRemark);
     });
   };
 
@@ -245,26 +246,22 @@ export default function CalendarHeatmap({
   };
 
   // Helper: Check if a specific appointment is synced to ZEP
-  // Matches by subject and date only (not times) because entry could be synced with
-  // planned time OR actual time
+  // Priority 1: Redis mapping lookup
+  // Priority 2: Subject/customRemark match on same date
   const isAppointmentSynced = (apt: Appointment, zepEntries: ZepAttendance[]): boolean => {
+    // Priority 1: Redis mapping lookup - verify ZEP entry still exists
+    const redisMapping = syncMappings?.get(apt.id);
+    if (redisMapping && syncedEntries.some((e) => e.id === redisMapping.zepAttendanceId)) return true;
+
     if (!zepEntries || zepEntries.length === 0) return false;
 
-    // Trim subject for comparison (Outlook may have trailing spaces)
+    // Priority 2: Subject/customRemark match
     const aptSubject = (apt.subject || "").trim();
     const aptCustomRemark = (apt.customRemark || "").trim();
 
     return zepEntries.some((entry) => {
       const entryNote = (entry.note || "").trim();
-      const noteMatches = entryNote === aptSubject || (aptCustomRemark && entryNote === aptCustomRemark);
-      if (noteMatches) return true;
-
-      // Fallback: match by exact time on same day (handles lost customRemark after reload)
-      const entryDate = entry.date.split("T")[0];
-      const aptDate = apt.start.dateTime.split("T")[0];
-      if (entryDate !== aptDate) return false;
-      const zepTimes = calculateZepTimes(new Date(apt.start.dateTime), new Date(apt.end.dateTime));
-      return entry.from === zepTimes.start && entry.to === zepTimes.end;
+      return entryNote === aptSubject || (aptCustomRemark && entryNote === aptCustomRemark);
     });
   };
 

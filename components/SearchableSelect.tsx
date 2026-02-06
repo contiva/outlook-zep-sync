@@ -24,6 +24,8 @@ interface SearchableSelectProps {
   disabledMessage?: string;
   loading?: boolean;
   className?: string;
+  /** Show only label in button (no description), dropdown still shows both */
+  compact?: boolean;
 }
 
 export default function SearchableSelect({
@@ -35,6 +37,7 @@ export default function SearchableSelect({
   disabledMessage,
   loading = false,
   className = "",
+  compact = false,
 }: SearchableSelectProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -59,10 +62,11 @@ export default function SearchableSelect({
   const displayText = useMemo(() => {
     if (disabled && disabledMessage) return disabledMessage;
     if (!selectedOption) return placeholder;
+    if (compact) return selectedOption.label;
     return selectedOption.description
       ? `${selectedOption.label} - ${selectedOption.description}`
       : selectedOption.label;
-  }, [selectedOption, disabled, disabledMessage, placeholder]);
+  }, [selectedOption, disabled, disabledMessage, placeholder, compact]);
 
   // Show search only if there are more than 3 options
   const showSearch = options.length > 3;
@@ -110,7 +114,8 @@ export default function SearchableSelect({
 
             <ListboxOptions
               anchor="bottom start"
-              className="z-[100] mt-1 max-h-72 w-[var(--button-width)] rounded-lg bg-white text-sm shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none"
+              style={compact ? undefined : { width: 'calc(var(--button-width) * 1.5)' }}
+              className={`z-[100] mt-1 max-h-72 rounded-lg bg-white text-sm shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none min-w-[var(--button-width)] ${compact ? "w-max max-w-80" : ""}`}
             >
               {/* Search input */}
               {showSearch && (
@@ -125,7 +130,11 @@ export default function SearchableSelect({
                       placeholder="Suchen..."
                       className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                       onClick={(e) => e.stopPropagation()}
-                      onKeyDown={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => {
+                        // Let arrow keys and Enter through for Listbox navigation
+                        if (["ArrowDown", "ArrowUp", "Enter", "Escape"].includes(e.key)) return;
+                        e.stopPropagation();
+                      }}
                     />
                   </div>
                 </div>
