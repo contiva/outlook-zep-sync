@@ -58,8 +58,8 @@ export default function AppointmentStatusBar({
         </span>
       )}
 
-      {/* Internal/External meeting badge */}
-      {attendeeCount > 0 && (
+      {/* Internal/External/Solo meeting badge */}
+      {attendeeCount > 0 ? (
         isInternalOnly ? (
           <span
             className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded font-medium bg-gray-100 text-gray-600"
@@ -75,6 +75,13 @@ export default function AppointmentStatusBar({
             Extern
           </span>
         )
+      ) : (
+        <span
+          className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded font-medium bg-blue-50 text-blue-600"
+          title="Solo - keine weiteren Teilnehmer"
+        >
+          Solo
+        </span>
       )}
 
       {/* Duplicate / Time overlap / Similar badges (not rescheduled) */}
