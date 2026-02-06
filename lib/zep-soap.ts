@@ -909,6 +909,37 @@ export async function updateProjektzeit(
   });
 }
 
+/**
+ * Delete a time entry in ZEP via SOAP
+ */
+export async function deleteProjektzeit(
+  token: string,
+  id: string
+): Promise<void> {
+  const client = await getClient();
+
+  const request = {
+    requestHeader: { authorizationToken: token },
+    id: parseInt(id, 10),
+  };
+
+  return new Promise((resolve, reject) => {
+    client.deleteProjektzeit(request, (err: Error | null, result: { responseHeader: ResponseHeader }) => {
+      if (err) {
+        reject(new Error(`SOAP deleteProjektzeit failed: ${err.message}`));
+        return;
+      }
+
+      try {
+        checkResponse(result.responseHeader, "deleteProjektzeit");
+        resolve();
+      } catch (e) {
+        reject(e);
+      }
+    });
+  });
+}
+
 // =============================================================================
 // HELPER FUNCTIONS - Date/Time Formatting
 // =============================================================================

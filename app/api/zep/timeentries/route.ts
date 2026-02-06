@@ -3,6 +3,7 @@ import {
   readProjektzeiten,
   createProjektzeit,
   updateProjektzeit,
+  deleteProjektzeit,
   mapProjektzeitToRestFormat,
   readProjekte,
   readVorgang,
@@ -13,6 +14,7 @@ import {
   determineBillable
 } from "@/lib/zep-soap";
 import { getAuthenticatedUser } from "@/lib/auth-helper";
+import { deleteSyncMapping } from "@/lib/redis";
 
 // Helper: Validate that the requested employeeId matches the logged-in user
 async function validateEmployeeAccess(request: Request, requestedEmployeeId: string, token: string): Promise<{ valid: boolean; error?: string; status?: number }> {
@@ -219,7 +221,7 @@ export async function POST(request: Request) {
           projektNr: entry.projektNr,
           vorgangNr: entry.vorgangNr,
           taetigkeit: entry.activity_id,
-          bemerkung: entry.note || undefined,
+          bemerkung: entry.note || "Kein Titel",
           istFakturierbar: istFakturierbar,
           ort: entry.ort || undefined,
         };
@@ -425,6 +427,80 @@ export async function PATCH(request: Request) {
     console.error("ZEP attendance modification error:", error);
     return NextResponse.json(
       { error: "Failed to modify attendances" },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE: Delete a time entry from ZEP
+export async function DELETE(request: Request) {
+  const token = process.env.ZEP_SOAP_TOKEN;
+
+  if (!token) {
+    return NextResponse.json(
+      { error: "Server configuration error" },
+      { status: 500 }
+    );
+  }
+
+  const { searchParams } = new URL(request.url);
+  const id = searchParams.get("id");
+  const outlookEventId = searchParams.get("outlookEventId");
+
+  if (!id) {
+    return NextResponse.json(
+      { error: "id required" },
+      { status: 400 }
+    );
+  }
+
+  // Read the existing entry first to validate ownership
+  const user = await getAuthenticatedUser(request);
+  if (!user?.email) {
+    return NextResponse.json(
+      { error: "Nicht authentifiziert" },
+      { status: 401 }
+    );
+  }
+
+  const employee = await findEmployeeByEmail(token, user.email);
+  if (!employee) {
+    return NextResponse.json(
+      { error: "Kein ZEP-Benutzer für diesen Account gefunden" },
+      { status: 403 }
+    );
+  }
+
+  try {
+    // Verify the entry belongs to the user by reading it first
+    const entries = await readProjektzeiten(token, {
+      userIdListe: { userId: [employee.userId] },
+    });
+    const entry = entries.find((e) => String(e.id) === id);
+
+    if (!entry) {
+      return NextResponse.json(
+        { error: "Eintrag nicht gefunden oder gehört nicht zu Ihrem Account" },
+        { status: 404 }
+      );
+    }
+
+    await deleteProjektzeit(token, id);
+
+    // Also delete Redis sync mapping if outlookEventId is provided
+    if (outlookEventId) {
+      try {
+        await deleteSyncMapping(employee.userId, outlookEventId);
+      } catch {
+        // Non-critical - Redis mapping may not exist
+      }
+    }
+
+    return NextResponse.json({ message: "Eintrag gelöscht" });
+  } catch (error) {
+    console.error("ZEP attendance deletion error:", error);
+    return NextResponse.json(
+      { error: "Failed to delete attendance" },
       { status: 500 }
     );
   }

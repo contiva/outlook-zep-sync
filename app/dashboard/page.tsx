@@ -761,6 +761,7 @@ export default function Dashboard() {
 
   // State for saving single modified entry
   const [savingModifiedSingleId, setSavingModifiedSingleId] = useState<string | null>(null);
+  const [deletingSyncedId, setDeletingSyncedId] = useState<string | null>(null);
 
   // State for calls toggle
   const [callsEnabled, setCallsEnabled] = useState(false);
@@ -1280,79 +1281,87 @@ export default function Dashboard() {
     return appointments.some(apt => apt.isOnlineMeeting && apt.onlineMeeting?.joinUrl);
   }, [appointments]);
 
-  // Load actual meeting durations after appointments are loaded
-  // This runs in background and doesn't block the UI
+  // Load actual meeting durations (extracted for reuse in polling)
+  const loadActualDurations = useCallback(async () => {
+    setDurationsLoading(true);
+    try {
+      const res = await authFetch(
+        `/api/calls/durations?startDate=${startDate}&endDate=${endDate}`
+      );
+      const data = await res.json();
+
+      if (data.durations) {
+        const durationsMap: ActualDurationsMap = new Map();
+        for (const [key, value] of Object.entries(data.durations)) {
+          durationsMap.set(key, value as ActualDuration);
+        }
+        setActualDurations(durationsMap);
+
+        // Set useActualTime based on:
+        // 1. If synced: detect which time was used from ZEP entry
+        // 2. If not synced: prefer longer time (don't shortchange yourself)
+        setAppointments((prev) =>
+          prev.map((apt) => {
+            // Only set default if useActualTime is not already defined
+            if (apt.useActualTime !== undefined) return apt;
+
+            // Check if this appointment has actual duration data
+            if (apt.isOnlineMeeting && apt.onlineMeeting?.joinUrl) {
+              const normalizedUrl = normalizeJoinUrl(apt.onlineMeeting.joinUrl);
+              // Use date-specific key for recurring meetings (they share the same joinUrl)
+              const aptDate = new Date(apt.start.dateTime).toISOString().split("T")[0];
+              const durationKey = normalizedUrl ? getDurationKey(normalizedUrl, aptDate) : null;
+              if (durationKey && durationsMap.has(durationKey)) {
+                const actual = durationsMap.get(durationKey)!;
+
+                // First, check if this appointment is already synced
+                // and detect which time was used
+                const detectedPreference = detectSyncedTimePreference(apt, syncedEntries, actual, syncMappings);
+                if (detectedPreference !== undefined) {
+                  // Use the detected preference from the synced entry
+                  return { ...apt, useActualTime: detectedPreference };
+                }
+
+                // Not synced - use heuristic: prefer longer time
+                const actualMs = new Date(actual.actualEnd).getTime() - new Date(actual.actualStart).getTime();
+                const plannedMs = new Date(apt.end.dateTime).getTime() - new Date(apt.start.dateTime).getTime();
+
+                // Use actual time only if meeting took longer than planned
+                // Otherwise use planned time (default to planned when shorter)
+                const useActual = actualMs > plannedMs;
+                return { ...apt, useActualTime: useActual };
+              }
+            }
+            return apt;
+          })
+        );
+      }
+    } catch (error) {
+      console.error("Failed to load actual durations:", error);
+      // Don't show error message - this is a non-critical feature
+    } finally {
+      setDurationsLoading(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally using .length to avoid re-renders
+  }, [startDate, endDate, syncedEntries.length, authFetch]);
+
+  // Load durations on mount and when appointments change
   useEffect(() => {
     if (appointments.length === 0 || !hasOnlineMeetings) {
       setActualDurations(new Map());
       return;
     }
 
-    const loadActualDurations = async () => {
-      setDurationsLoading(true);
-      try {
-        const res = await authFetch(
-          `/api/calls/durations?startDate=${startDate}&endDate=${endDate}`
-        );
-        const data = await res.json();
-
-        if (data.durations) {
-          const durationsMap: ActualDurationsMap = new Map();
-          for (const [key, value] of Object.entries(data.durations)) {
-            durationsMap.set(key, value as ActualDuration);
-          }
-          setActualDurations(durationsMap);
-
-          // Set useActualTime based on:
-          // 1. If synced: detect which time was used from ZEP entry
-          // 2. If not synced: prefer longer time (don't shortchange yourself)
-          setAppointments((prev) =>
-            prev.map((apt) => {
-              // Only set default if useActualTime is not already defined
-              if (apt.useActualTime !== undefined) return apt;
-
-              // Check if this appointment has actual duration data
-              if (apt.isOnlineMeeting && apt.onlineMeeting?.joinUrl) {
-                const normalizedUrl = normalizeJoinUrl(apt.onlineMeeting.joinUrl);
-                // Use date-specific key for recurring meetings (they share the same joinUrl)
-                const aptDate = new Date(apt.start.dateTime).toISOString().split("T")[0];
-                const durationKey = normalizedUrl ? getDurationKey(normalizedUrl, aptDate) : null;
-                if (durationKey && durationsMap.has(durationKey)) {
-                  const actual = durationsMap.get(durationKey)!;
-
-                  // First, check if this appointment is already synced
-                  // and detect which time was used
-                  const detectedPreference = detectSyncedTimePreference(apt, syncedEntries, actual, syncMappings);
-                  if (detectedPreference !== undefined) {
-                    // Use the detected preference from the synced entry
-                    return { ...apt, useActualTime: detectedPreference };
-                  }
-
-                  // Not synced - use heuristic: prefer longer time
-                  const actualMs = new Date(actual.actualEnd).getTime() - new Date(actual.actualStart).getTime();
-                  const plannedMs = new Date(apt.end.dateTime).getTime() - new Date(apt.start.dateTime).getTime();
-
-                  // Use actual time only if meeting took longer than planned
-                  // Otherwise use planned time (default to planned when shorter)
-                  const useActual = actualMs > plannedMs;
-                  return { ...apt, useActualTime: useActual };
-                }
-              }
-              return apt;
-            })
-          );
-        }
-      } catch (error) {
-        console.error("Failed to load actual durations:", error);
-        // Don't show error message - this is a non-critical feature
-      } finally {
-        setDurationsLoading(false);
-      }
-    };
-
     loadActualDurations();
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally using .length to avoid re-renders on content changes
-  }, [appointments.length, hasOnlineMeetings, startDate, endDate, syncedEntries.length, authFetch]);
+  }, [appointments.length, hasOnlineMeetings, loadActualDurations]);
+
+  // Poll durations every 30 minutes when there are online meetings
+  useEffect(() => {
+    if (appointments.length === 0 || !hasOnlineMeetings) return;
+
+    const interval = setInterval(loadActualDurations, 30 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [appointments.length, hasOnlineMeetings, loadActualDurations]);
 
   // Merge appointments with calls, deduplicating overlapping entries
   const mergedAppointments = useMemo(() => {
@@ -1453,6 +1462,9 @@ export default function Dashboard() {
 
         // Always show calls (they always have other participants)
         if (apt.type === 'call') return true;
+
+        // Always show synced appointments (relevant for time tracking)
+        if (isAppointmentSynced(apt, syncedEntries, syncMappings)) return true;
 
         // Otherwise, only show if has other attendees
         const otherAttendees = (apt.attendees || []).filter(
@@ -1915,6 +1927,92 @@ export default function Dashboard() {
           : apt
       )
     );
+
+    // If this is a synced appointment being edited, update modifiedEntry times
+    if (durationMinutes === undefined && editingAppointments.has(id)) {
+      // Manual duration reset — clear newVon/newBis from modifiedEntry
+      setModifiedEntries((prev) => {
+        const next = new Map(prev);
+        const existing = next.get(id);
+        if (existing && (existing.newVon !== undefined || existing.newBis !== undefined)) {
+          const updated = { ...existing };
+          delete updated.newVon;
+          delete updated.newBis;
+          next.set(id, updated);
+        }
+        return next;
+      });
+    }
+    if (durationMinutes !== undefined && editingAppointments.has(id)) {
+      const apt = appointments.find((a) => a.id === id) || calls.find((c) => c.id === id);
+      if (apt) {
+        const plannedStart = roundToNearest15Min(new Date(apt.start.dateTime));
+        const newEnd = new Date(plannedStart.getTime() + durationMinutes * 60 * 1000);
+        const fmt = (d: Date) => d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+        const newVon = fmt(plannedStart);
+        const newBis = fmt(newEnd);
+
+        setModifiedEntries((prev) => {
+          const next = new Map(prev);
+          const existingModified = next.get(id);
+
+          if (existingModified) {
+            // Only set if different from current ZEP entry times
+            if (newVon !== existingModified.von || newBis !== existingModified.bis) {
+              next.set(id, { ...existingModified, newVon, newBis });
+            } else {
+              // Times match original — remove newVon/newBis
+              const updated = { ...existingModified };
+              delete updated.newVon;
+              delete updated.newBis;
+              next.set(id, updated);
+            }
+          } else {
+            // No modifiedEntry yet — find the synced entry and create one
+            let syncedEntry: ZepEntry | undefined;
+            const redisMapping = syncMappings.get(id);
+            if (redisMapping) {
+              syncedEntry = syncedEntries.find((e) => e.id === redisMapping.zepAttendanceId);
+            }
+            if (!syncedEntry) {
+              const aptDate = apt.start.dateTime.split("T")[0];
+              syncedEntry = syncedEntries.find((e) => {
+                const eDate = e.date.split("T")[0];
+                return eDate === aptDate && (e.note?.trim() || "") === (apt.subject?.trim() || "");
+              });
+            }
+            if (syncedEntry) {
+              const zepVon = syncedEntry.from.slice(0, 5);
+              const zepBis = syncedEntry.to.slice(0, 5);
+              const project = projects.find((p) => p.id === syncedEntry!.project_id);
+              const projectTasks = tasks[syncedEntry.project_id] || [];
+              const task = projectTasks.find((t) => t.id === syncedEntry!.project_task_id);
+              next.set(id, {
+                zepId: syncedEntry.id,
+                outlookEventId: id,
+                originalProjectId: syncedEntry.project_id,
+                originalTaskId: syncedEntry.project_task_id,
+                originalActivityId: syncedEntry.activity_id,
+                originalBillable: syncedEntry.billable,
+                newProjectId: syncedEntry.project_id,
+                newTaskId: syncedEntry.project_task_id,
+                newActivityId: syncedEntry.activity_id,
+                newBillable: syncedEntry.billable,
+                newOrt: syncedEntry.work_location_id || undefined,
+                newProjektNr: project?.name || syncedEntry.projektNr || "",
+                newVorgangNr: task?.name || syncedEntry.vorgangNr || "",
+                userId: syncedEntry.employee_id,
+                datum: syncedEntry.date.split("T")[0],
+                von: zepVon,
+                bis: zepBis,
+                ...(newVon !== zepVon || newBis !== zepBis ? { newVon, newBis } : {}),
+              });
+            }
+          }
+          return next;
+        });
+      }
+    }
   };
 
   const changeWorkLocation = (id: string, workLocation: string | undefined) => {
@@ -2065,11 +2163,32 @@ export default function Dashboard() {
               von: zepVon,
               bis: zepBis,
               // bemerkung intentionally omitted — preserved from syncedEntry.note in save logic
-              // Only set new times if they need correction (use planned time as the correction target)
-              ...(timesNeedCorrection ? { newVon: plannedVon, newBis: plannedBis } : {}),
+              // Don't auto-correct times — preserve the ZEP-booked times (may be manual ist-zeit)
+              // Users can change times explicitly via stepper or time toggle
             });
             return next;
           });
+        }
+
+        // Restore appointment state based on ZEP-booked time
+        // After a page reload, manualDurationMinutes/useActualTime are lost —
+        // recover them from the ZEP entry so the edit UI reflects the booked time
+        if (matchesActual && actualVon) {
+          // ZEP time matches actual Teams data
+          setAppointments((prev) =>
+            prev.map((a) => a.id === appointmentId ? { ...a, useActualTime: true } : a)
+          );
+        } else if (!matchesPlanned) {
+          // ZEP time differs from planned (manual ist-zeit or external edit)
+          const [zFromH, zFromM] = zepVon.split(':').map(Number);
+          const [zToH, zToM] = zepBis.split(':').map(Number);
+          const zepDurationMinutes = (zToH * 60 + zToM) - (zFromH * 60 + zFromM);
+          setAppointments((prev) =>
+            prev.map((a) => a.id === appointmentId
+              ? { ...a, manualDurationMinutes: zepDurationMinutes, useActualTime: true }
+              : a
+            )
+          );
         }
       }
     }
@@ -2380,11 +2499,19 @@ export default function Dashboard() {
         const plannedStart = new Date(apt.start.dateTime);
         startDt = plannedStart;
         endDt = new Date(plannedStart.getTime() + roundedDurationMinutes * 60 * 1000);
+      } else if (apt.manualDurationMinutes !== undefined) {
+        // Manual ist-zeit for online meeting
+        startDt = new Date(apt.start.dateTime);
+        endDt = new Date(startDt.getTime() + apt.manualDurationMinutes * 60 * 1000);
       } else {
         // No actual duration data, use planned time
         startDt = new Date(apt.start.dateTime);
         endDt = new Date(apt.end.dateTime);
       }
+    } else if (useActualTime && apt.manualDurationMinutes !== undefined) {
+      // Manual ist-zeit for non-online meeting
+      startDt = new Date(apt.start.dateTime);
+      endDt = new Date(startDt.getTime() + apt.manualDurationMinutes * 60 * 1000);
     } else {
       // Use planned time
       startDt = new Date(apt.start.dateTime);
@@ -2672,6 +2799,45 @@ export default function Dashboard() {
       setSavingModifiedSingleId(null);
     }
   }, [loadSyncedEntries, toast, authFetch, appointments, syncedEntries, syncMappings, employeeId]);
+
+  // Delete a synced ZEP entry
+  const deleteZepEntry = useCallback(async (zepId: number, outlookEventId: string) => {
+    setDeletingSyncedId(outlookEventId);
+    try {
+      const res = await authFetch(
+        `/api/zep/timeentries?id=${zepId}&outlookEventId=${encodeURIComponent(outlookEventId)}`,
+        { method: "DELETE" }
+      );
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Löschen fehlgeschlagen");
+      }
+
+      toast({ text: "ZEP-Eintrag gelöscht", type: "success" });
+
+      // Remove local sync mapping
+      setSyncMappings((prev) => {
+        const next = new Map(prev);
+        next.delete(outlookEventId);
+        return next;
+      });
+
+      // Cancel edit mode for this appointment
+      cancelEditingSyncedAppointment(outlookEventId);
+
+      // Reload synced entries
+      await loadSyncedEntries();
+    } catch (error) {
+      console.error("Delete ZEP entry error:", error);
+      toast({
+        text: `Fehler beim Löschen: ${error instanceof Error ? error.message : "Unbekannter Fehler"}`,
+        type: "error",
+      });
+    } finally {
+      setDeletingSyncedId(null);
+    }
+  }, [authFetch, toast, loadSyncedEntries, cancelEditingSyncedAppointment]);
 
   // Helper to get effective start/end times for an appointment
   // Uses actual time from call records if useActualTime is true and data is available
@@ -3427,6 +3593,8 @@ export default function Dashboard() {
           onModifyTime={updateModifiedTime}
           onSaveModifiedSingle={saveModifiedSingle}
           savingModifiedSingleId={savingModifiedSingleId}
+          onDeleteSynced={deleteZepEntry}
+          deletingSyncedId={deletingSyncedId}
           // Correcting rescheduled appointment times
           onCorrectTime={correctRescheduledTime}
           correctingTimeIds={correctingTimeIds}
@@ -3450,6 +3618,13 @@ export default function Dashboard() {
           focusedAppointmentId={focusedAppointmentId}
           highlightedAppointment={highlightedAppointment}
         />
+
+        <footer className="flex flex-col items-center gap-2 pt-4 pb-2">
+          <span className="text-xs text-white [-webkit-text-stroke:0.5px_rgb(160,160,160)] [text-shadow:0_1px_0_rgba(255,255,255,0.5),0_-1px_0_rgba(0,0,0,0.08)]">
+            Copyright 2026 by Contiva GmbH — v{process.env.APP_VERSION}
+          </span>
+          <img src="/contiva_color.svg" alt="Contiva" className="h-5 opacity-30" />
+        </footer>
       </main>
     </div>
   );

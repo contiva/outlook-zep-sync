@@ -174,6 +174,9 @@ export interface AppointmentRowProps {
   onModifyWorkLocation?: (appointmentId: string, apt: Appointment, syncedEntry: SyncedEntry, workLocation: string | undefined) => void;
   onSaveModifiedSingle?: (modifiedEntry: ModifiedEntry) => void;
   isSavingModifiedSingle?: boolean;
+  // Delete synced entry
+  onDeleteSynced?: (zepId: number, outlookEventId: string) => void;
+  isDeletingSynced?: boolean;
   // Rescheduled appointment correction
   onCorrectTime?: (appointmentId: string, duplicateWarning: DuplicateCheckResult) => void;
   isCorrectingTime?: boolean;

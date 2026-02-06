@@ -168,7 +168,7 @@ export default function DurationInfoPopover({
               type="button"
               onClick={() => {
                 if (isPlanSelected) return;
-                if (hasManualDuration && !hasActualData) {
+                if (hasManualDuration && !hasActualData && onManualDurationChange) {
                   // Reset manual duration → back to plan
                   handleReset();
                 } else if (canSwitch) {
@@ -325,24 +325,24 @@ export default function DurationInfoPopover({
 
                   <div className="flex justify-between items-center">
                     <span className="text-gray-500">Dauer:</span>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1">
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleStepperChange(stepperValue - 15);
                         }}
-                        disabled={stepperValue <= 15}
-                        className={`p-0.5 rounded transition-colors ${
-                          stepperValue <= 15
-                            ? "text-gray-300 cursor-not-allowed"
-                            : "text-orange-600 hover:bg-orange-100 cursor-pointer"
+                        disabled={!onManualDurationChange || stepperValue <= 15}
+                        className={`p-1 rounded-md border transition-colors ${
+                          !onManualDurationChange || stepperValue <= 15
+                            ? "text-gray-300 border-gray-200 bg-gray-50 cursor-not-allowed"
+                            : "text-orange-600 border-orange-200 bg-orange-50 hover:bg-orange-100 hover:border-orange-300 cursor-pointer"
                         }`}
-                        title="15 Minuten weniger"
+                        title={!onManualDurationChange ? "Nur im Bearbeitungsmodus änderbar" : "15 Minuten weniger"}
                       >
-                        <Minus size={12} />
+                        <Minus size={14} strokeWidth={2.5} />
                       </button>
-                      <span className={`tabular-nums font-medium min-w-[60px] text-center ${
+                      <span className={`tabular-nums font-semibold min-w-[60px] text-center ${
                         isIstSelected ? "text-orange-700" : "text-gray-700"
                       }`}>
                         {formatDuration(stepperValue)}
@@ -353,15 +353,15 @@ export default function DurationInfoPopover({
                           e.stopPropagation();
                           handleStepperChange(stepperValue + 15);
                         }}
-                        disabled={stepperValue >= 720}
-                        className={`p-0.5 rounded transition-colors ${
-                          stepperValue >= 720
-                            ? "text-gray-300 cursor-not-allowed"
-                            : "text-orange-600 hover:bg-orange-100 cursor-pointer"
+                        disabled={!onManualDurationChange || stepperValue >= 720}
+                        className={`p-1 rounded-md border transition-colors ${
+                          !onManualDurationChange || stepperValue >= 720
+                            ? "text-gray-300 border-gray-200 bg-gray-50 cursor-not-allowed"
+                            : "text-orange-600 border-orange-200 bg-orange-50 hover:bg-orange-100 hover:border-orange-300 cursor-pointer"
                         }`}
-                        title="15 Minuten mehr"
+                        title={!onManualDurationChange ? "Nur im Bearbeitungsmodus änderbar" : "15 Minuten mehr"}
                       >
-                        <Plus size={12} />
+                        <Plus size={14} strokeWidth={2.5} />
                       </button>
                     </div>
                   </div>
@@ -376,7 +376,7 @@ export default function DurationInfoPopover({
                   )}
 
                   {/* Reset button */}
-                  {hasManualDuration && (
+                  {hasManualDuration && onManualDurationChange && (
                     <button
                       type="button"
                       onClick={(e) => {

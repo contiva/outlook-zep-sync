@@ -163,6 +163,9 @@ interface AppointmentListProps {
   onModifyTime?: (appointmentId: string, apt: Appointment, syncedEntry: ZepEntry, useActualTime: boolean) => void;
   onSaveModifiedSingle?: (modifiedEntry: ModifiedEntry) => void;
   savingModifiedSingleId?: string | null;
+  // Delete synced entry
+  onDeleteSynced?: (zepId: number, outlookEventId: string) => void;
+  deletingSyncedId?: string | null;
   // Rescheduled appointment time correction
   onCorrectTime?: (appointmentId: string, duplicateWarning: DuplicateCheckResult) => void;
   correctingTimeIds?: Set<string>;
@@ -472,6 +475,8 @@ export default function AppointmentList({
   onModifyTime,
   onSaveModifiedSingle,
   savingModifiedSingleId,
+  onDeleteSynced,
+  deletingSyncedId,
   onCorrectTime,
   correctingTimeIds,
   onLinkToZep,
@@ -662,6 +667,9 @@ export default function AppointmentList({
 
   const selectedAppointments = appointments.filter((a) => a.selected);
 
+  // Synced appointments (for footer: always count as "selected")
+  const syncedAppointments = appointments.filter(apt => isAppointmentSynced(apt, syncedEntries, syncMappings));
+
   // Appointments that are ready to sync (selected, complete, NOT already synced)
   const syncReadyAppointments = appointments.filter((a) => isAppointmentSyncReady(a, syncedEntries, syncMappings));
 
@@ -670,7 +678,14 @@ export default function AppointmentList({
     (a) => !isAppointmentSynced(a, syncedEntries, syncMappings) && (!a.projectId || !a.taskId)
   );
 
-  const totalMinutes = selectedAppointments.reduce((acc, apt) => {
+  // Effective selected = explicitly selected + synced (synced always counts as selected)
+  const effectiveSelectedAppointments = useMemo(() => {
+    return appointments.filter(apt =>
+      apt.selected || isAppointmentSynced(apt, syncedEntries, syncMappings)
+    );
+  }, [appointments, syncedEntries, syncMappings]);
+
+  const totalMinutes = effectiveSelectedAppointments.reduce((acc, apt) => {
     const start = new Date(apt.start.dateTime);
     const end = new Date(apt.end.dateTime);
     return acc + (end.getTime() - start.getTime()) / 1000 / 60;
@@ -1170,6 +1185,8 @@ export default function AppointmentList({
                 onModifyTime={onModifyTime}
                 onSaveModifiedSingle={onSaveModifiedSingle}
                 isSavingModifiedSingle={savingModifiedSingleId === item.appointments[0].id}
+                onDeleteSynced={onDeleteSynced}
+                isDeletingSynced={deletingSyncedId === item.appointments[0].id}
                 // Rescheduled time correction
                 onCorrectTime={onCorrectTime}
                 isCorrectingTime={correctingTimeIds?.has(item.appointments[0].id) || false}
@@ -1190,12 +1207,25 @@ export default function AppointmentList({
       </div>
 
       {/* Footer - Status summary */}
-      <div className="px-4 py-3 border border-gray-200 bg-white rounded-b-lg">
+      <div className="px-4 py-3 border border-gray-200 bg-white rounded-b-lg shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1),0_-2px_4px_-2px_rgba(0,0,0,0.1)]">
         <div className="flex items-center gap-4 text-sm text-gray-600">
           <span>
-            Ausgewählt: <span className="font-medium text-gray-900">{selectedAppointments.length}</span> Termine
-            <span className="text-gray-400 ml-1">({hours}h {minutes}min)</span>
+            <span className="font-medium text-gray-900">{appointments.length}</span> Termine
+            {totalAppointmentsCount !== undefined && totalAppointmentsCount !== appointments.length && (
+              <span className="text-gray-400"> / {totalAppointmentsCount}</span>
+            )}
           </span>
+          {effectiveSelectedAppointments.length > 0 && (
+            <span>
+              <span className="font-medium text-gray-900">{effectiveSelectedAppointments.length}</span> ausgewählt
+              <span className="text-gray-400 ml-1">({hours}h {minutes}min)</span>
+            </span>
+          )}
+          {syncedAppointments.length > 0 && (
+            <span className="text-green-600">
+              {syncedAppointments.length} synchronisiert
+            </span>
+          )}
           {syncReadyAppointments.length > 0 && (
             <span className="text-green-600">
               {syncReadyAppointments.length} bereit

@@ -3,7 +3,7 @@
 import { useMemo, useState, useRef, useEffect } from "react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
-import { ClockCheck, ClockArrowUp, AlertTriangle, Check, Banknote, PenLine, Loader2 } from "lucide-react";
+import { ClockCheck, ClockArrowUp, AlertTriangle, Check, Banknote, PenLine, Loader2, Trash2 } from "lucide-react";
 import ProjectTaskActivityForm from "./ProjectTaskActivityForm";
 import { calculateDisplayTimes, roundToNearest15Min } from "@/lib/time-utils";
 import AppointmentHeader from "./AppointmentRow/AppointmentHeader";
@@ -67,6 +67,8 @@ export default function AppointmentRow({
   syncMappings,
   linkedZepIds: linkedZepIdsProp,
   isFocused = false,
+  onDeleteSynced,
+  isDeletingSynced = false,
 }: AppointmentRowProps) {
   const startDate = new Date(appointment.start.dateTime);
   const endDate = new Date(appointment.end.dateTime);
@@ -117,6 +119,9 @@ export default function AppointmentRow({
   const startTime = format(startDate, "HH:mm");
   const endTime = format(endDate, "HH:mm");
   const originalDurationMinutes = Math.round((endDate.getTime() - startDate.getTime()) / 60000);
+
+  // --- Delete confirmation state ---
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // --- Ref for click-outside editing detection ---
   const editingRowRef = useRef<HTMLDivElement>(null);
@@ -494,10 +499,21 @@ export default function AppointmentRow({
     syncedTimeType,
     manualDurationMinutes: appointment.manualDurationMinutes,
     plannedStartDateTime: appointment.start.dateTime,
-    onManualDurationChange: (durationMinutes: number | undefined) =>
-      onManualDurationChange?.(appointment.id, durationMinutes),
+    onManualDurationChange: (!isSynced || isEditing)
+      ? (durationMinutes: number | undefined) => onManualDurationChange?.(appointment.id, durationMinutes)
+      : undefined,
     isWaitingForTeamsData,
   };
+
+  // Manual ist-zeit label for form toggle
+  const manualIstTimeLabel = appointment.manualDurationMinutes !== undefined
+    ? (() => {
+        const ps = roundToNearest15Min(new Date(appointment.start.dateTime));
+        const pe = new Date(ps.getTime() + appointment.manualDurationMinutes * 60 * 1000);
+        const fmt = (d: Date) => d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+        return `${fmt(ps)}–${fmt(pe)}`;
+      })()
+    : undefined;
 
   // Row state → visual style mapping
   const rowStateClass = isSynced && isModified
@@ -601,6 +617,7 @@ export default function AppointmentRow({
             {/* Date and Time - clickable to show time options popover */}
             <DurationInfoPopover
               {...durationPopoverProps}
+              syncedTimeType={isEditing ? undefined : syncedTimeType}
               canSwitch={(!isSynced || isEditing) && !!actualDurationInfo && actualDurationInfo.difference !== 0}
               onTimeTypeChange={handleTimeTypeChange}
               popoverRef={durationPopoverRef}
@@ -659,10 +676,10 @@ export default function AppointmentRow({
                   {plannedDurationRounded.hours > 0 ? `${plannedDurationRounded.hours}h${plannedDurationRounded.minutes > 0 ? plannedDurationRounded.minutes : ''}` : `${plannedDurationRounded.minutes}m`}
                 </span>
                 <span className="text-gray-300">|</span>
-                {/* Actual time - with checkmark if synced */}
+                {/* Actual/Manual time - with checkmark if synced */}
                 <span
                   className={`inline-flex items-center gap-0.5 px-1.5 py-1 rounded-r ${
-                    syncedTimeType === 'actual'
+                    syncedTimeType === 'actual' || syncedTimeType === 'other'
                       ? syncedShorterTime
                         ? "bg-amber-100 text-amber-700 font-medium"
                         : "bg-green-100 text-green-700 font-medium"
@@ -672,14 +689,18 @@ export default function AppointmentRow({
                   }`}
                   title={actualDurationInfo
                     ? `Tats\u00e4chlich: ${actualDurationInfo.startRounded}–${actualDurationInfo.endRounded}${syncedTimeType === 'actual' ? ' \u2713 In ZEP gebucht' : ''}${syncedShorterTime && syncedTimeType === 'actual' ? ' \u26A0 K\u00fcrzer als geplante Zeit' : ''}`
-                    : "Keine tats\u00e4chliche Zeit verf\u00fcgbar"
+                    : syncedTimeType === 'other' && zepBookedDuration
+                      ? `Manuell: ${zepBookedDuration.from}–${zepBookedDuration.to} \u2713 In ZEP gebucht`
+                      : "Keine tats\u00e4chliche Zeit verf\u00fcgbar"
                   }
                 >
-                  {syncedTimeType === 'actual' && syncedShorterTime && <AlertTriangle size={10} className="text-amber-600" />}
-                  {syncedTimeType === 'actual' && !syncedShorterTime && <ClockCheck size={10} className="text-green-600" />}
+                  {(syncedTimeType === 'actual' || syncedTimeType === 'other') && syncedShorterTime && <AlertTriangle size={10} className="text-amber-600" />}
+                  {(syncedTimeType === 'actual' || syncedTimeType === 'other') && !syncedShorterTime && <ClockCheck size={10} className="text-green-600" />}
                   {actualDurationInfo
                     ? (actualDurationInfo.hours > 0 ? `${actualDurationInfo.hours}h${actualDurationInfo.minutes > 0 ? actualDurationInfo.minutes : ''}` : `${actualDurationInfo.minutes}m`)
-                    : "--"
+                    : syncedTimeType === 'other' && zepBookedDuration
+                      ? (zepBookedDuration.hours > 0 ? `${zepBookedDuration.hours}h${zepBookedDuration.minutes > 0 ? zepBookedDuration.minutes : ''}` : `${zepBookedDuration.minutes}m`)
+                      : "--"
                   }
                 </span>
               </span>
@@ -733,12 +754,12 @@ export default function AppointmentRow({
                     if (actualDurationInfo) {
                       if (actualDurationInfo.difference === 0) return;
                       handleTimeTypeChange(true);
-                    } else if (canSetManualDuration && !hasManualDuration) {
+                    } else if (hasManualDuration || canSetManualDuration) {
                       durationPopoverRef.current?.open();
                     }
                   }}
                   disabled={isWaitingForTeamsData}
-                  className={`inline-flex items-center gap-0.5 px-1.5 py-1 rounded-r transition-colors ${
+                  className={`group inline-flex items-center gap-0.5 px-1.5 py-1 rounded-r transition-colors ${
                     actualDurationInfo
                       ? actualDurationInfo.difference === 0
                         ? "text-gray-300 cursor-default"
@@ -746,7 +767,7 @@ export default function AppointmentRow({
                           ? "bg-blue-500 text-white font-semibold"
                           : `${actualDurationInfo.color} hover:bg-gray-100`
                       : hasManualDuration && isIstActive
-                        ? "bg-blue-500 text-white font-semibold"
+                        ? "bg-blue-500 text-white font-semibold cursor-pointer"
                         : hasManualDuration
                           ? "text-orange-600 hover:bg-gray-100 cursor-pointer"
                           : isWaitingForTeamsData
@@ -758,13 +779,20 @@ export default function AppointmentRow({
                       ? "Tatsächliche Zeit entspricht der geplanten Zeit"
                       : `Tatsächlich (gerundet): ${formatDuration(actualDurationInfo.totalMinutes)} - für ZEP verwenden`
                     : hasManualDuration
-                      ? `Manuelle Ist-Zeit: ${formatDuration(appointment.manualDurationMinutes!)}`
+                      ? `Klicken zum Anpassen · Manuelle Ist-Zeit: ${formatDuration(appointment.manualDurationMinutes!)}`
                       : isWaitingForTeamsData
                         ? "Warte auf Teams-Anrufdaten…"
                         : "Ist-Zeit manuell setzen"
                   }
                 >
-                  {isIstActive && <Check size={10} />}
+                  {isIstActive && hasManualDuration && !actualDurationInfo ? (
+                    <>
+                      <Check size={10} className="group-hover:hidden" />
+                      <PenLine size={10} className="hidden group-hover:block" />
+                    </>
+                  ) : isIstActive ? (
+                    <Check size={10} />
+                  ) : null}
                   {actualDurationInfo
                     ? (actualDurationInfo.hours > 0 ? `${actualDurationInfo.hours}h${actualDurationInfo.minutes > 0 ? actualDurationInfo.minutes : ''}` : `${actualDurationInfo.minutes}m`)
                     : hasManualDuration
@@ -817,7 +845,7 @@ export default function AppointmentRow({
               </>
             )}
             <span title={syncedInfo.billable ? "Fakturierbar" : "Nicht fakturierbar (intern)"} aria-label={syncedInfo.billable ? "Fakturierbar" : "Nicht fakturierbar (intern)"}>
-              <Banknote size={12} className={syncedInfo.billable ? "text-emerald-600" : "text-gray-400"} aria-hidden="true" />
+              <Banknote size={12} className={syncedInfo.billable ? "text-amber-600" : "text-gray-400"} aria-hidden="true" />
             </span>
           </span>
           {isModified && <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded font-medium text-violet-700 bg-violet-50">Ge\u00e4ndert</span>}
@@ -844,7 +872,34 @@ export default function AppointmentRow({
 
       {/* Editing UI for synced entries */}
       {isSynced && isEditing && syncedEntry && (
-        <div className="mt-3 pt-2 border-t border-gray-100 ml-8 flex items-end gap-2">
+        <div className="mt-3 pt-2 border-t border-gray-100 ml-8 space-y-2">
+          {/* Delete confirmation inline */}
+          {showDeleteConfirm && (
+            <div className="flex items-center gap-2 px-2 py-1.5 bg-red-50 border border-red-200 rounded-md text-xs">
+              <AlertTriangle size={14} className="text-red-500 shrink-0" />
+              <span className="text-red-700">Wirklich löschen?</span>
+              <button
+                type="button"
+                onClick={() => {
+                  onDeleteSynced?.(syncedEntry.id, appointment.id);
+                  setShowDeleteConfirm(false);
+                }}
+                disabled={isDeletingSynced}
+                className="px-2 py-0.5 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50 font-medium"
+              >
+                {isDeletingSynced ? <Loader2 size={12} className="animate-spin" /> : "Ja, löschen"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={isDeletingSynced}
+                className="px-2 py-0.5 bg-white border border-gray-300 text-gray-600 rounded hover:bg-gray-50 disabled:opacity-50"
+              >
+                Abbrechen
+              </button>
+            </div>
+          )}
+          <div className="flex items-end gap-2">
           <ProjectTaskActivityForm
             projects={projects}
             tasks={
@@ -864,9 +919,9 @@ export default function AppointmentRow({
             canChangeBillable={canEditBillableInEditMode && !!(modifiedEntry?.newTaskId || syncedEntry.project_task_id)}
             useActualTime={!!appointment.useActualTime}
             plannedTimeLabel={`${plannedDurationRounded.startFormatted}–${plannedDurationRounded.endFormatted}`}
-            actualTimeLabel={actualDurationInfo ? `${actualDurationInfo.zepStart}–${actualDurationInfo.zepEnd}` : undefined}
-            hasActualTime={!!actualDurationInfo}
-            actualTimeDiffers={!!actualDurationInfo && actualDurationInfo.difference !== 0}
+            actualTimeLabel={actualDurationInfo ? `${actualDurationInfo.zepStart}–${actualDurationInfo.zepEnd}` : manualIstTimeLabel}
+            hasActualTime={!!actualDurationInfo || appointment.manualDurationMinutes !== undefined}
+            actualTimeDiffers={(!!actualDurationInfo && actualDurationInfo.difference !== 0) || (appointment.manualDurationMinutes !== undefined && appointment.manualDurationMinutes !== plannedDurationRounded.totalMinutes)}
             onProjectChange={(val) => {
               if (val !== null && onModifyProject && syncedEntry) {
                 onModifyProject(appointment.id, appointment, syncedEntry, val);
@@ -909,6 +964,18 @@ export default function AppointmentRow({
             isSyncReady={isModified}
             syncTooltip={isSavingModifiedSingle ? "Wird gespeichert..." : !isModified ? "Keine \u00c4nderungen" : "\u00c4nderungen in ZEP speichern"}
           />
+          {onDeleteSynced && (
+            <button
+              type="button"
+              onClick={() => setShowDeleteConfirm(true)}
+              disabled={isDeletingSynced || showDeleteConfirm}
+              className="shrink-0 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
+              title="ZEP-Eintrag löschen"
+            >
+              {isDeletingSynced ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+            </button>
+          )}
+          </div>
         </div>
       )}
 
@@ -930,9 +997,9 @@ export default function AppointmentRow({
             canChangeBillable={appointment.canChangeBillable}
             useActualTime={!!appointment.useActualTime}
             plannedTimeLabel={`${plannedDurationRounded.startFormatted}–${plannedDurationRounded.endFormatted}`}
-            actualTimeLabel={actualDurationInfo ? `${actualDurationInfo.zepStart}–${actualDurationInfo.zepEnd}` : undefined}
-            hasActualTime={!!actualDurationInfo}
-            actualTimeDiffers={!!actualDurationInfo && actualDurationInfo.difference !== 0}
+            actualTimeLabel={actualDurationInfo ? `${actualDurationInfo.zepStart}–${actualDurationInfo.zepEnd}` : manualIstTimeLabel}
+            hasActualTime={!!actualDurationInfo || appointment.manualDurationMinutes !== undefined}
+            actualTimeDiffers={(!!actualDurationInfo && actualDurationInfo.difference !== 0) || (appointment.manualDurationMinutes !== undefined && appointment.manualDurationMinutes !== plannedDurationRounded.totalMinutes)}
             loadingTasks={loadingTasks}
             onProjectChange={(val) => onProjectChange(appointment.id, val)}
             onTaskChange={(val) => onTaskChange(appointment.id, val)}

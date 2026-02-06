@@ -147,7 +147,8 @@ export default function AppointmentHeader({
 
   // Title logic
   const zepNote = isSynced && syncedEntry?.note ? syncedEntry.note.trim() : null;
-  const hasAltTitle = zepNote && zepNote !== (appointment.subject || "").trim();
+  const effectiveSubject = (appointment.subject || "").trim() || "Kein Titel";
+  const hasAltTitle = zepNote && zepNote !== effectiveSubject;
 
   // Whether the join button is shown in row 1 (live/upcoming with a provider)
   const showJoinButton = isLive || isUpcoming;
@@ -228,7 +229,7 @@ export default function AppointmentHeader({
       </div>
 
       {/* Struck-through original Outlook title - clickable to restore in ZEP */}
-      {isSynced && syncedEntry?.note && syncedEntry.note.trim() !== (appointment.subject || "").trim() && (
+      {isSynced && syncedEntry?.note && syncedEntry.note.trim() !== effectiveSubject && (
         onRestoreSubject ? (
           <button
             type="button"
@@ -246,7 +247,7 @@ export default function AppointmentHeader({
             }`}
             title="Klicken um Original-Titel in ZEP wiederherzustellen"
           >
-            <span className="line-through truncate">{appointment.subject}</span>
+            <span className="line-through truncate">{appointment.subject || <span className="italic">(Kein Titel)</span>}</span>
             {isRestoringSubject ? (
               <Loader2 size={10} className="shrink-0 animate-spin" />
             ) : (
@@ -255,7 +256,7 @@ export default function AppointmentHeader({
           </button>
         ) : (
           <div className={`text-xs truncate line-through ml-0.5 -mt-0.5 ${isMuted ? "text-gray-300" : "text-gray-400"}`}>
-            {appointment.subject}
+            {appointment.subject || <span className="italic">(Kein Titel)</span>}
           </div>
         )
       )}
