@@ -92,20 +92,20 @@ export default function SearchableSelect({
         return (
           <div className={`relative ${className}`}>
             <ListboxButton
-              className={`w-full rounded-lg border border-gray-300 py-2 pl-3 pr-10 text-sm leading-5 text-left focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none ${
-                disabled ? "bg-gray-50 cursor-not-allowed text-gray-300 opacity-40" : "bg-white cursor-pointer"
-              } ${disabled ? "" : (!selectedOption ? "text-gray-500" : "text-gray-900")}`}
+              className={`w-full h-8 border border-gray-200 py-1.5 pl-2.5 pr-8 text-sm leading-tight text-left transition-colors focus:border-blue-400 focus:ring-1 focus:ring-blue-400 focus:outline-none ${
+                disabled ? "bg-gray-50 cursor-not-allowed text-gray-300 opacity-40" : "bg-white cursor-pointer hover:border-gray-300"
+              } ${disabled ? "" : (!selectedOption ? "text-gray-400" : "text-gray-700")}`}
             >
               <span className="block truncate">{displayText}</span>
               <span className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
                 {loading ? (
                   <Loader2
-                    className="h-5 w-5 text-blue-500 animate-spin"
+                    className="h-4 w-4 text-blue-500 animate-spin"
                     aria-hidden="true"
                   />
                 ) : (
                   <ChevronDown
-                    className={`h-5 w-5 ${disabled ? "text-gray-300" : "text-gray-400"}`}
+                    className={`h-4 w-4 ${disabled ? "text-gray-300" : "text-gray-400"}`}
                     aria-hidden="true"
                   />
                 )}
@@ -115,23 +115,22 @@ export default function SearchableSelect({
             <ListboxOptions
               anchor="bottom start"
               style={compact ? undefined : { width: 'calc(var(--button-width) * 1.5)' }}
-              className={`z-[100] mt-1 max-h-72 rounded-lg bg-white text-sm shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none min-w-[var(--button-width)] ${compact ? "w-max max-w-80" : ""}`}
+              className={`z-[100] mt-1 max-h-64 bg-white text-sm shadow-md border border-gray-200 focus:outline-none min-w-[var(--button-width)] ${compact ? "w-max max-w-80" : ""}`}
             >
               {/* Search input */}
               {showSearch && (
-                <div className="sticky top-0 bg-white px-2 py-2 border-b border-gray-100">
+                <div className="sticky top-0 bg-white px-2 py-1.5 border-b border-gray-100">
                   <div className="relative">
-                    <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
                     <input
                       ref={searchInputRef}
                       type="text"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       placeholder="Suchen..."
-                      className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                      className="w-full pl-7 pr-2 py-1 text-sm border border-gray-200 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
                       onClick={(e) => e.stopPropagation()}
                       onKeyDown={(e) => {
-                        // Let arrow keys and Enter through for Listbox navigation
                         if (["ArrowDown", "ArrowUp", "Enter", "Escape"].includes(e.key)) return;
                         e.stopPropagation();
                       }}
@@ -140,7 +139,7 @@ export default function SearchableSelect({
                 </div>
               )}
               
-              <div className="overflow-auto max-h-52 py-1">
+              <div className="overflow-auto max-h-48 py-0.5">
                 {/* Option zum Abwählen - nur wenn nicht gesucht wird */}
                 {/* Null-Option entfernt — Placeholder wird nur im Button angezeigt */}
 
@@ -150,8 +149,8 @@ export default function SearchableSelect({
                     key={option.value}
                     value={option}
                     className={({ focus }) =>
-                      `relative cursor-pointer select-none py-2 pl-10 pr-4 ${
-                        focus ? "bg-blue-600 text-white" : "text-gray-900"
+                      `relative cursor-pointer select-none py-1.5 pl-8 pr-3 ${
+                        focus ? "bg-blue-50 text-blue-700" : "text-gray-700"
                       }`
                     }
                   >
@@ -160,7 +159,7 @@ export default function SearchableSelect({
                         <div className="flex flex-col">
                           <span
                             className={`block ${
-                              selected ? "font-semibold" : "font-normal"
+                              selected ? "font-medium" : "font-normal"
                             }`}
                           >
                             {option.label}
@@ -168,7 +167,7 @@ export default function SearchableSelect({
                           {option.description && (
                             <span
                               className={`block text-xs ${
-                                focus ? "text-blue-200" : "text-gray-500"
+                                focus ? "text-blue-500" : "text-gray-400"
                               }`}
                             >
                               {option.description}
@@ -177,11 +176,11 @@ export default function SearchableSelect({
                         </div>
                         {selected && (
                           <span
-                            className={`absolute inset-y-0 left-0 flex items-center pl-3 ${
-                              focus ? "text-white" : "text-blue-600"
+                            className={`absolute inset-y-0 left-0 flex items-center pl-2 ${
+                              focus ? "text-blue-600" : "text-blue-500"
                             }`}
                           >
-                            <Check className="h-4 w-4" aria-hidden="true" />
+                            <Check className="h-3.5 w-3.5" aria-hidden="true" />
                           </span>
                         )}
                       </>

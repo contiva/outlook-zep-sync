@@ -665,12 +665,12 @@ export default function SeriesGroup({
                 type="button"
                 onClick={handleSyncSeries}
                 disabled={syncReadyCount === 0 || isSyncingThisSeries}
-                className={`flex items-center justify-center gap-1 px-3 h-9.5 rounded-lg border transition-colors ${
+                className={`group flex items-center justify-center gap-1 px-3 h-9.5 border transition-colors ${
                   isSyncingThisSeries
-                    ? "bg-green-500 border-green-500 text-white cursor-wait"
+                    ? "bg-green-500 border-green-500 text-white shadow-[0_0_10px_rgba(74,222,128,0.35),0_4px_8px_rgba(0,0,0,0.15)] cursor-wait"
                     : syncReadyCount === 0
                       ? "bg-gray-50 border-gray-200 text-gray-300 cursor-not-allowed opacity-40"
-                      : "bg-green-600 border-green-600 text-white hover:bg-green-700 hover:border-green-700"
+                      : "bg-green-600 border-green-600 text-white shadow-[0_0_10px_rgba(74,222,128,0.35),0_4px_8px_rgba(0,0,0,0.15)] hover:bg-green-700 hover:border-green-700 hover:shadow-[0_0_14px_rgba(74,222,128,0.5),0_6px_12px_rgba(0,0,0,0.2)]"
                 }`}
                 title={
                   isSyncingThisSeries
@@ -684,7 +684,7 @@ export default function SeriesGroup({
                   <Loader2 size={18} className="animate-spin" />
                 ) : (
                   <>
-                    <ClockArrowUp size={18} className={syncReadyCount === 0 ? "opacity-50" : ""} />
+                    <ClockArrowUp size={18} className={`transition-transform ${syncReadyCount > 0 ? "animate-sync-hop" : "opacity-50"}`} />
                     {syncReadyCount > 0 && <span className="text-sm font-medium">{syncReadyCount}</span>}
                   </>
                 )}

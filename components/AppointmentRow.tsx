@@ -2319,7 +2319,7 @@ export default function AppointmentRow({
 
       {/* Editing UI for synced entries - inline like normal appointments */}
       {isSynced && isEditing && syncedEntry && (
-        <div className="mt-3 pt-3 ml-8 border-t border-gray-100 flex items-end gap-2">
+        <div className="mt-2 ml-8 flex items-end gap-2">
           <ProjectTaskActivityForm
             projects={projects}
             tasks={
@@ -2389,7 +2389,7 @@ export default function AppointmentRow({
 
       {/* Dropdowns for selected unsynchronized appointments */}
       {appointment.selected && !isSynced && (
-        <div className="mt-3 pt-3 ml-8 border-t border-gray-100 flex items-end gap-2">
+        <div className="mt-2 ml-8 flex items-end gap-2">
           <ProjectTaskActivityForm
             projects={projects}
             tasks={tasks}

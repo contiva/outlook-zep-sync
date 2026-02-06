@@ -986,13 +986,13 @@ export default function AppointmentList({
                   submitting ||
                   (syncReadyAppointments.length === 0 && completeModificationsCount === 0)
                 }
-                className="flex items-center gap-2 px-4 py-3 text-sm font-medium bg-green-600 text-white hover:bg-green-700 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition"
+                className="group flex items-center gap-2 px-4 py-3 text-sm font-medium bg-green-600 text-white shadow-[0_0_10px_rgba(74,222,128,0.35),0_4px_8px_rgba(0,0,0,0.15)] hover:bg-green-700 hover:shadow-[0_0_14px_rgba(74,222,128,0.5),0_6px_12px_rgba(0,0,0,0.2)] disabled:bg-gray-100 disabled:text-gray-400 disabled:shadow-none disabled:cursor-not-allowed transition"
               >
                 {submitting ? (
                   "Übertragen..."
                 ) : (
                   <>
-                    <ClockArrowUp size={18} />
+                    <ClockArrowUp size={18} className={`transition-transform ${(syncReadyAppointments.length > 0 || completeModificationsCount > 0) ? "animate-sync-hop" : ""}`} />
                     <span>ZEP Sync</span>
                     {(syncReadyAppointments.length > 0 || completeModificationsCount > 0) && (
                       <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 text-xs font-medium bg-white/20 rounded-full">
@@ -1038,13 +1038,13 @@ export default function AppointmentList({
                   submitting ||
                   (syncReadyAppointments.length === 0 && completeModificationsCount === 0)
                 }
-                className="flex items-center gap-2 px-4 py-3 text-sm font-medium bg-green-600 text-white hover:bg-green-700 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition"
+                className="group flex items-center gap-2 px-4 py-3 text-sm font-medium bg-green-600 text-white shadow-[0_0_10px_rgba(74,222,128,0.35),0_4px_8px_rgba(0,0,0,0.15)] hover:bg-green-700 hover:shadow-[0_0_14px_rgba(74,222,128,0.5),0_6px_12px_rgba(0,0,0,0.2)] disabled:bg-gray-100 disabled:text-gray-400 disabled:shadow-none disabled:cursor-not-allowed transition"
               >
                 {submitting ? (
                   "Übertragen..."
                 ) : (
                   <>
-                    <ClockArrowUp size={18} />
+                    <ClockArrowUp size={18} className={`transition-transform ${(syncReadyAppointments.length > 0 || completeModificationsCount > 0) ? "animate-sync-hop" : ""}`} />
                     <span>ZEP Sync</span>
                     {(syncReadyAppointments.length > 0 || completeModificationsCount > 0) && (
                       <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 text-xs font-medium bg-white/20 rounded-full">

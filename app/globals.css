@@ -55,3 +55,17 @@ body {
 .animate-slide-down {
   animation: slide-down 0.2s ease-out;
 }
+
+/* Subtle hop animation for sync-ready icons */
+@keyframes sync-hop {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+.animate-sync-hop {
+  animation: sync-hop 1.5s ease-in-out infinite;
+}
