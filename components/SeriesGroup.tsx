@@ -155,7 +155,7 @@ function findSyncedEntry(apt: Appointment, syncedEntries: ZepEntry[], syncMappin
 
   // Priority 2: Subject/customRemark match on same date
   const aptDateStr = new Date(apt.start.dateTime).toISOString().split("T")[0];
-  const aptSubject = apt.subject.trim();
+  const aptSubject = (apt.subject || "").trim();
   const aptCustomRemark = (apt.customRemark || "").trim();
 
   return syncedEntries.find((entry) => {

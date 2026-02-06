@@ -3,8 +3,8 @@
 import { useMemo, useState, useRef, useEffect } from "react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
-import { Users, ClockCheck, ClockArrowUp, AlertTriangle, Pencil, X, Check, RefreshCw, RotateCcw, Ban, Banknote, Loader2, MapPin } from "lucide-react";
-import SearchableSelect, { SelectOption } from "./SearchableSelect";
+import { Users, ClockCheck, ClockArrowUp, AlertTriangle, Pencil, X, Check, RefreshCw, RotateCcw, Ban, Banknote, MapPin } from "lucide-react";
+import ProjectTaskActivityForm from "./ProjectTaskActivityForm";
 import { DuplicateCheckResult } from "@/lib/zep-api";
 import { RedisSyncMapping } from "@/lib/redis";
 import { ActualDuration } from "@/lib/teams-utils";
@@ -1326,98 +1326,6 @@ export default function AppointmentRow({
   const attendeeDomains = [...new Set(attendees.map(a => a.emailAddress.address.split('@')[1]).filter(Boolean))];
   const isInternalOnly = attendeeCount > 0 && attendeeDomains.every(d => isInternalDomain(d));
 
-  // Konvertiere Projekte zu SelectOptions (nur Projekte mit Tasks anzeigen)
-  const projectOptions: SelectOption[] = useMemo(
-    () =>
-      projects
-        .filter((p) => allTasks && allTasks[p.id] && allTasks[p.id].length > 0)
-        .map((p) => ({
-          value: p.id,
-          label: p.name,
-          description: p.description || null,
-        })),
-    [projects, allTasks]
-  );
-
-  // Konvertiere Tasks zu SelectOptions
-  const taskOptions: SelectOption[] = useMemo(
-    () =>
-      tasks.map((t) => ({
-        value: t.id,
-        label: t.name,
-        description: t.description,
-      })),
-    [tasks]
-  );
-
-  // Task options for editing mode (based on modified project or synced project)
-  const editingTaskOptions: SelectOption[] = useMemo(() => {
-    if (!isEditing || !allTasks) return [];
-    const projectId = modifiedEntry?.newProjectId || syncedEntry?.project_id;
-    if (!projectId) return [];
-    const projectTasks = allTasks[projectId] || [];
-    return projectTasks.map((t) => ({
-      value: t.id,
-      label: t.name,
-      description: t.description,
-    }));
-  }, [isEditing, allTasks, modifiedEntry?.newProjectId, syncedEntry?.project_id]);
-
-  // Konvertiere Activities zu SelectOptions - gefiltert nach Projekt/Vorgang
-  const activityOptions: SelectOption[] = useMemo(() => {
-    // Determine which project and task are currently selected
-    const selectedProjectId = isEditing
-      ? (modifiedEntry?.newProjectId || syncedEntry?.project_id)
-      : appointment.projectId;
-    const selectedTaskId = isEditing
-      ? (modifiedEntry?.newTaskId || syncedEntry?.project_task_id)
-      : appointment.taskId;
-
-    // Find the selected task and project
-    let selectedTask: Task | undefined;
-    if (selectedTaskId && selectedProjectId) {
-      // In editing mode, use allTasks; otherwise use tasks prop
-      if (isEditing && allTasks && allTasks[selectedProjectId]) {
-        selectedTask = allTasks[selectedProjectId].find(t => t.id === selectedTaskId);
-      } else {
-        selectedTask = tasks.find(t => t.id === selectedTaskId);
-      }
-    }
-    const selectedProject = selectedProjectId
-      ? projects.find(p => p.id === selectedProjectId)
-      : undefined;
-
-    // Get assigned activities: Task activities take precedence over Project activities
-    let assignedActivities: AssignedActivity[] = [];
-    if (selectedTask?.activities && selectedTask.activities.length > 0) {
-      assignedActivities = selectedTask.activities;
-    } else if (selectedProject?.activities && selectedProject.activities.length > 0) {
-      assignedActivities = selectedProject.activities;
-    }
-
-    // If we have assigned activities, filter the global activities list
-    if (assignedActivities.length > 0) {
-      const assignedNames = new Set(assignedActivities.map(a => a.name));
-      const filteredActivities = activities.filter(a => assignedNames.has(a.name));
-      
-      return filteredActivities.map((a) => {
-        const assigned = assignedActivities.find(aa => aa.name === a.name);
-        return {
-          value: a.name,
-          label: a.name,
-          description: assigned?.standard ? `${a.description} (Standard)` : a.description,
-        };
-      });
-    }
-
-    // Fallback: show all global activities
-    return activities.map((a) => ({
-      value: a.name,
-      label: a.name,
-      description: a.description,
-    }));
-  }, [activities, projects, tasks, allTasks, appointment.projectId, appointment.taskId, isEditing, modifiedEntry?.newProjectId, modifiedEntry?.newTaskId, syncedEntry?.project_id, syncedEntry?.project_task_id]);
-
   // Determine if billable can be changed in edit mode (based on task/project settings)
   const canEditBillableInEditMode = useMemo(() => {
     if (!isEditing) return true;
@@ -1439,6 +1347,23 @@ export default function AppointmentRow({
     
     return canChangeBillableForTask(projektFakt, vorgangFakt);
   }, [isEditing, allTasks, projects, modifiedEntry?.newProjectId, modifiedEntry?.newTaskId, syncedEntry?.project_id, syncedEntry?.project_task_id]);
+
+  // Bemerkung values for synced editing mode
+  const syncedBemerkungValues = useMemo(() => {
+    if (!syncedEntry) return { bemerkung: "", isCustom: false };
+    const hasCustomRemark = syncedEntry.note && syncedEntry.note.trim() !== (appointment.subject || "").trim();
+    const displayValue = modifiedEntry?.bemerkung !== undefined
+      ? modifiedEntry.bemerkung
+      : (hasCustomRemark ? syncedEntry.note! : "");
+    const isCustom = !!(displayValue && displayValue.trim() !== (appointment.subject || "").trim());
+    return { bemerkung: displayValue, isCustom };
+  }, [syncedEntry, appointment.subject, modifiedEntry]);
+
+  // Bemerkung values for unsynced mode
+  const unsyncedBemerkungValues = useMemo(() => {
+    const hasCustom = appointment.customRemark && appointment.customRemark.trim() !== (appointment.subject || "").trim();
+    return { bemerkung: hasCustom ? appointment.customRemark! : "", isCustom: !!hasCustom };
+  }, [appointment.customRemark, appointment.subject]);
 
   // Check if this entry has been modified (for visual indicator)
   const isModified = useMemo(() => {
@@ -2328,389 +2253,105 @@ export default function AppointmentRow({
       {/* Editing UI for synced entries - inline like normal appointments */}
       {isSynced && isEditing && syncedEntry && (
         <div className="mt-3 pt-3 ml-8 border-t border-gray-100 flex items-end gap-2">
-          {/* Projekt-Dropdown */}
-          <div className="flex flex-col flex-3 min-w-0">
-            <label className="text-xs text-gray-500 mb-1">Projekt</label>
-            <SearchableSelect
-              options={projectOptions}
-              value={modifiedEntry?.newProjectId || syncedEntry.project_id}
-              onChange={(val) => {
-                if (val !== null && onModifyProject && syncedEntry) {
-                  onModifyProject(appointment.id, appointment, syncedEntry, Number(val));
-                }
-              }}
-              placeholder="-- Projekt wählen --"
-            />
-          </div>
-
-          {/* Task-Dropdown */}
-          <div className="flex flex-col flex-3 min-w-0">
-            <label className="text-xs text-gray-500 mb-1">Task</label>
-            <SearchableSelect
-              options={editingTaskOptions}
-              value={modifiedEntry?.newTaskId || syncedEntry.project_task_id}
-              onChange={(val) => {
-                if (val !== null && onModifyTask) {
-                  onModifyTask(appointment.id, Number(val));
-                }
-              }}
-              placeholder="-- Task wählen --"
-              disabled={editingTaskOptions.length === 0}
-              disabledMessage={editingTaskOptions.length === 0 ? "Laden..." : undefined}
-            />
-          </div>
-
-          {/* Activity-Dropdown */}
-          <div className="flex flex-col w-24 shrink-0">
-            <label className="text-xs text-gray-500 mb-1">Tätigkeit</label>
-            <SearchableSelect
-              options={activityOptions}
-              value={modifiedEntry?.newActivityId || syncedEntry.activity_id}
-              onChange={(val) => {
-                if (val !== null && onModifyActivity && syncedEntry) {
-                  onModifyActivity(appointment.id, appointment, syncedEntry, String(val));
-                }
-              }}
-              placeholder="-- Tätigkeit wählen --"
-              disabled={!(modifiedEntry?.newTaskId || syncedEntry.project_task_id)}
-              disabledMessage={!(modifiedEntry?.newProjectId || syncedEntry.project_id) ? "Erst Projekt wählen" : "Erst Task wählen"}
-              compact
-            />
-          </div>
-
-          {/* Custom Remark (ZEP Bemerkung) - Edit mode */}
-          {(() => {
-            // Show custom remark only if it differs from the Outlook subject
-            const hasCustomRemark = syncedEntry.note && syncedEntry.note.trim() !== (appointment.subject || "").trim();
-            const displayValue = modifiedEntry?.bemerkung !== undefined
-              ? modifiedEntry.bemerkung
-              : (hasCustomRemark ? syncedEntry.note : "");
-            const isCustom = displayValue && displayValue.trim() !== (appointment.subject || "").trim();
-
-            return (
-              <div className="flex flex-col flex-2 min-w-0">
-                <label className="text-xs text-gray-500 mb-1">Bemerkung</label>
-                <input
-                  type="text"
-                  value={displayValue ?? ""}
-                  onChange={(e) => {
-                    if (onModifyBemerkung && syncedEntry) {
-                      onModifyBemerkung(appointment.id, appointment, syncedEntry, e.target.value);
-                    }
-                  }}
-                  placeholder={appointment.subject}
-                  className={`h-9.5 px-3 text-sm rounded-lg border transition-colors ${
-                    isCustom
-                      ? "bg-blue-50 border-blue-300 text-blue-900 focus:ring-blue-500 focus:border-blue-500"
-                      : "bg-white border-gray-300 text-gray-900 focus:ring-blue-500 focus:border-blue-500 placeholder-gray-400"
-                  }`}
-                  title={isCustom ? `ZEP-Bemerkung: "${displayValue}"` : `Standard: "${appointment.subject}"`}
-                />
-              </div>
-            );
-          })()}
-
-          {/* Billable Toggle */}
-          <div className="flex flex-col shrink-0">
-            <label className="text-xs text-gray-500 mb-1">Fakt.</label>
-            <button
-              type="button"
-              onClick={() => {
-                if (onModifyBillable && syncedEntry && canEditBillableInEditMode && (modifiedEntry?.newTaskId || syncedEntry.project_task_id)) {
-                  const currentBillable = modifiedEntry?.newBillable ?? syncedEntry.billable;
-                  onModifyBillable(appointment.id, appointment, syncedEntry, !currentBillable);
-                }
-              }}
-              disabled={!(modifiedEntry?.newTaskId || syncedEntry.project_task_id) || !canEditBillableInEditMode}
-              className={`flex items-center justify-center w-10 h-9.5 rounded-lg border transition-colors ${
-                !(modifiedEntry?.newTaskId || syncedEntry.project_task_id)
-                  ? "bg-gray-100 border-gray-200 text-gray-300 cursor-not-allowed"
-                  : !canEditBillableInEditMode
-                    ? (modifiedEntry?.newBillable ?? syncedEntry.billable)
-                      ? "bg-amber-50 border-amber-300 text-amber-500 cursor-not-allowed opacity-70"
-                      : "bg-gray-50 border-gray-300 text-gray-400 cursor-not-allowed opacity-70"
-                    : (modifiedEntry?.newBillable ?? syncedEntry.billable)
-                      ? "bg-amber-50 border-amber-300 text-amber-500 hover:bg-amber-100"
-                      : "bg-gray-50 border-gray-300 text-gray-400 hover:bg-gray-100"
-              }`}
-              title={
-                !(modifiedEntry?.newTaskId || syncedEntry.project_task_id)
-                  ? "Erst Task wählen"
-                  : !canEditBillableInEditMode
-                    ? `Fakturierbarkeit vom Projekt/Vorgang festgelegt (${(modifiedEntry?.newBillable ?? syncedEntry.billable) ? "fakturierbar" : "nicht fakturierbar"})`
-                    : (modifiedEntry?.newBillable ?? syncedEntry.billable)
-                      ? "Fakturierbar - klicken zum Ändern"
-                      : "Nicht fakturierbar (intern) - klicken zum Ändern"
+          <ProjectTaskActivityForm
+            projects={projects}
+            tasks={
+              allTasks && (modifiedEntry?.newProjectId || syncedEntry.project_id)
+                ? allTasks[modifiedEntry?.newProjectId || syncedEntry.project_id] || []
+                : []
+            }
+            allTasks={allTasks}
+            activities={activities}
+            projectId={modifiedEntry?.newProjectId || syncedEntry.project_id}
+            taskId={modifiedEntry?.newTaskId || syncedEntry.project_task_id}
+            activityId={modifiedEntry?.newActivityId || syncedEntry.activity_id}
+            bemerkung={syncedBemerkungValues.bemerkung}
+            bemerkungPlaceholder={appointment.subject}
+            isCustomBemerkung={syncedBemerkungValues.isCustom}
+            billable={modifiedEntry?.newBillable ?? syncedEntry.billable}
+            canChangeBillable={canEditBillableInEditMode && !!(modifiedEntry?.newTaskId || syncedEntry.project_task_id)}
+            useActualTime={!!appointment.useActualTime}
+            plannedTimeLabel={`${plannedDurationRounded.startFormatted}–${plannedDurationRounded.endFormatted}`}
+            actualTimeLabel={actualDurationInfo ? `${actualDurationInfo.zepStart}–${actualDurationInfo.zepEnd}` : undefined}
+            hasActualTime={!!actualDurationInfo}
+            actualTimeDiffers={!!actualDurationInfo && actualDurationInfo.difference !== 0}
+            onProjectChange={(val) => {
+              if (val !== null && onModifyProject && syncedEntry) {
+                onModifyProject(appointment.id, appointment, syncedEntry, val);
               }
-            >
-              <Banknote size={18} className={!(modifiedEntry?.newTaskId || syncedEntry.project_task_id) || !(modifiedEntry?.newBillable ?? syncedEntry.billable) ? "opacity-50" : ""} />
-            </button>
-          </div>
-
-          {/* Time Type Toggle (Plan/Ist) */}
-          <div className="flex flex-col shrink-0">
-            <label className={`text-xs mb-1 ${!(modifiedEntry?.newTaskId || syncedEntry.project_task_id) ? "text-gray-300" : "text-gray-500"}`}>Zeit</label>
-            <div className={`inline-flex items-center h-9.5 rounded-lg border text-xs overflow-hidden ${
-              !(modifiedEntry?.newTaskId || syncedEntry.project_task_id) ? "border-gray-200 bg-gray-50 opacity-40" : "border-gray-300 bg-gray-50"
-            }`}>
-              <button
-                type="button"
-                onClick={() => (modifiedEntry?.newTaskId || syncedEntry.project_task_id) && onModifyTime?.(appointment.id, appointment, syncedEntry, false)}
-                disabled={!(modifiedEntry?.newTaskId || syncedEntry.project_task_id)}
-                className={`px-2.5 h-full transition-colors ${
-                  !(modifiedEntry?.newTaskId || syncedEntry.project_task_id)
-                    ? "text-gray-300 cursor-not-allowed"
-                    : !appointment.useActualTime
-                      ? "bg-blue-100 text-blue-700 font-medium"
-                      : "text-gray-500 hover:bg-gray-100"
-                }`}
-                title={!(modifiedEntry?.newTaskId || syncedEntry.project_task_id) ? "Erst Task wählen" : `Plan-Zeit: ${plannedDurationRounded.startFormatted}–${plannedDurationRounded.endFormatted}`}
-              >
-                Plan
-              </button>
-              <span className="w-px h-5 bg-gray-300" />
-              <button
-                type="button"
-                onClick={() => (modifiedEntry?.newTaskId || syncedEntry.project_task_id) && actualDurationInfo && actualDurationInfo.difference !== 0 && onModifyTime?.(appointment.id, appointment, syncedEntry, true)}
-                disabled={!(modifiedEntry?.newTaskId || syncedEntry.project_task_id) || !actualDurationInfo || actualDurationInfo.difference === 0}
-                className={`px-2.5 h-full transition-colors ${
-                  !(modifiedEntry?.newTaskId || syncedEntry.project_task_id) || !actualDurationInfo || actualDurationInfo.difference === 0
-                    ? "text-gray-300 cursor-not-allowed"
-                    : appointment.useActualTime
-                      ? "bg-blue-100 text-blue-700 font-medium"
-                      : "text-gray-500 hover:bg-gray-100"
-                }`}
-                title={!(modifiedEntry?.newTaskId || syncedEntry.project_task_id)
-                  ? "Erst Task wählen"
-                  : actualDurationInfo
-                    ? actualDurationInfo.difference === 0
-                      ? "Ist-Zeit entspricht Plan-Zeit"
-                      : `Ist-Zeit: ${actualDurationInfo.zepStart}–${actualDurationInfo.zepEnd}`
-                    : "Keine Ist-Zeit verfügbar"
-                }
-              >
-                Ist
-              </button>
-            </div>
-          </div>
-
-          {/* Sync button for pending changes */}
-          <div className="flex flex-col shrink-0">
-            <label className={`text-xs mb-1 ${!isModified ? "text-gray-300" : "text-gray-500"}`}>Sync</label>
-            <button
-              type="button"
-              onClick={() => modifiedEntry && isModified && onSaveModifiedSingle?.(modifiedEntry)}
-              disabled={isSavingModifiedSingle || !onSaveModifiedSingle || !isModified}
-              className={`flex items-center justify-center w-10 h-9.5 rounded-lg border transition-colors ${
-                isSavingModifiedSingle
-                  ? "bg-green-500 border-green-500 text-white cursor-wait"
-                  : !isModified
-                    ? "bg-gray-50 border-gray-200 text-gray-300 cursor-not-allowed opacity-40"
-                    : "bg-green-600 border-green-600 text-white hover:bg-green-700 hover:border-green-700"
-              }`}
-              title={isSavingModifiedSingle ? "Wird gespeichert..." : !isModified ? "Keine Änderungen" : "Änderungen in ZEP speichern"}
-            >
-              {isSavingModifiedSingle ? (
-                <Loader2 size={18} className="animate-spin" />
-              ) : (
-                <ClockArrowUp size={18} />
-              )}
-            </button>
-          </div>
+            }}
+            onTaskChange={(val) => {
+              if (val !== null && onModifyTask) {
+                onModifyTask(appointment.id, Number(val));
+              }
+            }}
+            onActivityChange={(val) => {
+              if (onModifyActivity && syncedEntry) {
+                onModifyActivity(appointment.id, appointment, syncedEntry, val);
+              }
+            }}
+            onBemerkungChange={(val) => {
+              if (onModifyBemerkung && syncedEntry) {
+                onModifyBemerkung(appointment.id, appointment, syncedEntry, val);
+              }
+            }}
+            onBillableChange={(val) => {
+              if (onModifyBillable && syncedEntry) {
+                onModifyBillable(appointment.id, appointment, syncedEntry, val);
+              }
+            }}
+            onTimeChange={(useActual) => {
+              if (onModifyTime && syncedEntry) {
+                onModifyTime(appointment.id, appointment, syncedEntry, useActual);
+              }
+            }}
+            onSync={() => modifiedEntry && isModified && onSaveModifiedSingle?.(modifiedEntry)}
+            isSyncing={isSavingModifiedSingle}
+            isSyncReady={isModified}
+            syncTooltip={isSavingModifiedSingle ? "Wird gespeichert..." : !isModified ? "Keine Änderungen" : "Änderungen in ZEP speichern"}
+          />
         </div>
       )}
 
       {/* Dropdowns for selected unsynchronized appointments */}
       {appointment.selected && !isSynced && (
         <div className="mt-3 pt-3 ml-8 border-t border-gray-100 flex items-end gap-2">
-          {/* Projekt-Dropdown */}
-          <div className="flex flex-col flex-3 min-w-0">
-            <label className="text-xs text-gray-500 mb-1">Projekt</label>
-            <SearchableSelect
-              options={projectOptions}
-              value={appointment.projectId}
-              onChange={(val) =>
-                onProjectChange(
-                  appointment.id,
-                  val !== null ? Number(val) : null
-                )
-              }
-              placeholder="-- Projekt wählen --"
-            />
-          </div>
-
-          {/* Task-Dropdown */}
-          <div className="flex flex-col flex-3 min-w-0">
-            <label className={`text-xs mb-1 ${!appointment.projectId ? "text-gray-300" : "text-gray-500"}`}>Task</label>
-            <SearchableSelect
-              options={taskOptions}
-              value={appointment.taskId}
-              onChange={(val) =>
-                onTaskChange(
-                  appointment.id,
-                  val !== null ? Number(val) : null
-                )
-              }
-              placeholder="-- Task wählen --"
-              disabled={!appointment.projectId || (tasks.length === 0 && !loadingTasks)}
-              disabledMessage={
-                !appointment.projectId
-                  ? "Erst Projekt wählen"
-                  : loadingTasks
-                    ? "Laden..."
-                    : "Keine Tasks vorhanden"
-              }
-              loading={loadingTasks}
-            />
-          </div>
-
-          {/* Activity-Dropdown */}
-          <div className="flex flex-col w-24 shrink-0">
-            <label className={`text-xs mb-1 ${!appointment.taskId ? "text-gray-300" : "text-gray-500"}`}>Tätigkeit</label>
-            <SearchableSelect
-              options={activityOptions}
-              value={appointment.activityId}
-              onChange={(val) =>
-                onActivityChange(appointment.id, String(val ?? "be"))
-              }
-              placeholder="-- Tätigkeit wählen --"
-              disabled={!appointment.taskId}
-              disabledMessage={!appointment.projectId ? "Erst Projekt wählen" : "Erst Task wählen"}
-              compact
-            />
-          </div>
-
-          {/* Custom Remark (ZEP Bemerkung) */}
-          <div className="flex flex-col flex-2 min-w-0">
-            <label className={`text-xs mb-1 ${!appointment.taskId ? "text-gray-300" : "text-gray-500"}`}>Bemerkung</label>
-            {(() => {
-              const hasCustomRemark = appointment.customRemark && appointment.customRemark.trim() !== (appointment.subject || "").trim();
-              return (
-                <input
-                  type="text"
-                  value={hasCustomRemark ? appointment.customRemark : ""}
-                  onChange={(e) => onCustomRemarkChange?.(appointment.id, e.target.value)}
-                  placeholder={appointment.subject}
-                  disabled={!appointment.taskId}
-                  className={`h-9.5 px-3 text-sm rounded-lg border transition-colors ${
-                    !appointment.taskId
-                      ? "bg-gray-50 border-gray-200 text-gray-300 cursor-not-allowed"
-                      : hasCustomRemark
-                        ? "bg-blue-50 border-blue-300 text-blue-900 focus:ring-blue-500 focus:border-blue-500"
-                        : "bg-white border-gray-300 text-gray-900 focus:ring-blue-500 focus:border-blue-500 placeholder-gray-400"
-                  }`}
-                  title={hasCustomRemark ? `ZEP-Bemerkung: "${appointment.customRemark}"` : `Standard: "${appointment.subject}"`}
-                />
-              );
-            })()}
-          </div>
-
-          {/* Billable Toggle */}
-          <div className="flex flex-col shrink-0">
-            <label className={`text-xs mb-1 ${!appointment.taskId ? "text-gray-300" : "text-gray-500"}`}>Fakt.</label>
-            <button
-              type="button"
-              onClick={() => appointment.taskId && appointment.canChangeBillable && onBillableChange(appointment.id, !appointment.billable)}
-              disabled={!appointment.taskId || !appointment.canChangeBillable}
-              className={`flex items-center justify-center w-10 h-9.5 rounded-lg border transition-colors ${
-                !appointment.taskId
-                  ? "bg-gray-50 border-gray-200 text-gray-300 cursor-not-allowed opacity-40"
-                  : appointment.billable
-                    ? `bg-amber-50 border-amber-300 text-amber-500 ${appointment.canChangeBillable ? "hover:bg-amber-100" : "cursor-not-allowed"}`
-                    : `bg-gray-50 border-gray-300 text-gray-400 ${appointment.canChangeBillable ? "hover:bg-gray-100" : "cursor-not-allowed"}`
-              }`}
-              title={
-                !appointment.taskId
-                  ? "Erst Task wählen"
-                  : !appointment.canChangeBillable
-                    ? `Fakturierbarkeit vom Projekt/Vorgang festgelegt (${appointment.billable ? "fakturierbar" : "nicht fakturierbar"})`
-                    : appointment.billable
-                      ? "Fakturierbar - klicken zum Ändern"
-                      : "Nicht fakturierbar (intern) - klicken zum Ändern"
-              }
-            >
-              <Banknote size={18} className={!appointment.taskId || (!appointment.billable && appointment.canChangeBillable) ? "opacity-50" : ""} />
-            </button>
-          </div>
-
-          {/* Time Type Toggle (Plan/Ist) */}
-          <div className="flex flex-col shrink-0">
-            <label className={`text-xs mb-1 ${!appointment.taskId ? "text-gray-300" : "text-gray-500"}`}>Zeit</label>
-            <div className={`inline-flex items-center h-9.5 rounded-lg border text-xs overflow-hidden ${
-              !appointment.taskId ? "border-gray-200 bg-gray-50 opacity-40" : "border-gray-300 bg-gray-50"
-            }`}>
-              <button
-                type="button"
-                onClick={() => appointment.taskId && onUseActualTimeChange?.(appointment.id, false)}
-                disabled={!appointment.taskId}
-                className={`px-2.5 h-full transition-colors ${
-                  !appointment.taskId
-                    ? "text-gray-300 cursor-not-allowed"
-                    : !appointment.useActualTime
-                      ? "bg-blue-100 text-blue-700 font-medium"
-                      : "text-gray-500 hover:bg-gray-100"
-                }`}
-                title={!appointment.taskId ? "Erst Task wählen" : `Plan-Zeit: ${plannedDurationRounded.startFormatted}–${plannedDurationRounded.endFormatted}`}
-              >
-                Plan
-              </button>
-              <span className="w-px h-5 bg-gray-300" />
-              <button
-                type="button"
-                onClick={() => appointment.taskId && actualDurationInfo && actualDurationInfo.difference !== 0 && onUseActualTimeChange?.(appointment.id, true)}
-                disabled={!appointment.taskId || !actualDurationInfo || actualDurationInfo.difference === 0}
-                className={`px-2.5 h-full transition-colors ${
-                  !appointment.taskId || !actualDurationInfo || actualDurationInfo.difference === 0
-                    ? "text-gray-300 cursor-not-allowed"
-                    : appointment.useActualTime
-                      ? "bg-blue-100 text-blue-700 font-medium"
-                      : "text-gray-500 hover:bg-gray-100"
-                }`}
-                title={!appointment.taskId
-                  ? "Erst Task wählen"
-                  : actualDurationInfo
-                    ? actualDurationInfo.difference === 0
-                      ? "Ist-Zeit entspricht Plan-Zeit"
-                      : `Ist-Zeit: ${actualDurationInfo.zepStart}–${actualDurationInfo.zepEnd}`
-                    : "Keine Ist-Zeit verfügbar"
-                }
-              >
-                Ist
-              </button>
-            </div>
-          </div>
-
-          {/* Single Sync Button */}
-          {onSyncSingle && (
-            <div className="flex flex-col shrink-0">
-              <label className={`text-xs mb-1 ${!isSyncReady ? "text-gray-300" : "text-gray-500"}`}>Sync</label>
-              <button
-                type="button"
-                onClick={() => isSyncReady && onSyncSingle(appointment)}
-                disabled={!isSyncReady || isSyncingSingle}
-                className={`flex items-center justify-center w-10 h-9.5 rounded-lg border transition-colors ${
-                  isSyncingSingle
-                    ? "bg-green-500 border-green-500 text-white cursor-wait"
-                    : !isSyncReady
-                      ? "bg-gray-50 border-gray-200 text-gray-300 cursor-not-allowed opacity-40"
-                      : "bg-green-600 border-green-600 text-white hover:bg-green-700 hover:border-green-700"
-                }`}
-                title={
-                  isSyncingSingle
-                    ? "Wird synchronisiert..."
-                    : !isSyncReady
-                      ? "Erst Projekt und Task wählen"
-                      : "Jetzt zu ZEP synchronisieren"
-                }
-              >
-                {isSyncingSingle ? (
-                  <Loader2 size={18} className="animate-spin" />
-                ) : (
-                  <ClockArrowUp size={18} className={!isSyncReady ? "opacity-50" : ""} />
-                )}
-              </button>
-            </div>
-          )}
+          <ProjectTaskActivityForm
+            projects={projects}
+            tasks={tasks}
+            allTasks={allTasks}
+            activities={activities}
+            projectId={appointment.projectId}
+            taskId={appointment.taskId}
+            activityId={appointment.activityId}
+            bemerkung={unsyncedBemerkungValues.bemerkung}
+            bemerkungPlaceholder={appointment.subject}
+            isCustomBemerkung={unsyncedBemerkungValues.isCustom}
+            billable={appointment.billable}
+            canChangeBillable={appointment.canChangeBillable}
+            useActualTime={!!appointment.useActualTime}
+            plannedTimeLabel={`${plannedDurationRounded.startFormatted}–${plannedDurationRounded.endFormatted}`}
+            actualTimeLabel={actualDurationInfo ? `${actualDurationInfo.zepStart}–${actualDurationInfo.zepEnd}` : undefined}
+            hasActualTime={!!actualDurationInfo}
+            actualTimeDiffers={!!actualDurationInfo && actualDurationInfo.difference !== 0}
+            loadingTasks={loadingTasks}
+            onProjectChange={(val) => onProjectChange(appointment.id, val)}
+            onTaskChange={(val) => onTaskChange(appointment.id, val)}
+            onActivityChange={(val) => onActivityChange(appointment.id, val)}
+            onBemerkungChange={(val) => onCustomRemarkChange?.(appointment.id, val)}
+            onBillableChange={(val) => onBillableChange(appointment.id, val)}
+            onTimeChange={(useActual) => onUseActualTimeChange?.(appointment.id, useActual)}
+            onSync={() => isSyncReady && onSyncSingle?.(appointment)}
+            isSyncing={!!isSyncingSingle}
+            isSyncReady={!!isSyncReady}
+            syncTooltip={
+              isSyncingSingle
+                ? "Wird synchronisiert..."
+                : !isSyncReady
+                  ? "Erst Projekt und Task wählen"
+                  : "Jetzt zu ZEP synchronisieren"
+            }
+          />
         </div>
       )}
     </div>

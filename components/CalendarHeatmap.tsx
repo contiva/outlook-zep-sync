@@ -341,7 +341,7 @@ export default function CalendarHeatmap({
     // Find the matching synced entry
     const syncedEntry = zepEntries.find((entry) => {
       const entryNote = (entry.note || "").trim();
-      return entryNote === apt.subject.trim();
+      return entryNote === (apt.subject || "").trim();
     });
     if (!syncedEntry) return false;
 
