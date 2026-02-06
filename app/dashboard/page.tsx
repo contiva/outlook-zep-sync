@@ -2536,6 +2536,31 @@ export default function Dashboard() {
       // Reload synced entries
       await loadSyncedEntries();
 
+      // Ensure Redis mapping exists (fixes pre-Redis entries losing sync after edit)
+      if (!syncMappings.has(modifiedEntry.outlookEventId) || modifiedEntry.bemerkung !== undefined) {
+        const dateStr = modifiedEntry.datum;
+        const mapping: RedisSyncMapping = {
+          outlookEventId: modifiedEntry.outlookEventId,
+          zepAttendanceId: modifiedEntry.zepId,
+          subject: resolvedBemerkung,
+          date: dateStr,
+          projectId: modifiedEntry.newProjectId,
+          taskId: modifiedEntry.newTaskId,
+          activityId: modifiedEntry.newActivityId,
+          syncedAt: new Date().toISOString(),
+        };
+        setSyncMappings((prev) => {
+          const next = new Map(prev);
+          next.set(modifiedEntry.outlookEventId, mapping);
+          return next;
+        });
+        authFetch("/api/sync-history", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: employeeId, mappings: [mapping] }),
+        }).catch((err) => console.error("Failed to save sync mapping to Redis:", err));
+      }
+
       toast({ text: "Änderung gespeichert", type: "success" });
     } catch (error) {
       console.error("Save modified entry error:", error);
@@ -2546,7 +2571,7 @@ export default function Dashboard() {
     } finally {
       setSavingModifiedSingleId(null);
     }
-  }, [loadSyncedEntries, toast, authFetch, appointments, syncedEntries]);
+  }, [loadSyncedEntries, toast, authFetch, appointments, syncedEntries, syncMappings, employeeId]);
 
   // Helper to get effective start/end times for an appointment
   // Uses actual time from call records if useActualTime is true and data is available

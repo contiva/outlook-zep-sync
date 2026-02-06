@@ -342,10 +342,12 @@ export default function AppointmentRow({
       modifiedEntry.newActivityId !== syncedEntry.activity_id ||
       modifiedEntry.newBillable !== syncedEntry.billable;
     const hasTimeChanges = modifiedEntry.newVon !== undefined || modifiedEntry.newBis !== undefined;
-    const hasBemerkungChanges = modifiedEntry.bemerkung !== undefined && modifiedEntry.bemerkung !== (syncedEntry.note || "");
+    // Resolve bemerkung the same way saveModifiedSingle does: empty = use subject as fallback
+    const hasBemerkungChanges = modifiedEntry.bemerkung !== undefined &&
+      (modifiedEntry.bemerkung || appointment.subject || "").trim() !== (syncedEntry.note || "").trim();
     const hasOrtChanges = modifiedEntry.newOrt !== undefined && modifiedEntry.newOrt !== (syncedEntry.work_location_id || undefined);
     return hasProjectChanges || hasTimeChanges || hasBemerkungChanges || hasOrtChanges;
-  }, [modifiedEntry, syncedEntry]);
+  }, [modifiedEntry, syncedEntry, appointment.subject]);
 
   // --- Click-outside handler ---
   useEffect(() => {
