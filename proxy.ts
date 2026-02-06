@@ -3,9 +3,15 @@ import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 
 export default async function proxy(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
+
+  // Teams app uses its own SSO auth, not next-auth sessions — let it through
+  if (request.nextUrl.searchParams.get("inTeams") === "true") {
+    return NextResponse.next();
+  }
+
   const token = await getToken({ req: request });
   const isAuthenticated = !!token;
-  const pathname = request.nextUrl.pathname;
 
   // Authenticated user on login page -> skip to dashboard instantly
   if (isAuthenticated && pathname === "/") {
