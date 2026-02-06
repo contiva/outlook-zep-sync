@@ -3,6 +3,7 @@
 import { useMemo, useEffect } from "react";
 import { format, eachDayOfInterval, parseISO, isWeekend } from "date-fns";
 import { de } from "date-fns/locale";
+import { PartyPopper } from "lucide-react";
 import { RedisSyncMapping } from "@/lib/redis";
 
 interface Attendee {
@@ -528,7 +529,7 @@ export default function CalendarHeatmap({
               <button
                 type="button"
                 onClick={() => onDayClick(isSelected ? null : dateStr)}
-                className={`group w-full max-w-8 h-10 rounded overflow-hidden cursor-pointer focus:outline-none transition-transform shadow-[inset_1px_1px_2px_rgba(0,0,0,0.08)] ${
+                className={`group w-full max-w-8 h-10 rounded overflow-hidden cursor-pointer focus:outline-none transition-transform shadow-[inset_1px_1px_2px_rgba(0,0,0,0.08)] flex items-center justify-center ${
                   status === "weekend" ? "bg-gray-100" : totalCount === 0 ? "bg-gray-100 border border-gray-200" : ""
                 } ${isSelected ? "ring-2 ring-blue-600 ring-offset-1 scale-110" : totalCount > 0 ? "hover:brightness-110 hover:shadow-md" : "hover:bg-gray-200 hover:shadow-md"}`}
                 aria-label={`${format(day, "EEEE, d. MMMM", { locale: de })}: ${totalCount} Termine, ${selectedCount} ausgewählt, Status: ${getStatusLabel(status)}`}
@@ -548,8 +549,8 @@ export default function CalendarHeatmap({
                       );
                     })}
                   </div>
-                ) : status === "weekend" ? (
-                  <span className="text-sm opacity-0 grayscale group-hover:grayscale-0 group-hover:opacity-100 transition-all duration-300" aria-hidden="true">🎉</span>
+                ) : status === "weekend" || (totalCount === 0 && isSelected) ? (
+                  <PartyPopper className={`w-4 h-4 transition-all duration-300 ${isSelected ? "text-gray-500 opacity-100" : "text-gray-300 opacity-0 group-hover:text-gray-500 group-hover:opacity-100"}`} aria-hidden="true" />
                 ) : null}
               </button>
               

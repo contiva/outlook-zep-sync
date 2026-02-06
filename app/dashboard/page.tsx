@@ -3547,7 +3547,7 @@ export default function Dashboard() {
             />
 
             {/* Upcoming/Running Meeting Quick Join */}
-            <UpcomingMeetingBar appointments={appointments} onJumpToAppointment={jumpToAppointment} />
+            <UpcomingMeetingBar appointments={appointments} isToday={filterDate === format(new Date(), "yyyy-MM-dd")} onJumpToAppointment={jumpToAppointment} />
           </div>
         </div>
 

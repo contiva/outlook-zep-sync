@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Video, ArrowDown } from "lucide-react";
+import { Video, ArrowDown, PartyPopper } from "lucide-react";
 
 interface Appointment {
   id: string;
@@ -16,6 +16,7 @@ interface Appointment {
 
 interface UpcomingMeetingBarProps {
   appointments: Appointment[];
+  isToday?: boolean;
   onJumpToAppointment?: (appointmentId: string, highlight: "running" | "upcoming") => void;
 }
 
@@ -33,7 +34,7 @@ function getZoomUrlFromBody(apt: Appointment): string | null {
   return zoomMatch ? zoomMatch[0] : null;
 }
 
-export default function UpcomingMeetingBar({ appointments, onJumpToAppointment }: UpcomingMeetingBarProps) {
+export default function UpcomingMeetingBar({ appointments, isToday = false, onJumpToAppointment }: UpcomingMeetingBarProps) {
   const [now, setNow] = useState(new Date());
 
   // Update current time every 30 seconds
@@ -92,7 +93,66 @@ export default function UpcomingMeetingBar({ appointments, onJumpToAppointment }
       });
   }, [appointments, now]);
 
+  // Today's appointments
+  const todayAppointments = useMemo(() => {
+    if (!isToday) return [];
+    const todayStr = now.toISOString().split("T")[0];
+    return appointments.filter((apt) => apt.start.dateTime.startsWith(todayStr));
+  }, [isToday, appointments, now]);
+
+  // Check if all appointments for today are done
+  const allDoneForToday = useMemo(() => {
+    if (todayAppointments.length === 0) return false;
+    return todayAppointments.every((apt) => new Date(apt.end.dateTime) < now);
+  }, [todayAppointments, now]);
+
+  // Find next upcoming appointment (more than 5 min away)
+  const nextAppointment = useMemo(() => {
+    if (!isToday || todayAppointments.length === 0) return null;
+    const future = todayAppointments
+      .filter((apt) => new Date(apt.start.dateTime) > now)
+      .sort((a, b) => new Date(a.start.dateTime).getTime() - new Date(b.start.dateTime).getTime());
+    return future[0] || null;
+  }, [isToday, todayAppointments, now]);
+
   if (upcomingMeetings.length === 0) {
+    if (allDoneForToday) {
+      return (
+        <div className="flex items-center px-4 py-2.5 text-sm border-t bg-green-50/50 border-green-100">
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+            <div className="shrink-0 w-1.5 h-1.5 rounded-full bg-green-500" />
+            <span className="text-xs font-medium uppercase tracking-wide text-green-600">
+              Geschafft <PartyPopper className="inline w-3.5 h-3.5 -mt-0.5" />
+            </span>
+            <span className="text-gray-300">|</span>
+            <span className="text-gray-700 text-sm font-medium">
+              Keine weiteren Termine heute
+            </span>
+          </div>
+        </div>
+      );
+    }
+    if (nextAppointment) {
+      const nextStart = new Date(nextAppointment.start.dateTime).toLocaleTimeString("de-DE", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      return (
+        <div className="flex items-center px-4 py-2.5 text-sm border-t bg-blue-50/50 border-blue-100">
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+            <div className="shrink-0 w-1.5 h-1.5 rounded-full bg-blue-400" />
+            <span className="text-xs font-medium uppercase tracking-wide text-blue-500">
+              Nächster Termin
+            </span>
+            <span className="text-gray-300">|</span>
+            <span className="text-gray-700 truncate font-medium">{nextAppointment.subject || "(Kein Titel)"}</span>
+            <span className="text-gray-400 text-xs shrink-0">
+              um {nextStart}
+            </span>
+          </div>
+        </div>
+      );
+    }
     return null;
   }
 
