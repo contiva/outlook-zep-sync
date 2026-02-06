@@ -161,6 +161,7 @@ interface Appointment {
   isCancelled?: boolean;
   lastModifiedDateTime?: string;
   useActualTime?: boolean; // true = use actual time from call records, false = use planned time
+  manualDurationMinutes?: number; // Manual "Ist" duration in minutes (for appointments without call data)
   customRemark?: string; // Optional: alternative remark for ZEP (overrides subject)
   workLocation?: string;
   bodyPreview?: string;
@@ -1817,6 +1818,18 @@ export default function Dashboard() {
     );
   };
 
+  const changeManualDuration = (id: string, durationMinutes: number | undefined) => {
+    const isCall = calls.some((c) => c.id === id);
+    const setItems = isCall ? setCalls : setAppointments;
+    setItems((prev) =>
+      prev.map((apt) =>
+        apt.id === id
+          ? { ...apt, manualDurationMinutes: durationMinutes, useActualTime: durationMinutes !== undefined }
+          : apt
+      )
+    );
+  };
+
   const changeWorkLocation = (id: string, workLocation: string | undefined) => {
     const isCall = calls.some((c) => c.id === id);
     const setItems = isCall ? setCalls : setAppointments;
@@ -2576,6 +2589,14 @@ export default function Dashboard() {
   // Helper to get effective start/end times for an appointment
   // Uses actual time from call records if useActualTime is true and data is available
   const getEffectiveTime = useCallback((apt: Appointment): { startDt: Date; endDt: Date } => {
+    // Check if manual duration is set (for appointments without call data)
+    if (apt.useActualTime && apt.manualDurationMinutes !== undefined) {
+      const plannedStart = new Date(apt.start.dateTime);
+      return {
+        startDt: plannedStart,
+        endDt: new Date(plannedStart.getTime() + apt.manualDurationMinutes * 60 * 1000),
+      };
+    }
     // Check if we should use actual time
     if (apt.useActualTime && apt.isOnlineMeeting && apt.onlineMeeting?.joinUrl) {
       const normalizedUrl = normalizeJoinUrl(apt.onlineMeeting.joinUrl);
@@ -3294,6 +3315,7 @@ export default function Dashboard() {
           onBillableChange={changeBillable}
           onCustomRemarkChange={handleCustomRemarkChange}
           onUseActualTimeChange={changeUseActualTime}
+          onManualDurationChange={changeManualDuration}
           globalWorkLocations={globalWorkLocations}
           onWorkLocationChange={changeWorkLocation}
           onModifyWorkLocation={modifyWorkLocation}

@@ -119,6 +119,7 @@ export interface Appointment {
   callType?: 'Phone' | 'Video' | 'ScreenShare';
   direction?: 'incoming' | 'outgoing';
   useActualTime?: boolean; // true = use actual time from call records, false = use planned time
+  manualDurationMinutes?: number; // Manual "Ist" duration in minutes (for appointments without call data)
   customRemark?: string; // Optional: alternative remark for ZEP (overrides subject)
   workLocation?: string;
   // Location
@@ -152,6 +153,8 @@ export interface AppointmentRowProps {
   onCustomRemarkChange?: (id: string, customRemark: string) => void;
   // Toggle between planned and actual time for ZEP sync
   onUseActualTimeChange?: (id: string, useActual: boolean) => void;
+  // Manual duration change (for appointments without call data)
+  onManualDurationChange?: (id: string, durationMinutes: number | undefined) => void;
   // Single row sync
   onSyncSingle?: (appointment: Appointment) => void;
   isSyncingSingle?: boolean;

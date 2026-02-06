@@ -3,12 +3,12 @@
 import { useMemo, useState, useRef, useEffect } from "react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
-import { ClockCheck, ClockArrowUp, AlertTriangle, Check, Banknote } from "lucide-react";
+import { ClockCheck, ClockArrowUp, AlertTriangle, Check, Banknote, PenLine, Loader2 } from "lucide-react";
 import ProjectTaskActivityForm from "./ProjectTaskActivityForm";
 import { calculateDisplayTimes, roundToNearest15Min } from "@/lib/time-utils";
 import AppointmentHeader from "./AppointmentRow/AppointmentHeader";
 import AppointmentStatusBar from "./AppointmentRow/AppointmentStatusBar";
-import DurationInfoPopover from "./AppointmentRow/DurationInfoPopover";
+import DurationInfoPopover, { type DurationInfoPopoverHandle } from "./AppointmentRow/DurationInfoPopover";
 import {
   isInternalDomain,
   canChangeBillableForTask,
@@ -42,6 +42,7 @@ export default function AppointmentRow({
   onBillableChange,
   onCustomRemarkChange,
   onUseActualTimeChange,
+  onManualDurationChange,
   onSyncSingle,
   isSyncingSingle = false,
   isEditing = false,
@@ -85,6 +86,11 @@ export default function AppointmentRow({
     const minutesUntilStart = (startDate.getTime() - now.getTime()) / 60000;
     return minutesUntilStart > 0 && minutesUntilStart <= 5;
   });
+  // Teams data timeout: true if online meeting ended >1h ago without call data
+  const [teamsDataTimedOut, setTeamsDataTimedOut] = useState(() => {
+    if (!appointment.isOnlineMeeting) return false;
+    return (Date.now() - endDate.getTime()) > 60 * 60 * 1000;
+  });
 
   useEffect(() => {
     const checkStatus = () => {
@@ -96,12 +102,15 @@ export default function AppointmentRow({
       setIsLive(now >= start && now <= end);
       setIsUpcoming(minutesUntilStart > 0 && minutesUntilStart <= 30);
       setIsStartingSoon(minutesUntilStart > 0 && minutesUntilStart <= 5);
+      if (appointment.isOnlineMeeting) {
+        setTeamsDataTimedOut((now.getTime() - end.getTime()) > 60 * 60 * 1000);
+      }
     };
 
     checkStatus();
     const interval = setInterval(checkStatus, 30000);
     return () => clearInterval(interval);
-  }, [appointment.start.dateTime, appointment.end.dateTime]);
+  }, [appointment.start.dateTime, appointment.end.dateTime, appointment.isOnlineMeeting]);
 
   // --- Formatted times ---
   const dayLabel = format(startDate, "EE dd.MM.", { locale: de });
@@ -111,6 +120,8 @@ export default function AppointmentRow({
 
   // --- Ref for click-outside editing detection ---
   const editingRowRef = useRef<HTMLDivElement>(null);
+  // --- Ref for programmatic popover open ---
+  const durationPopoverRef = useRef<DurationInfoPopoverHandle>(null);
 
   // --- Planned duration (rounded for ZEP) ---
   const plannedDurationRounded = useMemo(() => {
@@ -160,6 +171,15 @@ export default function AppointmentRow({
       zepEnd: formatTime(zepEndDate),
     };
   }, [actualDuration, appointment.start.dateTime, plannedDurationRounded.totalMinutes]);
+
+  // --- Can set manual duration? ---
+  // Non-online meetings: always available
+  // Online meetings: only after 1h timeout without data
+  const canSetManualDuration = !actualDurationInfo && (
+    !appointment.isOnlineMeeting || teamsDataTimedOut
+  );
+  // Teams meeting waiting for data (not yet timed out)
+  const isWaitingForTeamsData = !actualDurationInfo && !!appointment.isOnlineMeeting && !teamsDataTimedOut;
 
   // --- ZEP booked duration (synced entries) ---
   const zepBookedDuration = useMemo(() => {
@@ -217,6 +237,12 @@ export default function AppointmentRow({
     } else if (appointment.useActualTime && actualDurationInfo) {
       zepStart = actualDurationInfo.zepStart;
       zepEnd = actualDurationInfo.zepEnd;
+    } else if (appointment.useActualTime && appointment.manualDurationMinutes !== undefined) {
+      const ps = roundToNearest15Min(new Date(appointment.start.dateTime));
+      const pe = new Date(ps.getTime() + appointment.manualDurationMinutes * 60 * 1000);
+      const fmt = (d: Date) => d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+      zepStart = fmt(ps);
+      zepEnd = fmt(pe);
     } else {
       zepStart = plannedDurationRounded.startFormatted;
       zepEnd = plannedDurationRounded.endFormatted;
@@ -225,7 +251,7 @@ export default function AppointmentRow({
     const hasDeviation = zepStart !== startTime || zepEnd !== endTime;
     if (!hasDeviation) return null;
 
-    const usesActual = appointment.useActualTime && actualDurationInfo;
+    const usesActual = appointment.useActualTime && (actualDurationInfo || appointment.manualDurationMinutes !== undefined);
     const plannedDiffers = plannedDurationRounded.startFormatted !== startTime ||
                           plannedDurationRounded.endFormatted !== endTime;
 
@@ -249,6 +275,7 @@ export default function AppointmentRow({
     };
   }, [
     isSynced, zepBookedDuration, appointment.useActualTime, actualDurationInfo,
+    appointment.manualDurationMinutes, appointment.start.dateTime,
     plannedDurationRounded, startTime, endTime
   ]);
 
@@ -465,6 +492,11 @@ export default function AppointmentRow({
     hasDeviation: !!timeDeviation,
     useActualTime: appointment.useActualTime,
     syncedTimeType,
+    manualDurationMinutes: appointment.manualDurationMinutes,
+    plannedStartDateTime: appointment.start.dateTime,
+    onManualDurationChange: (durationMinutes: number | undefined) =>
+      onManualDurationChange?.(appointment.id, durationMinutes),
+    isWaitingForTeamsData,
   };
 
   // Row state → visual style mapping
@@ -571,6 +603,7 @@ export default function AppointmentRow({
               {...durationPopoverProps}
               canSwitch={(!isSynced || isEditing) && !!actualDurationInfo && actualDurationInfo.difference !== 0}
               onTimeTypeChange={handleTimeTypeChange}
+              popoverRef={durationPopoverRef}
             >
               <span className="relative pr-2 cursor-pointer decoration-dotted decoration-gray-300 underline underline-offset-2 hover:decoration-blue-400 hover:text-gray-900 transition-colors">
                 {isSynced && !isEditing && zepBookedDuration ? (
@@ -581,6 +614,15 @@ export default function AppointmentRow({
                       ? `${actualDurationInfo.zepStart}–${actualDurationInfo.zepEnd}`
                       : `${plannedDurationRounded.startFormatted}–${plannedDurationRounded.endFormatted}`
                     }
+                  </span>
+                ) : appointment.useActualTime && appointment.manualDurationMinutes !== undefined ? (
+                  <span className={`font-semibold ${isMuted ? "text-gray-400" : "text-gray-700"}`}>
+                    {(() => {
+                      const ps = roundToNearest15Min(new Date(appointment.start.dateTime));
+                      const pe = new Date(ps.getTime() + appointment.manualDurationMinutes * 60 * 1000);
+                      const fmt = (d: Date) => d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+                      return `${fmt(ps)}–${fmt(pe)}`;
+                    })()}
                   </span>
                 ) : (
                   <span className={`font-semibold ${isMuted ? "text-gray-400" : "text-gray-700"}`}>{plannedDurationRounded.startFormatted}–{plannedDurationRounded.endFormatted}</span>
@@ -643,11 +685,20 @@ export default function AppointmentRow({
               </span>
             ) : (
               // Not synced or editing: Show both times as toggle buttons
+              (() => {
+                const hasManualDuration = appointment.manualDurationMinutes !== undefined;
+                const hasIstData = !!actualDurationInfo || hasManualDuration;
+                const isIstActive = appointment.useActualTime && hasIstData;
+                const manualHours = hasManualDuration ? Math.floor(appointment.manualDurationMinutes! / 60) : 0;
+                const manualMins = hasManualDuration ? appointment.manualDurationMinutes! % 60 : 0;
+                return (
               <span
                 className={`inline-flex items-center gap-0.5 text-xs rounded-md ring-1 shadow-sm ${isMuted ? "bg-gray-100 text-gray-400 ring-gray-200" : "bg-white ring-blue-300"}`}
                 title={actualDurationInfo
                   ? `Geplant: ${formatDuration(plannedDurationRounded.totalMinutes)} | Tats\u00e4chlich: ${formatDuration(actualDurationInfo.totalMinutes)}`
-                  : `Geplant: ${formatDuration(plannedDurationRounded.totalMinutes)} | Tats\u00e4chlich: keine Daten`
+                  : hasManualDuration
+                    ? `Geplant: ${formatDuration(plannedDurationRounded.totalMinutes)} | Manuell: ${formatDuration(appointment.manualDurationMinutes!)}`
+                    : `Geplant: ${formatDuration(plannedDurationRounded.totalMinutes)} | Tats\u00e4chlich: keine Daten`
                 }
               >
                 {/* Planned time button */}
@@ -655,51 +706,77 @@ export default function AppointmentRow({
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (!actualDurationInfo) return;
-                    handleTimeTypeChange(false);
+                    if (!hasIstData) return;
+                    if (hasManualDuration && !actualDurationInfo) {
+                      onManualDurationChange?.(appointment.id, undefined);
+                    } else {
+                      handleTimeTypeChange(false);
+                    }
                   }}
-                  disabled={!actualDurationInfo}
+                  disabled={!hasIstData}
                   className={`inline-flex items-center gap-0.5 px-1.5 py-1 rounded-l transition-colors ${
-                    !appointment.useActualTime || !actualDurationInfo
+                    !isIstActive
                       ? "bg-blue-500 text-white font-semibold"
                       : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
-                  } ${!actualDurationInfo ? "cursor-default" : "cursor-pointer"}`}
-                  title={`Geplant (gerundet): ${formatDuration(plannedDurationRounded.totalMinutes)} - f\u00fcr ZEP verwenden`}
+                  } ${!hasIstData ? "cursor-default" : "cursor-pointer"}`}
+                  title={`Geplant (gerundet): ${formatDuration(plannedDurationRounded.totalMinutes)} - für ZEP verwenden`}
                 >
-                  {(!appointment.useActualTime || !actualDurationInfo) && <Check size={10} />}
+                  {!isIstActive && <Check size={10} />}
                   {plannedDurationRounded.hours > 0 ? `${plannedDurationRounded.hours}h${plannedDurationRounded.minutes > 0 ? plannedDurationRounded.minutes : ''}` : `${plannedDurationRounded.minutes}m`}
                 </button>
                 <span className="text-gray-300">|</span>
-                {/* Actual time button */}
+                {/* Actual/Manual time button */}
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (!actualDurationInfo || actualDurationInfo.difference === 0) return;
-                    handleTimeTypeChange(true);
+                    if (actualDurationInfo) {
+                      if (actualDurationInfo.difference === 0) return;
+                      handleTimeTypeChange(true);
+                    } else if (canSetManualDuration && !hasManualDuration) {
+                      durationPopoverRef.current?.open();
+                    }
                   }}
-                  disabled={!actualDurationInfo || actualDurationInfo.difference === 0}
+                  disabled={isWaitingForTeamsData}
                   className={`inline-flex items-center gap-0.5 px-1.5 py-1 rounded-r transition-colors ${
-                    !actualDurationInfo || actualDurationInfo.difference === 0
-                      ? "text-gray-300 cursor-default"
-                      : appointment.useActualTime
-                        ? `bg-blue-500 text-white font-semibold`
-                        : `${actualDurationInfo.color} hover:bg-gray-100`
+                    actualDurationInfo
+                      ? actualDurationInfo.difference === 0
+                        ? "text-gray-300 cursor-default"
+                        : isIstActive
+                          ? "bg-blue-500 text-white font-semibold"
+                          : `${actualDurationInfo.color} hover:bg-gray-100`
+                      : hasManualDuration && isIstActive
+                        ? "bg-blue-500 text-white font-semibold"
+                        : hasManualDuration
+                          ? "text-orange-600 hover:bg-gray-100 cursor-pointer"
+                          : isWaitingForTeamsData
+                            ? "text-gray-300 cursor-default"
+                            : "text-gray-400 hover:text-orange-500 hover:bg-orange-50 cursor-pointer"
                   }`}
-                  title={!actualDurationInfo
-                    ? "Keine tats\u00e4chliche Zeit verf\u00fcgbar"
-                    : actualDurationInfo.difference === 0
-                      ? "Tats\u00e4chliche Zeit entspricht der geplanten Zeit"
-                      : `Tats\u00e4chlich (gerundet): ${formatDuration(actualDurationInfo.totalMinutes)} - f\u00fcr ZEP verwenden`
+                  title={actualDurationInfo
+                    ? actualDurationInfo.difference === 0
+                      ? "Tatsächliche Zeit entspricht der geplanten Zeit"
+                      : `Tatsächlich (gerundet): ${formatDuration(actualDurationInfo.totalMinutes)} - für ZEP verwenden`
+                    : hasManualDuration
+                      ? `Manuelle Ist-Zeit: ${formatDuration(appointment.manualDurationMinutes!)}`
+                      : isWaitingForTeamsData
+                        ? "Warte auf Teams-Anrufdaten…"
+                        : "Ist-Zeit manuell setzen"
                   }
                 >
-                  {actualDurationInfo && appointment.useActualTime && actualDurationInfo.difference !== 0 && <Check size={10} />}
+                  {isIstActive && <Check size={10} />}
                   {actualDurationInfo
                     ? (actualDurationInfo.hours > 0 ? `${actualDurationInfo.hours}h${actualDurationInfo.minutes > 0 ? actualDurationInfo.minutes : ''}` : `${actualDurationInfo.minutes}m`)
-                    : "--"
+                    : hasManualDuration
+                      ? (manualHours > 0 ? `${manualHours}h${manualMins > 0 ? manualMins : ''}` : `${manualMins}m`)
+                      : isWaitingForTeamsData
+                        ? <Loader2 size={10} className="animate-spin text-gray-300" />
+                        : <PenLine size={10} />
                   }
                 </button>
               </span>
+                );
+              })()
             )}
           </div>
         </div>

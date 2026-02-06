@@ -118,6 +118,8 @@ interface SeriesGroupProps {
   onCustomRemarkChange?: (id: string, customRemark: string) => void;
   // Toggle between planned and actual time for ZEP sync
   onUseActualTimeChange?: (id: string, useActual: boolean) => void;
+  // Manual duration change (for appointments without call data)
+  onManualDurationChange?: (id: string, durationMinutes: number | undefined) => void;
   onApplyToSeries: (
     seriesId: string,
     projectId: number | null,
@@ -220,6 +222,7 @@ export default function SeriesGroup({
   onBillableChange,
   onCustomRemarkChange,
   onUseActualTimeChange,
+  onManualDurationChange,
   onApplyToSeries,
   onSyncSeries,
   syncingSeriesId,
@@ -719,6 +722,7 @@ export default function SeriesGroup({
               onBillableChange={onBillableChange}
               onCustomRemarkChange={onCustomRemarkChange}
               onUseActualTimeChange={onUseActualTimeChange}
+              onManualDurationChange={onManualDurationChange}
               // Single sync
               onSyncSingle={onSyncSingle}
               isSyncingSingle={syncingSingleId === appointment.id}

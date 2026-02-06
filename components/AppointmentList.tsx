@@ -133,6 +133,8 @@ interface AppointmentListProps {
   onCustomRemarkChange?: (id: string, customRemark: string) => void;
   // Toggle between planned and actual time for ZEP sync
   onUseActualTimeChange?: (id: string, useActual: boolean) => void;
+  // Manual duration change (for appointments without call data)
+  onManualDurationChange?: (id: string, durationMinutes: number | undefined) => void;
   onApplyToSeries: (
     seriesId: string,
     projectId: number | null,
@@ -449,6 +451,7 @@ export default function AppointmentList({
   onBillableChange,
   onCustomRemarkChange,
   onUseActualTimeChange,
+  onManualDurationChange,
   onApplyToSeries,
   onSubmit,
   onSyncSingle,
@@ -1095,6 +1098,7 @@ export default function AppointmentList({
                 onBillableChange={onBillableChange}
                 onCustomRemarkChange={onCustomRemarkChange}
                 onUseActualTimeChange={onUseActualTimeChange}
+                onManualDurationChange={onManualDurationChange}
                 onApplyToSeries={onApplyToSeries}
                 // Series sync
                 onSyncSeries={onSyncSeries}
@@ -1149,6 +1153,7 @@ export default function AppointmentList({
                 onBillableChange={onBillableChange}
                 onCustomRemarkChange={onCustomRemarkChange}
                 onUseActualTimeChange={onUseActualTimeChange}
+                onManualDurationChange={onManualDurationChange}
                 // Single sync
                 onSyncSingle={onSyncSingle}
                 isSyncingSingle={syncingSingleId === item.appointments[0].id}
