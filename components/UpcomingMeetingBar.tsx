@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Video, ArrowDown, PartyPopper } from "lucide-react";
+import { Video, ArrowDown, PartyPopper, Quote } from "lucide-react";
+import dailyQuotes from "@/lib/daily-quotes.json";
 
 interface Appointment {
   id: string;
@@ -32,6 +33,18 @@ function getZoomUrlFromBody(apt: Appointment): string | null {
   if (!apt.bodyPreview) return null;
   const zoomMatch = apt.bodyPreview.match(/https:\/\/[a-z0-9-]*\.?zoom\.us\/j\/[^\s<>"]+/i);
   return zoomMatch ? zoomMatch[0] : null;
+}
+
+function getDailyQuote(): { text: string; author?: string } {
+  const today = new Date();
+  const dayOfYear = Math.floor(
+    (today.getTime() - new Date(today.getFullYear(), 0, 0).getTime()) / 86400000
+  );
+  const raw = dailyQuotes[dayOfYear % dailyQuotes.length];
+  const parts = raw.split(" — ");
+  return parts.length > 1
+    ? { text: parts[0], author: parts[1] }
+    : { text: raw };
 }
 
 export default function UpcomingMeetingBar({ appointments, isToday = false, onJumpToAppointment }: UpcomingMeetingBarProps) {
@@ -117,16 +130,28 @@ export default function UpcomingMeetingBar({ appointments, isToday = false, onJu
 
   if (upcomingMeetings.length === 0) {
     if (allDoneForToday) {
+      const quote = getDailyQuote();
+      const fullLength = quote.text.length + (quote.author?.length || 0);
+      const quoteSize = fullLength > 120 ? "text-sm" : fullLength > 80 ? "text-base" : "text-lg";
+      const authorSize = fullLength > 120 ? "text-[9px]" : "text-[11px]";
       return (
         <div className="flex items-center px-4 py-2.5 text-sm border-t bg-green-50/50 border-green-100">
           <div className="flex items-center gap-2.5 min-w-0 flex-1">
             <div className="shrink-0 w-1.5 h-1.5 rounded-full bg-green-500" />
-            <span className="text-xs font-medium uppercase tracking-wide text-green-600">
+            <span className="shrink-0 text-xs font-medium uppercase tracking-wide text-green-600">
               Geschafft <PartyPopper className="inline w-3.5 h-3.5 -mt-0.5" />
             </span>
-            <span className="text-gray-300">|</span>
-            <span className="text-gray-700 text-sm font-medium">
-              Keine weiteren Termine heute
+            <span className="text-gray-300 shrink-0">|</span>
+            <Quote className="shrink-0 w-3.5 h-3.5 text-gray-400 -mr-3 -mt-3" />
+            <span className="min-w-0">
+              <span className={`text-gray-800 ${quoteSize}`} style={{ fontFamily: "var(--font-caveat)" }}>
+                {quote.text}
+              </span>
+              {quote.author && (
+                <span className={`text-gray-400 ${authorSize} ml-1.5`}>
+                  — {quote.author}
+                </span>
+              )}
             </span>
           </div>
         </div>

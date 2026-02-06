@@ -10,6 +10,7 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-montserrat: var(--font-montserrat);
+  --font-caveat: var(--font-caveat);
 }
 
 html, body {

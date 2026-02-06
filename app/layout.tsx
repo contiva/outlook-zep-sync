@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, Montserrat } from "next/font/google";
+import { Inter, Montserrat, Caveat } from "next/font/google";
 import "./globals.css";
 import Providers from "@/components/Providers";
 import ScrollToTop from "@/components/ScrollToTop";
@@ -8,9 +8,13 @@ const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
 });
-const montserrat = Montserrat({ 
+const montserrat = Montserrat({
   subsets: ["latin"],
   variable: "--font-montserrat",
+});
+const caveat = Caveat({
+  subsets: ["latin"],
+  variable: "--font-caveat",
 });
 
 export const metadata: Metadata = {
@@ -41,7 +45,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="de">
-      <body className={`${inter.variable} ${montserrat.variable}`}>
+      <body className={`${inter.variable} ${montserrat.variable} ${caveat.variable}`}>
         <Providers>
           {children}
           <ScrollToTop />
