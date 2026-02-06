@@ -567,7 +567,7 @@ export default function AppointmentRow({
               <button
                 type="button"
                 onClick={() => onToggle(appointment.id)}
-                className="relative flex items-center justify-center h-5 w-5 before:absolute before:inset-[-10px] before:content-['']"
+                className="relative flex items-center justify-center h-5 w-5 before:absolute before:-inset-2.5 before:content-['']"
                 aria-label={`Termin auswählen: ${appointment.subject}`}
                 aria-pressed={appointment.selected}
               >

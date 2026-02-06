@@ -168,27 +168,14 @@ export default function DateRangePicker({
         {/* Spacer */}
         <div className="flex-1" />
         
-        {/* Last loaded status */}
-        {lastLoadedAt && !loading && (
-          <>
-            <span 
-              className="px-3 text-xs text-gray-400 hidden sm:inline" 
-              title={format(lastLoadedAt, "PPpp", { locale: de })}
-            >
-              {formatDistanceToNow(lastLoadedAt, { addSuffix: true, locale: de })}
-            </span>
-            <div className="h-8 w-px bg-gray-200" />
-          </>
-        )}
-        
         {/* ZEP direct link */}
         <a
           href="https://www.zep-online.de/zepcontiva/view/oauth2login.php"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center self-stretch ps-3 pe-1 text-sm font-medium text-gray-600 hover:bg-gray-50 transition whitespace-nowrap"
+          className="flex items-center self-stretch ps-3 pe-1 text-sm font-medium text-gray-600 hover:bg-green-50 hover:text-green-700 transition whitespace-nowrap border-l border-gray-200"
         >
-          <span className="hidden sm:inline">Direkt zu</span>
+          <span className="hidden sm:inline">Weiter zu</span>
           <Image src="/zep-logo.png" alt="ZEP" width={61} height={24} className="h-6 w-auto relative -top-[1.2px] -ml-0.5" />
         </a>
 
@@ -196,7 +183,7 @@ export default function DateRangePicker({
         <button
           onClick={onLoad}
           disabled={loading}
-          className="relative flex items-center gap-2 px-4 py-3 text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:cursor-wait transition overflow-hidden"
+          className="relative flex items-center gap-2 px-4 py-3 text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 cursor-pointer disabled:cursor-wait transition overflow-hidden"
         >
           {/* Progress bar background animation */}
           {loading && (
@@ -219,6 +206,14 @@ export default function DateRangePicker({
             <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
             <span className="hidden sm:inline">Termine laden</span>
           </span>
+          {lastLoadedAt && !loading && (
+            <span
+              className="absolute bottom-1.5 left-1/2 -translate-x-1/2 z-10 hidden sm:block text-[9px] leading-none text-blue-300 whitespace-nowrap"
+              title={format(lastLoadedAt, "PPpp", { locale: de })}
+            >
+              {formatDistanceToNow(lastLoadedAt, { addSuffix: true, locale: de })}
+            </span>
+          )}
         </button>
     </div>
   );
