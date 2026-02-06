@@ -204,7 +204,7 @@ export function findRescheduledEntry(
   const zepTimes = calculateZepTimes(aptDate, aptEndDate);
   const aptFromTime = zepTimes.start;
   const aptToTime = zepTimes.end;
-  const aptSubject = appointment.subject.toLowerCase().trim();
+  const aptSubject = (appointment.subject || "").toLowerCase().trim();
   const aptCustomRemark = (appointment.customRemark || "").toLowerCase().trim();
 
   if (!aptSubject) return null;
@@ -257,7 +257,7 @@ export function checkForDuplicate(
   const zepTimes = calculateZepTimes(aptDate, aptEndDate);
   const aptFromTime = zepTimes.start;
   const aptToTime = zepTimes.end;
-  const aptSubject = appointment.subject.toLowerCase().trim();
+  const aptSubject = (appointment.subject || "").toLowerCase().trim();
   const aptCustomRemark = (appointment.customRemark || "").toLowerCase().trim();
 
   // Filter entries for the same day
