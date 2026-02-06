@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useEffect } from "react";
-import { format, eachDayOfInterval, parseISO, isWeekend } from "date-fns";
+import { format, eachDayOfInterval, parseISO, isWeekend, addDays as addDaysToDate } from "date-fns";
 import { de } from "date-fns/locale";
 import { PartyPopper } from "lucide-react";
 import { RedisSyncMapping } from "@/lib/redis";
@@ -81,6 +81,47 @@ interface CalendarHeatmapProps {
   onStatsChange?: (stats: HeatmapStats) => void;
 }
 
+// Berechnet Ostersonntag für ein gegebenes Jahr (Anonymous Gregorian Algorithm)
+function getEasterSunday(year: number): Date {
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(year, month - 1, day);
+}
+
+// Bundesweite gesetzliche Feiertage (gelten in allen 16 Bundesländern)
+function getGermanHolidays(year: number): Map<string, string> {
+  const easter = getEasterSunday(year);
+  const holidays = new Map<string, string>();
+  const fmt = (d: Date) => format(d, "yyyy-MM-dd");
+
+  // Feste Feiertage
+  holidays.set(`${year}-01-01`, "Neujahr");
+  holidays.set(`${year}-05-01`, "Tag der Arbeit");
+  holidays.set(`${year}-10-03`, "Tag der Deutschen Einheit");
+  holidays.set(`${year}-12-25`, "1. Weihnachtsfeiertag");
+  holidays.set(`${year}-12-26`, "2. Weihnachtsfeiertag");
+
+  // Bewegliche Feiertage (abhängig von Ostern)
+  holidays.set(fmt(addDaysToDate(easter, -2)), "Karfreitag");
+  holidays.set(fmt(addDaysToDate(easter, 1)), "Ostermontag");
+  holidays.set(fmt(addDaysToDate(easter, 39)), "Christi Himmelfahrt");
+  holidays.set(fmt(addDaysToDate(easter, 50)), "Pfingstmontag");
+
+  return holidays;
+}
+
 type DayStatus = "empty" | "unprocessed" | "edited" | "synced" | "syncedWithChanges" | "weekend";
 type AppointmentStatus = "synced" | "syncedWithChanges" | "edited" | "unprocessed" | "deselected";
 
@@ -121,6 +162,22 @@ export default function CalendarHeatmap({
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appointments, hideSoloMeetings, userEmail]);
+
+  // Feiertage für alle relevanten Jahre im Bereich berechnen
+  const holidays = useMemo(() => {
+    try {
+      const startYear = parseISO(startDate).getFullYear();
+      const endYear = parseISO(endDate).getFullYear();
+      const allHolidays = new Map<string, string>();
+      for (let y = startYear; y <= endYear; y++) {
+        const yearHolidays = getGermanHolidays(y);
+        yearHolidays.forEach((name, date) => allHolidays.set(date, name));
+      }
+      return allHolidays;
+    } catch {
+      return new Map<string, string>();
+    }
+  }, [startDate, endDate]);
 
   // Generate all days in the range
   const days = useMemo(() => {
@@ -514,7 +571,9 @@ export default function CalendarHeatmap({
           const totalCount = dayAppointments.length;
           const dayNum = format(day, "d");
           const weekday = format(day, "EEEEEE", { locale: de });
-          
+          const holidayName = holidays.get(dateStr);
+          const isHoliday = !!holidayName;
+
           const isSelected = selectedDate === dateStr;
           
           return (
@@ -529,10 +588,10 @@ export default function CalendarHeatmap({
               <button
                 type="button"
                 onClick={() => onDayClick(isSelected ? null : dateStr)}
-                className={`group w-full max-w-8 h-10 rounded overflow-hidden cursor-pointer focus:outline-none transition-transform shadow-[inset_1px_1px_2px_rgba(0,0,0,0.08)] flex items-center justify-center ${
-                  status === "weekend" ? "bg-gray-100" : totalCount === 0 ? "bg-gray-100 border border-gray-200" : ""
+                className={`relative group w-full max-w-8 h-10 rounded overflow-hidden cursor-pointer focus:outline-none transition-transform shadow-[inset_1px_1px_2px_rgba(0,0,0,0.08)] flex items-center justify-center ${
+                  status === "weekend" || (isHoliday && totalCount === 0) ? "bg-gray-100" : totalCount === 0 ? "bg-gray-100 border border-gray-200" : ""
                 } ${isSelected ? "ring-2 ring-blue-600 ring-offset-1 scale-110" : totalCount > 0 ? "hover:brightness-110 hover:shadow-md" : "hover:bg-gray-200 hover:shadow-md"}`}
-                aria-label={`${format(day, "EEEE, d. MMMM", { locale: de })}: ${totalCount} Termine, ${selectedCount} ausgewählt, Status: ${getStatusLabel(status)}`}
+                aria-label={`${format(day, "EEEE, d. MMMM", { locale: de })}${holidayName ? ` (${holidayName})` : ""}: ${totalCount} Termine, ${selectedCount} ausgewählt, Status: ${getStatusLabel(status)}`}
                 aria-pressed={isSelected}
               >
                 {/* Stacked segments for appointments */}
@@ -549,15 +608,24 @@ export default function CalendarHeatmap({
                       );
                     })}
                   </div>
-                ) : status === "weekend" || (totalCount === 0 && isSelected) ? (
-                  <PartyPopper className={`w-4 h-4 transition-all duration-300 ${isSelected ? "text-gray-500 opacity-100" : "text-gray-300 opacity-0 group-hover:text-gray-500 group-hover:opacity-100"}`} aria-hidden="true" />
+                ) : status === "weekend" || isHoliday || (totalCount === 0 && isSelected) ? (
+                  <PartyPopper className={`w-4 h-4 transition-all duration-300 ${isSelected ? "text-gray-500 opacity-100" : isHoliday ? "text-gray-600 opacity-30" : "text-gray-300 opacity-0 group-hover:text-gray-500 group-hover:opacity-100"}`} aria-hidden="true" />
                 ) : null}
+                {/* Feiertag: PartyPopper-Overlay über Terminen */}
+                {isHoliday && totalCount > 0 && (
+                  <div className="absolute inset-0 flex items-center justify-center" aria-hidden="true">
+                    <PartyPopper className="w-4 h-4 text-gray-800 opacity-30" />
+                  </div>
+                )}
               </button>
               
               {/* Day number below */}
-              <span className={`text-[10px] font-medium ${
-                status === "weekend" ? "text-gray-400" : "text-gray-600"
-              }`}>
+              <span
+                className={`text-[10px] font-medium ${
+                  isHoliday ? "text-red-500" : status === "weekend" ? "text-gray-400" : "text-gray-600"
+                }`}
+                title={holidayName || undefined}
+              >
                 {dayNum}
               </span>
             </div>
