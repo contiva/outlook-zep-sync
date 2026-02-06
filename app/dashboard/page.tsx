@@ -3,7 +3,7 @@
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
-import { format, startOfMonth, endOfMonth, subMonths, isWeekend, addDays } from "date-fns";
+import { format, startOfMonth, endOfMonth } from "date-fns";
 import { LogOut, Keyboard, Loader2, Phone, ChevronLeft, ChevronRight } from "lucide-react";
 import { useToast } from "@/components/Toast";
 import Image from "next/image";
@@ -251,61 +251,16 @@ interface ProjectsCache {
   [key: string]: ProjectsCacheEntry;
 }
 
-// Helper: Get the nth workday of a month (1-based)
-function getNthWorkday(date: Date, n: number): Date {
-  const start = startOfMonth(date);
-  let workdays = 0;
-  let current = start;
-  
-  while (workdays < n) {
-    if (!isWeekend(current)) {
-      workdays++;
-      if (workdays === n) {
-        return current;
-      }
-    }
-    current = addDays(current, 1);
-  }
-  return current;
-}
-
-// Helper: Check if we should default to last month (before 5th workday of current month)
-function shouldDefaultToLastMonth(): boolean {
-  const today = new Date();
-  const fifthWorkday = getNthWorkday(today, 5);
-  return today <= fifthWorkday;
-}
-
-// Helper: Get default date range based on current date
 function getDefaultDateRange(): { startDate: string; endDate: string } {
   const today = new Date();
-  
-  if (shouldDefaultToLastMonth()) {
-    // Before 5th workday: default to last month
-    const lastMonth = subMonths(today, 1);
-    return {
-      startDate: format(startOfMonth(lastMonth), "yyyy-MM-dd"),
-      endDate: format(endOfMonth(lastMonth), "yyyy-MM-dd"),
-    };
-  } else {
-    // After 5th workday: default to this month
-    return {
-      startDate: format(startOfMonth(today), "yyyy-MM-dd"),
-      endDate: format(endOfMonth(today), "yyyy-MM-dd"),
-    };
-  }
+  return {
+    startDate: format(startOfMonth(today), "yyyy-MM-dd"),
+    endDate: format(endOfMonth(today), "yyyy-MM-dd"),
+  };
 }
 
-// Helper: Get default filter date based on current date
-// Returns today's date (yyyy-MM-dd) when showing current month, null otherwise
 function getDefaultFilterDate(): string | null {
-  if (shouldDefaultToLastMonth()) {
-    // Before 5th workday: showing last month, no default filter
-    return null;
-  } else {
-    // After 5th workday: showing current month, default to today
-    return format(new Date(), "yyyy-MM-dd");
-  }
+  return format(new Date(), "yyyy-MM-dd");
 }
 
 interface PersistedState {
@@ -448,15 +403,15 @@ function detectSyncedTimePreference(
   return undefined;
 }
 
-// Helper to safely access localStorage (SSR-safe)
 const getStoredState = (): PersistedState | null => {
   if (typeof window === "undefined") return null;
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (!stored) return null;
     const state = JSON.parse(stored) as PersistedState;
-    // Invalidate cache after 24 hours
-    if (Date.now() - state.savedAt > 24 * 60 * 60 * 1000) {
+    const savedDate = format(new Date(state.savedAt), "yyyy-MM-dd");
+    const todayDate = format(new Date(), "yyyy-MM-dd");
+    if (savedDate !== todayDate) {
       localStorage.removeItem(STORAGE_KEY);
       return null;
     }
