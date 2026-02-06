@@ -180,6 +180,17 @@ export default function DateRangePicker({
           </>
         )}
         
+        {/* ZEP direct link */}
+        <a
+          href="https://www.zep-online.de/zepcontiva/view/oauth2login.php"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center self-stretch ps-3 pe-1 text-sm font-medium text-gray-600 hover:bg-gray-50 transition whitespace-nowrap"
+        >
+          <span className="hidden sm:inline">Direkt zu</span>
+          <img src="/zep-logo.png" alt="ZEP" className="h-6 relative -top-[1.2px] -ml-[2px]" />
+        </a>
+
         {/* Load button */}
         <button
           onClick={onLoad}
