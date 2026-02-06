@@ -840,7 +840,7 @@ export default function AppointmentRow({
               <>
                 <span className="text-green-300">/</span>
                 <span className="text-green-600" title={syncedInfo.activityName}>
-                  {syncedInfo.taskName} <span className="text-green-400">({syncedInfo.activityId})</span>
+                  {syncedInfo.taskName} <span className="text-gray-400">({syncedInfo.activityId})</span>
                 </span>
               </>
             )}
