@@ -16,6 +16,7 @@ import {
 } from "./AppointmentRow/helpers";
 import type {
   AppointmentRowProps,
+  ModifiedEntry,
   WorkLocation,
   Task,
 } from "./AppointmentRow/types";
@@ -420,6 +421,32 @@ export default function AppointmentRow({
     }
   };
 
+  // --- Quick-restore original subject in ZEP ---
+  const handleRestoreSubject = () => {
+    if (!syncedEntry || !onSaveModifiedSingle) return;
+    const entry: ModifiedEntry = {
+      zepId: syncedEntry.id,
+      outlookEventId: appointment.id,
+      originalProjectId: syncedEntry.project_id,
+      originalTaskId: syncedEntry.project_task_id,
+      originalActivityId: syncedEntry.activity_id,
+      originalBillable: syncedEntry.billable,
+      newProjectId: syncedEntry.project_id,
+      newTaskId: syncedEntry.project_task_id,
+      newActivityId: syncedEntry.activity_id,
+      newBillable: syncedEntry.billable,
+      newOrt: syncedEntry.work_location_id || undefined,
+      newProjektNr: syncedEntry.projektNr || "",
+      newVorgangNr: syncedEntry.vorgangNr || "",
+      userId: syncedEntry.employee_id,
+      datum: syncedEntry.date.split("T")[0],
+      von: syncedEntry.from.slice(0, 5),
+      bis: syncedEntry.to.slice(0, 5),
+      bemerkung: "", // empty = resolves to appointment.subject in saveModifiedSingle
+    };
+    onSaveModifiedSingle(entry);
+  };
+
   // --- DurationInfoPopover shared props ---
   const durationPopoverProps = {
     originalStart: startTime,
@@ -533,6 +560,8 @@ export default function AppointmentRow({
             isSynced={isSynced}
             syncedEntry={syncedEntry}
             attendees={attendees}
+            onRestoreSubject={isSynced && onSaveModifiedSingle ? handleRestoreSubject : undefined}
+            isRestoringSubject={isSavingModifiedSingle}
           />
 
           {/* Details row - Date/Time + Duration Badge */}

@@ -1,6 +1,6 @@
 "use client";
 
-import { MapPin, Ban } from "lucide-react";
+import { MapPin, Ban, RotateCcw, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import {
@@ -27,6 +27,8 @@ export interface AppointmentHeaderProps {
   isSynced: boolean;
   syncedEntry?: SyncedEntry | null;
   attendees: Attendee[];
+  onRestoreSubject?: () => void;
+  isRestoringSubject?: boolean;
 }
 
 // Provider color config for join buttons
@@ -115,6 +117,8 @@ export default function AppointmentHeader({
   isSynced,
   syncedEntry,
   attendees,
+  onRestoreSubject,
+  isRestoringSubject,
 }: AppointmentHeaderProps) {
   const attendeeCount = attendees.length;
 
@@ -229,6 +233,39 @@ export default function AppointmentHeader({
         </div>
       </div>
 
+      {/* Struck-through original Outlook title - clickable to restore in ZEP */}
+      {isSynced && syncedEntry?.note && syncedEntry.note.trim() !== (appointment.subject || "").trim() && (
+        onRestoreSubject ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRestoreSubject();
+            }}
+            disabled={isRestoringSubject}
+            className={`group flex items-center gap-1 text-xs truncate ml-0.5 -mt-0.5 transition-colors ${
+              isRestoringSubject
+                ? "text-gray-300 cursor-wait"
+                : isMuted
+                  ? "text-gray-300 hover:text-gray-500"
+                  : "text-gray-400 hover:text-gray-600 cursor-pointer"
+            }`}
+            title="Klicken um Original-Titel in ZEP wiederherzustellen"
+          >
+            <span className="line-through truncate">{appointment.subject}</span>
+            {isRestoringSubject ? (
+              <Loader2 size={10} className="shrink-0 animate-spin" />
+            ) : (
+              <RotateCcw size={10} className="shrink-0 text-violet-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+            )}
+          </button>
+        ) : (
+          <div className={`text-xs truncate line-through ml-0.5 -mt-0.5 ${isMuted ? "text-gray-300" : "text-gray-400"}`}>
+            {appointment.subject}
+          </div>
+        )
+      )}
+
       {/* Row 2: Metadata line */}
       <div className={`flex items-center gap-1.5 text-xs mt-0.5 ${isMuted ? "text-gray-400" : "text-gray-500"}`}>
         {/* Organizer */}
@@ -330,12 +367,6 @@ export default function AppointmentHeader({
         )}
       </div>
 
-      {/* Row 3: Original Outlook title - shown below when synced with different remark */}
-      {isSynced && syncedEntry?.note && syncedEntry.note.trim() !== (appointment.subject || "").trim() && (
-        <div className={`text-xs truncate line-through ml-0.5 -mt-0.5 ${isMuted ? "text-gray-300" : "text-gray-400"}`}>
-          {appointment.subject}
-        </div>
-      )}
     </>
   );
 }

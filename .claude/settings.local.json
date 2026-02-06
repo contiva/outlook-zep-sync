@@ -1,4 +1,8 @@
 {
+  "env": {
+    "CLAUDE_CODE_ENABLE_TELEMETRY": "1",
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
   "permissions": {
     "allow": [
       "Bash(npx tsx:*)",
@@ -11,7 +15,10 @@
       "WebFetch(domain:www.vectorlogo.zone)",
       "Bash(chmod:*)",
       "Bash(sips:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(echo:*)",
+      "Bash(wc -l:*)",
+      "Bash(cat:*)"
     ]
   }
 }
