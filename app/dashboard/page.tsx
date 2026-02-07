@@ -3665,7 +3665,7 @@ export default function Dashboard() {
           <button
             onClick={() => navigateDay('prev')}
             disabled={!canNavigatePrev}
-            className="absolute -left-12 top-1/2 -translate-y-1/2 p-2 rounded-full text-gray-300 hover:text-blue-500 hover:bg-blue-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+            className="hidden md:block absolute -left-12 top-1/2 -translate-y-1/2 p-2 rounded-full text-gray-300 hover:text-blue-500 hover:bg-blue-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
             title="Vorheriger Tag"
           >
             <ChevronLeft size={24} />
@@ -3675,7 +3675,7 @@ export default function Dashboard() {
           <button
             onClick={() => navigateDay('next')}
             disabled={!canNavigateNext}
-            className="absolute -right-12 top-1/2 -translate-y-1/2 p-2 rounded-full text-gray-300 hover:text-blue-500 hover:bg-blue-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+            className="hidden md:block absolute -right-12 top-1/2 -translate-y-1/2 p-2 rounded-full text-gray-300 hover:text-blue-500 hover:bg-blue-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
             title="Nächster Tag"
           >
             <ChevronRight size={24} />
@@ -3730,25 +3730,27 @@ export default function Dashboard() {
               )}
             </div>
 
-            <CalendarHeatmap
-              startDate={startDate}
-              endDate={endDate}
-              appointments={appointments}
-              syncedEntries={syncedEntries}
-              syncMappings={syncMappings}
-              submittedIds={submittedIds}
-              modifiedEntries={modifiedEntries}
-              selectedDate={filterDate}
-              hideSoloMeetings={hideSoloMeetings}
-              userEmail={userEmail || undefined}
-              onDayClick={(date) => {
-                setFilterDate(date);
-                if (date) setSeriesFilterActive(false); // Clear series filter when selecting a date
-              }}
-              onSeriesClick={setSeriesFilterActive}
-              seriesFilterActive={seriesFilterActive}
-              onStatsChange={setHeatmapStats}
-            />
+            <div className="hidden md:block">
+              <CalendarHeatmap
+                startDate={startDate}
+                endDate={endDate}
+                appointments={appointments}
+                syncedEntries={syncedEntries}
+                syncMappings={syncMappings}
+                submittedIds={submittedIds}
+                modifiedEntries={modifiedEntries}
+                selectedDate={filterDate}
+                hideSoloMeetings={hideSoloMeetings}
+                userEmail={userEmail || undefined}
+                onDayClick={(date) => {
+                  setFilterDate(date);
+                  if (date) setSeriesFilterActive(false); // Clear series filter when selecting a date
+                }}
+                onSeriesClick={setSeriesFilterActive}
+                seriesFilterActive={seriesFilterActive}
+                onStatsChange={setHeatmapStats}
+              />
+            </div>
 
             {/* Upcoming/Running Meeting Quick Join */}
             <UpcomingMeetingBar
@@ -3759,8 +3761,10 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Legend */}
-        <CalendarHeatmapLegend stats={heatmapStats} />
+        {/* Legend (hidden on mobile) */}
+        <div className="hidden md:block">
+          <CalendarHeatmapLegend stats={heatmapStats} />
+        </div>
 
         <AppointmentList
           appointments={filteredMergedAppointments}

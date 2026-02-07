@@ -121,7 +121,7 @@ export default function DateRangePicker({
 
   return (
     <div className="flex items-center border-b border-gray-200">
-      {/* Month presets */}
+      {/* Month presets (hidden on mobile) */}
       {presets.map((preset, index) => {
         const isActive = isPresetActive(preset);
         const isRelated = isPresetRelated(index);
@@ -133,7 +133,7 @@ export default function DateRangePicker({
               // Clear the filter date when clicking month directly
               setTimeout(() => onFilterDateChange(null), 100);
             }}
-            className={`px-4 py-3 text-sm whitespace-nowrap transition ${
+            className={`hidden md:block px-4 py-3 text-sm whitespace-nowrap transition ${
               isActive && !isRelated
                 ? 'text-blue-600 bg-blue-50'
                 : isRelated
@@ -146,12 +146,12 @@ export default function DateRangePicker({
         );
       })}
 
-      <div className="h-8 w-px bg-gray-200" />
+      <div className="hidden md:block h-8 w-px bg-gray-200" />
 
       {/* Quick jump buttons */}
       <button
         onClick={jumpToYesterday}
-        className={`px-4 py-3 text-sm whitespace-nowrap transition ${
+        className={`flex-1 md:flex-initial justify-center px-3 md:px-4 py-3 text-sm whitespace-nowrap transition ${
           isYesterdayActive ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:bg-gray-50'
         }`}
       >
@@ -162,22 +162,22 @@ export default function DateRangePicker({
 
       <button
         onClick={jumpToToday}
-        className={`px-4 py-3 text-sm whitespace-nowrap transition ${
+        className={`flex-1 md:flex-initial justify-center px-3 md:px-4 py-3 text-sm whitespace-nowrap transition ${
           isTodayActive ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:bg-gray-50'
         }`}
       >
         Heute
       </button>
 
-      {/* Spacer */}
-      <div className="flex-1" />
+      {/* Spacer (hidden on mobile) */}
+      <div className="hidden md:block flex-1" />
 
-      {/* ZEP direct link */}
+      {/* ZEP direct link (hidden on mobile) */}
       <a
         href="https://www.zep-online.de/zepcontiva/view/oauth2login.php"
         target="_blank"
         rel="noopener noreferrer"
-        className="flex items-center self-stretch ps-3 pe-1 text-sm font-medium text-gray-600 hover:bg-green-50 hover:text-green-700 transition whitespace-nowrap border-l border-gray-200"
+        className="hidden md:flex items-center self-stretch ps-3 pe-1 text-sm font-medium text-gray-600 hover:bg-green-50 hover:text-green-700 transition whitespace-nowrap border-l border-gray-200"
       >
         <span className="hidden sm:inline">Weiter zu</span>
         <Image
@@ -189,11 +189,11 @@ export default function DateRangePicker({
         />
       </a>
 
-      {/* Load button */}
+      {/* Load button (hidden on mobile) */}
       <button
         onClick={onLoad}
         disabled={loading}
-        className="relative flex items-center gap-2 px-4 py-3 text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 cursor-pointer disabled:cursor-wait transition overflow-hidden"
+        className="relative hidden md:flex items-center gap-2 px-4 py-3 text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 cursor-pointer disabled:cursor-wait transition overflow-hidden"
       >
         {/* Progress bar background animation */}
         {loading && (
