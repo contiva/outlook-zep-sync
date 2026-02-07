@@ -599,7 +599,7 @@ export default function AppointmentRow({
         isFocused ? 'ring-2 ring-blue-400 ring-inset' : ''
       } ${rowStateClass}`}
     >
-      <div className="flex items-start gap-3">
+      <div className="flex items-start gap-2 md:gap-3">
         {/* Status icons: Synced, Ready-to-sync, or Checkbox + duplicate warning */}
         <div className="shrink-0 w-5 flex flex-col items-center gap-1">
           {/* Primary status icon */}
@@ -662,7 +662,8 @@ export default function AppointmentRow({
         </div>
 
         {/* Main content */}
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 flex flex-col md:flex-row md:items-start md:gap-3">
+          <div className="flex-1 min-w-0">
           {/* AppointmentHeader */}
           <AppointmentHeader
             appointment={appointment}
@@ -915,32 +916,35 @@ export default function AppointmentRow({
               })()
             )}
           </div>
-        </div>
+          </div>
 
-        {/* AppointmentStatusBar */}
-        <AppointmentStatusBar
-          appointment={appointment}
-          isSynced={isSynced}
-          isEditing={isEditing}
-          isModified={isModified}
-          isInternalOnly={isInternalOnly}
-          attendeeCount={attendeeCount}
-          duplicateWarning={duplicateWarning}
-          onToggle={onToggle}
-          onProjectChange={onProjectChange}
-          onStartEditSynced={onStartEditSynced}
-          onCancelEditSynced={onCancelEditSynced}
-          onCorrectTime={onCorrectTime}
-          isCorrectingTime={isCorrectingTime}
-          onLinkToZep={onLinkToZep}
-          syncedEntries={syncedEntries}
-          linkedZepIds={linkedZepIds}
-        />
+          {/* AppointmentStatusBar - below content right-aligned on mobile, inline on desktop */}
+          <div className="shrink-0 self-end md:self-auto mt-0.5 md:mt-0">
+            <AppointmentStatusBar
+              appointment={appointment}
+              isSynced={isSynced}
+              isEditing={isEditing}
+              isModified={isModified}
+              isInternalOnly={isInternalOnly}
+              attendeeCount={attendeeCount}
+              duplicateWarning={duplicateWarning}
+              onToggle={onToggle}
+              onProjectChange={onProjectChange}
+              onStartEditSynced={onStartEditSynced}
+              onCancelEditSynced={onCancelEditSynced}
+              onCorrectTime={onCorrectTime}
+              isCorrectingTime={isCorrectingTime}
+              onLinkToZep={onLinkToZep}
+              syncedEntries={syncedEntries}
+              linkedZepIds={linkedZepIds}
+            />
+          </div>
+        </div>
       </div>
 
       {/* Synced entry info - badge */}
       {isSynced && syncedInfo && !isEditing && (
-        <div className="mt-2 ml-8 flex items-center gap-2" role="status">
+        <div className="mt-2 ml-0 md:ml-8 flex items-center gap-2" role="status">
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-50 border border-green-200 rounded-md text-xs">
             <ClockCheck size={12} className="text-green-600 shrink-0" />
             <span className="font-medium text-green-700">{syncedInfo.projectName}</span>
@@ -977,7 +981,7 @@ export default function AppointmentRow({
         !isSynced &&
         duplicateWarning.originalTime &&
         duplicateWarning.newTime && (
-          <div className="mt-2 ml-8 text-xs space-y-0.5">
+          <div className="mt-2 ml-0 md:ml-8 text-xs space-y-0.5">
             <div className="flex items-center gap-2">
               <span className="text-gray-500 w-14">In ZEP:</span>
               <span className="text-red-500 line-through">
@@ -998,7 +1002,7 @@ export default function AppointmentRow({
 
       {/* Editing UI for synced entries */}
       {isSynced && isEditing && syncedEntry && (
-        <div className="mt-3 pt-2 border-t border-gray-100 ml-8 space-y-2">
+        <div className="mt-3 pt-2 border-t border-gray-100 ml-0 md:ml-8 space-y-2">
           {/* Delete confirmation inline */}
           {showDeleteConfirm && (
             <div className="flex items-center gap-2 px-2 py-1.5 bg-red-50 border border-red-200 rounded-md text-xs">
@@ -1025,7 +1029,7 @@ export default function AppointmentRow({
               </button>
             </div>
           )}
-          <div className="flex items-end gap-2">
+          <div className="grid grid-cols-2 gap-2 md:flex md:items-end">
             <ProjectTaskActivityForm
               projects={projects}
               tasks={
@@ -1130,7 +1134,7 @@ export default function AppointmentRow({
 
       {/* Dropdowns for selected unsynchronized appointments */}
       {appointment.selected && !isSynced && (
-        <div className="mt-3 pt-2 border-t border-gray-100 ml-8 flex items-end gap-2">
+        <div className="mt-3 pt-2 border-t border-gray-100 ml-0 md:ml-8 grid grid-cols-2 gap-2 md:flex md:items-end">
           <ProjectTaskActivityForm
             projects={projects}
             tasks={tasks}

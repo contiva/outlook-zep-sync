@@ -794,16 +794,120 @@ export default function AppointmentList({
       <div>
         {/* Header mit Filter (ohne Checkbox da keine Termine) */}
         <div className="relative bg-white border border-gray-200 rounded-t-lg shadow-md">
-          <div className="flex items-center">
-            {/* Platzhalter für Checkbox-Bereich */}
-            <div className="flex items-center gap-3 px-4 py-3">
-              <span className="text-sm text-gray-500 whitespace-nowrap">Keine Ergebnisse</span>
+          <div className="flex flex-col md:flex-row md:items-center">
+            {/* Group 1: Label + Search */}
+            <div className="flex items-center w-full md:w-auto">
+              {/* Platzhalter für Checkbox-Bereich */}
+              <div className="flex items-center gap-3 px-4 py-3 shrink-0">
+                <span className="text-sm text-gray-500 whitespace-nowrap">Keine Ergebnisse</span>
+              </div>
+
+              {showFilterControls && (
+                <>
+                  {/* Divider */}
+                  <div className="h-8 w-px bg-gray-200 shrink-0" />
+
+                  {/* Search input */}
+                  <div className="relative flex-1">
+                    <Search
+                      size={18}
+                      className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Suchen..."
+                      value={searchQuery || ''}
+                      onChange={(e) => onSearchChange?.(e.target.value)}
+                      className="w-full pl-11 pr-10 py-3 text-sm bg-transparent border-0 focus:outline-none focus:ring-0"
+                      aria-label="Termine durchsuchen"
+                    />
+                    {searchQuery && (
+                      <button
+                        onClick={() => onSearchChange?.('')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition"
+                        aria-label="Suche löschen"
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Group 2: Count */}
+            {showFilterControls && (
+              <div className="flex items-center border-t border-gray-100 md:border-t-0 md:ml-auto">
+                {/* Divider (desktop only) */}
+                <div className="hidden md:block h-8 w-px bg-gray-200 shrink-0" />
+
+                {/* Count */}
+                <div className="px-3 py-2 md:py-0 text-sm text-gray-500 whitespace-nowrap shrink-0">
+                  <span className="font-medium text-gray-700">0</span>
+                  <span className="text-gray-400"> / {totalAppointmentsCount}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Hinweis dass keine Ergebnisse gefunden wurden */}
+        <div className="p-8 text-center text-gray-500 bg-gray-50 border border-t-0 border-gray-200 rounded-b-lg">
+          Keine Termine für diese Filterkriterien gefunden.
+          {searchQuery && (
+            <button
+              onClick={() => onSearchChange?.('')}
+              className="ml-2 text-blue-600 hover:text-blue-800 underline"
+            >
+              Suche zurücksetzen
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {/* Header mit "Alle auswählen" Checkbox und Filter */}
+      <div className="relative bg-white border border-gray-200 rounded-t-lg shadow-md">
+        <div className="flex flex-col md:flex-row md:items-center">
+          {/* Group 1: Checkbox + Search + Status dropdown */}
+          <div className="flex items-center w-full md:w-auto">
+            {/* Checkbox und Auswahl-Text */}
+            <div className="flex items-center gap-3 px-4 py-3 shrink-0">
+              {selectableAppointments.length > 0 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => onSelectAll(!allSelectableSelected)}
+                    className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                      allSelectableSelected || someSelectableSelected
+                        ? 'bg-blue-50 border-blue-300 text-blue-500'
+                        : 'border-gray-300 bg-white hover:bg-gray-50'
+                    }`}
+                    aria-label="Alle Termine auswählen"
+                    aria-pressed={allSelectableSelected}
+                  >
+                    {allSelectableSelected && <Check size={12} strokeWidth={2.5} />}
+                    {someSelectableSelected && !allSelectableSelected && (
+                      <Minus size={12} strokeWidth={2.5} />
+                    )}
+                  </button>
+                  <span className="text-sm text-gray-600 whitespace-nowrap">
+                    Alle ({selectableAppointments.length})
+                  </span>
+                </>
+              )}
+              {selectableAppointments.length === 0 && appointments.length > 0 && (
+                <span className="text-sm text-gray-500 whitespace-nowrap">Alle synchronisiert</span>
+              )}
             </div>
 
             {showFilterControls && (
               <>
                 {/* Divider */}
-                <div className="h-8 w-px bg-gray-200" />
+                <div className="h-8 w-px bg-gray-200 shrink-0" />
 
                 {/* Search input */}
                 <div className="relative flex-1">
@@ -831,169 +935,81 @@ export default function AppointmentList({
                 </div>
 
                 {/* Divider */}
-                <div className="h-8 w-px bg-gray-200" />
+                <div className="h-8 w-px bg-gray-200 shrink-0" />
 
-                {/* Count */}
-                <div className="px-3 text-sm text-gray-500 whitespace-nowrap">
-                  <span className="font-medium text-gray-700">0</span>
-                  <span className="text-gray-400"> / {totalAppointmentsCount}</span>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* Hinweis dass keine Ergebnisse gefunden wurden */}
-        <div className="p-8 text-center text-gray-500 bg-gray-50 border border-t-0 border-gray-200 rounded-b-lg">
-          Keine Termine für diese Filterkriterien gefunden.
-          {searchQuery && (
-            <button
-              onClick={() => onSearchChange?.('')}
-              className="ml-2 text-blue-600 hover:text-blue-800 underline"
-            >
-              Suche zurücksetzen
-            </button>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      {/* Header mit "Alle auswählen" Checkbox und Filter */}
-      <div className="relative bg-white border border-gray-200 rounded-t-lg shadow-md">
-        <div className="flex items-center">
-          {/* Checkbox und Auswahl-Text */}
-          <div className="flex items-center gap-3 px-4 py-3">
-            {selectableAppointments.length > 0 && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => onSelectAll(!allSelectableSelected)}
-                  className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
-                    allSelectableSelected || someSelectableSelected
-                      ? 'bg-blue-50 border-blue-300 text-blue-500'
-                      : 'border-gray-300 bg-white hover:bg-gray-50'
-                  }`}
-                  aria-label="Alle Termine auswählen"
-                  aria-pressed={allSelectableSelected}
-                >
-                  {allSelectableSelected && <Check size={12} strokeWidth={2.5} />}
-                  {someSelectableSelected && !allSelectableSelected && (
-                    <Minus size={12} strokeWidth={2.5} />
-                  )}
-                </button>
-                <span className="text-sm text-gray-600 whitespace-nowrap">
-                  Alle ({selectableAppointments.length})
-                </span>
-              </>
-            )}
-            {selectableAppointments.length === 0 && appointments.length > 0 && (
-              <span className="text-sm text-gray-500 whitespace-nowrap">Alle synchronisiert</span>
-            )}
-          </div>
-
-          {showFilterControls && (
-            <>
-              {/* Divider */}
-              <div className="h-8 w-px bg-gray-200" />
-
-              {/* Search input */}
-              <div className="relative flex-1">
-                <Search
-                  size={18}
-                  className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
-                />
-                <input
-                  type="text"
-                  placeholder="Suchen..."
-                  value={searchQuery || ''}
-                  onChange={(e) => onSearchChange?.(e.target.value)}
-                  className="w-full pl-11 pr-10 py-3 text-sm bg-transparent border-0 focus:outline-none focus:ring-0"
-                  aria-label="Termine durchsuchen"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => onSearchChange?.('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition"
-                    aria-label="Suche löschen"
-                  >
-                    <X size={14} />
-                  </button>
-                )}
-              </div>
-
-              {/* Divider */}
-              <div className="h-8 w-px bg-gray-200" />
-
-              {/* Status filter dropdown */}
-              {onStatusFilterChange && (
-                <div className="relative">
-                  <button
-                    ref={statusTriggerRef}
-                    onClick={() => setStatusDropdownOpen(!statusDropdownOpen)}
-                    className={`flex items-center gap-2 px-3 py-2 text-sm whitespace-nowrap transition rounded-lg mx-1 ${
-                      statusFilter !== 'all'
-                        ? 'text-gray-700 bg-gray-100'
-                        : 'text-gray-500 hover:bg-gray-50'
-                    }`}
-                    title="Nach Status filtern"
-                  >
-                    {/* Color dot */}
-                    <span
-                      className={`w-2.5 h-2.5 rounded-full ${
-                        STATUS_FILTER_OPTIONS.find((o) => o.value === statusFilter)?.color ||
-                        'bg-gray-300'
+                {/* Status filter dropdown */}
+                {onStatusFilterChange && (
+                  <div className="relative shrink-0">
+                    <button
+                      ref={statusTriggerRef}
+                      onClick={() => setStatusDropdownOpen(!statusDropdownOpen)}
+                      className={`flex items-center gap-2 px-3 py-2 text-sm whitespace-nowrap transition rounded-lg mx-1 ${
+                        statusFilter !== 'all'
+                          ? 'text-gray-700 bg-gray-100'
+                          : 'text-gray-500 hover:bg-gray-50'
                       }`}
-                    />
-                    <span className="hidden sm:inline">
-                      {STATUS_FILTER_OPTIONS.find((o) => o.value === statusFilter)?.label || 'Alle'}
-                    </span>
-                    <ChevronDown
-                      size={14}
-                      className={`transition-transform ${statusDropdownOpen ? 'rotate-180' : ''}`}
-                    />
-                  </button>
-
-                  {/* Dropdown menu */}
-                  {statusDropdownOpen && (
-                    <div
-                      ref={statusDropdownRef}
-                      className="absolute top-full mt-1 right-0 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 min-w-40"
+                      title="Nach Status filtern"
                     >
-                      {STATUS_FILTER_OPTIONS.map((option) => (
-                        <button
-                          key={option.value}
-                          onClick={() => {
-                            onStatusFilterChange(option.value);
-                            setStatusDropdownOpen(false);
-                          }}
-                          className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left transition ${
-                            statusFilter === option.value
-                              ? 'bg-blue-50 text-blue-700'
-                              : 'text-gray-700 hover:bg-gray-50'
-                          }`}
-                        >
-                          <span
-                            className={`w-2.5 h-2.5 rounded-full ${option.color || 'bg-gray-300'}`}
-                          />
-                          <span>{option.label}</span>
-                          {statusFilter === option.value && (
-                            <Check size={14} className="ml-auto text-blue-600" />
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
+                      {/* Color dot */}
+                      <span
+                        className={`w-2.5 h-2.5 rounded-full ${
+                          STATUS_FILTER_OPTIONS.find((o) => o.value === statusFilter)?.color ||
+                          'bg-gray-300'
+                        }`}
+                      />
+                      <span className="hidden sm:inline">
+                        {STATUS_FILTER_OPTIONS.find((o) => o.value === statusFilter)?.label || 'Alle'}
+                      </span>
+                      <ChevronDown
+                        size={14}
+                        className={`transition-transform ${statusDropdownOpen ? 'rotate-180' : ''}`}
+                      />
+                    </button>
 
-              {/* Divider */}
-              <div className="h-8 w-px bg-gray-200" />
+                    {/* Dropdown menu */}
+                    {statusDropdownOpen && (
+                      <div
+                        ref={statusDropdownRef}
+                        className="absolute top-full mt-1 right-0 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 min-w-40"
+                      >
+                        {STATUS_FILTER_OPTIONS.map((option) => (
+                          <button
+                            key={option.value}
+                            onClick={() => {
+                              onStatusFilterChange(option.value);
+                              setStatusDropdownOpen(false);
+                            }}
+                            className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left transition ${
+                              statusFilter === option.value
+                                ? 'bg-blue-50 text-blue-700'
+                                : 'text-gray-700 hover:bg-gray-50'
+                            }`}
+                          >
+                            <span
+                              className={`w-2.5 h-2.5 rounded-full ${option.color || 'bg-gray-300'}`}
+                            />
+                            <span>{option.label}</span>
+                            {statusFilter === option.value && (
+                              <Check size={14} className="ml-auto text-blue-600" />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Group 2: Scrollable filter strip (counts, badges, solo, sync, reset) */}
+          {showFilterControls && (
+            <div className="flex items-center overflow-x-auto scrollbar-hide md:overflow-visible border-t border-gray-100 md:border-t-0 md:ml-auto">
+              {/* Divider (desktop only, between group 1 and 2) */}
+              <div className="hidden md:block h-8 w-px bg-gray-200 shrink-0" />
 
               {/* Filter count */}
-              <div className="px-3 text-sm text-gray-500 whitespace-nowrap">
+              <div className="px-3 text-sm text-gray-500 whitespace-nowrap shrink-0">
                 <span className="font-medium text-gray-700">{appointments.length}</span>
                 {totalAppointmentsCount !== undefined &&
                   totalAppointmentsCount !== appointments.length && (
@@ -1004,8 +1020,8 @@ export default function AppointmentList({
               {/* Active filters */}
               {(filterDate || seriesFilterActive) && (
                 <>
-                  <div className="h-8 w-px bg-gray-200" />
-                  <div className="flex items-center gap-2 px-2">
+                  <div className="h-8 w-px bg-gray-200 shrink-0" />
+                  <div className="flex items-center gap-2 px-2 shrink-0">
                     {filterDate && (
                       <button
                         onClick={() => onFilterDateClear?.()}
@@ -1034,10 +1050,10 @@ export default function AppointmentList({
               )}
 
               {/* Divider */}
-              <div className="h-8 w-px bg-gray-200" />
+              <div className="h-8 w-px bg-gray-200 shrink-0" />
 
               {/* Solo toggle with popover */}
-              <div className="relative">
+              <div className="relative shrink-0">
                 <button
                   ref={soloTriggerRef}
                   onClick={handleSoloToggle}
@@ -1080,7 +1096,7 @@ export default function AppointmentList({
               </div>
 
               {/* Divider before sync button */}
-              <div className="h-8 w-px bg-gray-200" />
+              <div className="h-8 w-px bg-gray-200 shrink-0" />
 
               {/* Sync button */}
               <button
@@ -1089,7 +1105,7 @@ export default function AppointmentList({
                   submitting ||
                   (syncReadyAppointments.length === 0 && completeModificationsCount === 0)
                 }
-                className="group flex items-center gap-2 px-4 py-3 text-sm font-medium bg-green-600 text-white shadow-[0_0_10px_rgba(74,222,128,0.35),0_4px_8px_rgba(0,0,0,0.15)] hover:bg-green-700 hover:shadow-[0_0_14px_rgba(74,222,128,0.5),0_6px_12px_rgba(0,0,0,0.2)] disabled:bg-gray-100 disabled:text-gray-400 disabled:shadow-none disabled:cursor-not-allowed transition"
+                className="group flex items-center gap-2 px-4 py-3 text-sm font-medium bg-green-600 text-white shadow-[0_0_10px_rgba(74,222,128,0.35),0_4px_8px_rgba(0,0,0,0.15)] hover:bg-green-700 hover:shadow-[0_0_14px_rgba(74,222,128,0.5),0_6px_12px_rgba(0,0,0,0.2)] disabled:bg-gray-100 disabled:text-gray-400 disabled:shadow-none disabled:cursor-not-allowed transition shrink-0"
               >
                 {submitting ? (
                   'Übertragen...'
@@ -1114,13 +1130,13 @@ export default function AppointmentList({
                 <button
                   onClick={onReset}
                   disabled={submitting}
-                  className="p-3 text-gray-400 hover:text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                  className="p-3 text-gray-400 hover:text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition shrink-0"
                   title="Auswahl zurücksetzen"
                 >
                   <RotateCcw size={16} />
                 </button>
               )}
-            </>
+            </div>
           )}
 
           {/* Serien-Anzeige (nur wenn keine Filter-Controls) */}

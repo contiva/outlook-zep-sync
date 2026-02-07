@@ -229,7 +229,7 @@ export default function ProjectTaskActivityForm({
       className="contents"
     >
       {/* Projekt-Dropdown */}
-      <div className="flex flex-col flex-3 min-w-0">
+      <div className="flex flex-col min-w-0 col-span-2 md:flex-3">
         <label className={labelEnabled}>Projekt</label>
         <SearchableSelect
           options={projectOptions}
@@ -240,7 +240,7 @@ export default function ProjectTaskActivityForm({
       </div>
 
       {/* Task-Dropdown */}
-      <div className="flex flex-col flex-3 min-w-0">
+      <div className="flex flex-col min-w-0 col-span-2 md:flex-3">
         <label className={isTaskDisabled ? labelDisabled : labelEnabled}>Task</label>
         <SearchableSelect
           options={taskOptions}
@@ -256,7 +256,7 @@ export default function ProjectTaskActivityForm({
       </div>
 
       {/* Activity-Dropdown */}
-      <div className="flex flex-col w-24 shrink-0">
+      <div className="flex flex-col col-span-1 md:w-24 md:shrink-0">
         <label className={isFieldDisabled ? labelDisabled : labelEnabled}>Tätigkeit</label>
         <SearchableSelect
           options={activityOptions}
@@ -270,7 +270,7 @@ export default function ProjectTaskActivityForm({
       </div>
 
       {/* Arbeitsort-Dropdown */}
-      <div className="flex flex-col w-28 shrink-0">
+      <div className="flex flex-col col-span-1 md:w-28 md:shrink-0">
         <label
           className={isFieldDisabled || workLocations.length === 0 ? labelDisabled : labelEnabled}
         >
@@ -294,7 +294,7 @@ export default function ProjectTaskActivityForm({
       </div>
 
       {/* Bemerkung */}
-      <div className="flex flex-col flex-2 min-w-0">
+      <div className="flex flex-col min-w-0 col-span-2 md:flex-2">
         <label className={isFieldDisabled ? labelDisabled : labelEnabled}>Bemerkung</label>
         <input
           type="text"
@@ -318,7 +318,7 @@ export default function ProjectTaskActivityForm({
       </div>
 
       {/* Billable Toggle */}
-      <div className="flex flex-col shrink-0">
+      <div className="flex flex-col shrink-0 col-span-1">
         <label className={isFieldDisabled ? labelDisabled : labelEnabled}>Fakt.</label>
         <button
           type="button"
@@ -357,7 +357,7 @@ export default function ProjectTaskActivityForm({
       </div>
 
       {/* Time Type Toggle (Plan/Ist) */}
-      <div className="flex flex-col shrink-0">
+      <div className="flex flex-col shrink-0 col-span-1">
         <label className={isFieldDisabled ? labelDisabled : labelEnabled}>Zeit</label>
         <div
           className={`inline-flex items-center h-8 border text-xs overflow-hidden ${
@@ -409,11 +409,11 @@ export default function ProjectTaskActivityForm({
       </div>
 
       {/* Sync Button */}
-      <div className="flex flex-col justify-end shrink-0">
+      <div className="flex flex-col justify-end shrink-0 col-span-2 md:col-span-1">
         <button
           type="submit"
           disabled={!isSyncReady || isSyncing}
-          className={`group flex items-center justify-center w-8 h-8 border transition-all ${
+          className={`group flex items-center justify-center w-full h-8 md:w-8 border transition-all ${
             isSyncing
               ? 'bg-green-500 border-green-500 text-white cursor-wait shadow-[0_0_10px_rgba(74,222,128,0.35),0_4px_8px_rgba(0,0,0,0.15)]'
               : !isSyncReady
