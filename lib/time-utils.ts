@@ -48,9 +48,9 @@ export function roundToNearest15Min(date: Date): Date {
  */
 export function formatTimeRounded(date: Date): string {
   const rounded = roundToNearest15Min(date);
-  return rounded.toLocaleTimeString("de-DE", {
-    hour: "2-digit",
-    minute: "2-digit",
+  return rounded.toLocaleTimeString('de-DE', {
+    hour: '2-digit',
+    minute: '2-digit',
   });
 }
 
@@ -59,7 +59,7 @@ export function formatTimeRounded(date: Date): string {
  * Returns a Date with the time set to the parsed value.
  */
 export function parseZepTime(timeStr: string, baseDate?: Date): Date {
-  const [hours, minutes] = timeStr.split(":").map(Number);
+  const [hours, minutes] = timeStr.split(':').map(Number);
   const result = baseDate ? new Date(baseDate) : new Date();
   result.setHours(hours, minutes, 0, 0);
   return result;
@@ -69,17 +69,14 @@ export function parseZepTime(timeStr: string, baseDate?: Date): Date {
  * Check if two times match (comparing hours and minutes only).
  * Times can be Date objects or HH:mm:ss strings.
  */
-export function timesMatch(
-  time1: Date | string,
-  time2: Date | string
-): boolean {
+export function timesMatch(time1: Date | string, time2: Date | string): boolean {
   const getHoursMinutes = (t: Date | string): string => {
-    if (typeof t === "string") {
+    if (typeof t === 'string') {
       return t.slice(0, 5); // "HH:mm:ss" -> "HH:mm"
     }
-    return t.toLocaleTimeString("de-DE", {
-      hour: "2-digit",
-      minute: "2-digit",
+    return t.toLocaleTimeString('de-DE', {
+      hour: '2-digit',
+      minute: '2-digit',
     });
   };
 
@@ -93,7 +90,7 @@ export function timeRangesMatch(
   start1: Date | string,
   end1: Date | string,
   start2: Date | string,
-  end2: Date | string
+  end2: Date | string,
 ): boolean {
   return timesMatch(start1, start2) && timesMatch(end1, end2);
 }
@@ -106,7 +103,10 @@ export function timeRangesMatch(
  *
  * Returns start/end as formatted strings (HH:mm) and duration in minutes.
  */
-export function calculateDisplayTimes(startDate: Date, endDate: Date): {
+export function calculateDisplayTimes(
+  startDate: Date,
+  endDate: Date,
+): {
   startFormatted: string;
   endFormatted: string;
   durationMinutes: number;
@@ -131,7 +131,7 @@ export function calculateDisplayTimes(startDate: Date, endDate: Date): {
   const displayMins = Math.round(displayDurationMinutes % 60);
 
   const formatTime = (d: Date) =>
-    d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+    d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
 
   return {
     startFormatted: formatTime(displayStart),

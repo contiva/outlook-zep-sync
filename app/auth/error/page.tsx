@@ -1,12 +1,12 @@
-"use client";
+'use client';
 
-import { useSearchParams } from "next/navigation";
-import { Suspense } from "react";
-import Link from "next/link";
+import { useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
+import Link from 'next/link';
 
 function ErrorContent() {
   const searchParams = useSearchParams();
-  const error = searchParams.get("error");
+  const error = searchParams.get('error');
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -27,11 +27,9 @@ function ErrorContent() {
           </svg>
         </div>
 
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">
-          Zugriff verweigert
-        </h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">Zugriff verweigert</h1>
 
-        {error === "AccessDenied" ? (
+        {error === 'AccessDenied' ? (
           <p className="text-gray-600 mb-6">
             Diese Anwendung ist nur für Contiva-Mitarbeiter zugänglich.
             <br />
@@ -41,7 +39,7 @@ function ErrorContent() {
           <p className="text-gray-600 mb-6">
             Bei der Anmeldung ist ein Fehler aufgetreten.
             <br />
-            Fehlercode: {error || "Unbekannt"}
+            Fehlercode: {error || 'Unbekannt'}
           </p>
         )}
 
@@ -58,11 +56,13 @@ function ErrorContent() {
 
 export default function AuthErrorPage() {
   return (
-    <Suspense fallback={
-      <main className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-gray-500">Laden...</div>
-      </main>
-    }>
+    <Suspense
+      fallback={
+        <main className="min-h-screen flex items-center justify-center bg-gray-50">
+          <div className="text-gray-500">Laden...</div>
+        </main>
+      }
+    >
       <ErrorContent />
     </Suspense>
   );

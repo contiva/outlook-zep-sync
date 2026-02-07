@@ -1,7 +1,7 @@
 // Sync History Management
 // Stores mapping between Outlook Event IDs and ZEP Attendance IDs in localStorage
 
-const STORAGE_KEY = "outlook-zep-sync-history";
+const STORAGE_KEY = 'outlook-zep-sync-history';
 const MAX_RECORDS = 500;
 const RETENTION_DAYS = 90;
 
@@ -20,18 +20,18 @@ interface SyncHistoryData {
 
 // Get all sync records from localStorage
 export function getAllSyncRecords(): SyncRecord[] {
-  if (typeof window === "undefined") return [];
-  
+  if (typeof window === 'undefined') return [];
+
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (!stored) return [];
-    
+
     const data: SyncHistoryData = JSON.parse(stored);
-    
+
     // Filter out records older than retention period
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - RETENTION_DAYS);
-    
+
     return data.records.filter((record) => {
       const syncedAt = new Date(record.syncedAt);
       return syncedAt >= cutoffDate;
@@ -55,42 +55,40 @@ export function getZepIdForOutlookEvent(outlookEventId: string): number | null {
 
 // Save new sync records (appends to existing)
 export function saveSyncRecords(newRecords: SyncRecord[]): void {
-  if (typeof window === "undefined") return;
-  
+  if (typeof window === 'undefined') return;
+
   try {
     const existingRecords = getAllSyncRecords();
-    
+
     // Merge: new records override existing ones with same outlookEventId
     const recordMap = new Map<string, SyncRecord>();
-    
+
     existingRecords.forEach((r) => recordMap.set(r.outlookEventId, r));
     newRecords.forEach((r) => recordMap.set(r.outlookEventId, r));
-    
+
     // Convert back to array and sort by syncedAt (newest first)
     let allRecords = Array.from(recordMap.values());
-    allRecords.sort((a, b) => 
-      new Date(b.syncedAt).getTime() - new Date(a.syncedAt).getTime()
-    );
-    
+    allRecords.sort((a, b) => new Date(b.syncedAt).getTime() - new Date(a.syncedAt).getTime());
+
     // Limit to MAX_RECORDS (FIFO - keep newest)
     if (allRecords.length > MAX_RECORDS) {
       allRecords = allRecords.slice(0, MAX_RECORDS);
     }
-    
+
     const data: SyncHistoryData = {
       records: allRecords,
       lastUpdated: new Date().toISOString(),
     };
-    
+
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   } catch (error) {
-    console.error("Failed to save sync history:", error);
+    console.error('Failed to save sync history:', error);
   }
 }
 
 // Clear all sync history
 export function clearSyncHistory(): void {
-  if (typeof window === "undefined") return;
+  if (typeof window === 'undefined') return;
   localStorage.removeItem(STORAGE_KEY);
 }
 

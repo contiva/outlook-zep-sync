@@ -1,13 +1,18 @@
-"use client";
+'use client';
 
-import { useMemo, useState, useRef, useEffect } from "react";
-import { Search, X, RotateCcw, ClockArrowUp, Check, Minus, User, ChevronDown } from "lucide-react";
-import AppointmentRow from "./AppointmentRow";
-import SeriesGroup from "./SeriesGroup";
-import SyncConfirmDialog from "./SyncConfirmDialog";
-import type { DuplicateCheckResult } from "@/lib/zep-api";
-import { ActualDuration, ActualDurationsMap, normalizeJoinUrl, getDurationKey } from "@/lib/teams-utils";
-import { RedisSyncMapping } from "@/lib/redis";
+import { useMemo, useState, useRef, useEffect } from 'react';
+import { Search, X, RotateCcw, ClockArrowUp, Check, Minus, User, ChevronDown } from 'lucide-react';
+import AppointmentRow from './AppointmentRow';
+import SeriesGroup from './SeriesGroup';
+import SyncConfirmDialog from './SyncConfirmDialog';
+import type { DuplicateCheckResult } from '@/lib/zep-api';
+import {
+  ActualDuration,
+  ActualDurationsMap,
+  normalizeJoinUrl,
+  getDurationKey,
+} from '@/lib/teams-utils';
+import { RedisSyncMapping } from '@/lib/redis';
 
 interface WorkLocation {
   kurzform: string;
@@ -39,7 +44,7 @@ interface Attendee {
     name: string;
     address: string;
   };
-  type: "required" | "optional" | "resource";
+  type: 'required' | 'optional' | 'resource';
   status: {
     response: string;
   };
@@ -140,7 +145,7 @@ interface AppointmentListProps {
     projectId: number | null,
     taskId: number | null,
     activityId: string,
-    billable?: boolean
+    billable?: boolean,
   ) => void;
   onSubmit: (appointmentsToSync: Appointment[], modifiedEntries?: ModifiedEntry[]) => void;
   onSyncSingle?: (appointment: Appointment) => void;
@@ -155,12 +160,37 @@ interface AppointmentListProps {
   modifiedEntries?: Map<string, ModifiedEntry>;
   onStartEditSynced?: (appointmentId: string) => void;
   onCancelEditSynced?: (appointmentId: string) => void;
-  onModifyProject?: (appointmentId: string, apt: Appointment, syncedEntry: ZepEntry, projectId: number) => void;
+  onModifyProject?: (
+    appointmentId: string,
+    apt: Appointment,
+    syncedEntry: ZepEntry,
+    projectId: number,
+  ) => void;
   onModifyTask?: (appointmentId: string, taskId: number) => void;
-  onModifyActivity?: (appointmentId: string, apt: Appointment, syncedEntry: ZepEntry, activityId: string) => void;
-  onModifyBillable?: (appointmentId: string, apt: Appointment, syncedEntry: ZepEntry, billable: boolean) => void;
-  onModifyBemerkung?: (appointmentId: string, apt: Appointment, syncedEntry: ZepEntry, bemerkung: string) => void;
-  onModifyTime?: (appointmentId: string, apt: Appointment, syncedEntry: ZepEntry, useActualTime: boolean) => void;
+  onModifyActivity?: (
+    appointmentId: string,
+    apt: Appointment,
+    syncedEntry: ZepEntry,
+    activityId: string,
+  ) => void;
+  onModifyBillable?: (
+    appointmentId: string,
+    apt: Appointment,
+    syncedEntry: ZepEntry,
+    billable: boolean,
+  ) => void;
+  onModifyBemerkung?: (
+    appointmentId: string,
+    apt: Appointment,
+    syncedEntry: ZepEntry,
+    bemerkung: string,
+  ) => void;
+  onModifyTime?: (
+    appointmentId: string,
+    apt: Appointment,
+    syncedEntry: ZepEntry,
+    useActualTime: boolean,
+  ) => void;
   onSaveModifiedSingle?: (modifiedEntry: ModifiedEntry) => void;
   savingModifiedSingleId?: string | null;
   // Delete synced entry
@@ -186,36 +216,49 @@ interface AppointmentListProps {
   onHideSoloMeetingsChange?: (hide: boolean) => void;
   focusedAppointmentId?: string | null;
   // Highlighted appointment (from UpcomingMeetingBar jump)
-  highlightedAppointment?: { id: string; type: "running" | "upcoming" } | null;
+  highlightedAppointment?: { id: string; type: 'running' | 'upcoming' } | null;
   globalWorkLocations?: WorkLocation[];
   onWorkLocationChange?: (id: string, workLocation: string | undefined) => void;
-  onModifyWorkLocation?: (appointmentId: string, apt: Appointment, syncedEntry: ZepEntry, workLocation: string | undefined) => void;
+  onModifyWorkLocation?: (
+    appointmentId: string,
+    apt: Appointment,
+    syncedEntry: ZepEntry,
+    workLocation: string | undefined,
+  ) => void;
 }
 
 // Status filter options with colors
 const STATUS_FILTER_OPTIONS = [
-  { value: "all", label: "Alle", color: null },
-  { value: "synced", label: "Synchronisiert", color: "bg-green-500" },
-  { value: "inProgress", label: "In Bearbeitung", color: "bg-amber-400" },
-  { value: "unprocessed", label: "Unbearbeitet", color: "bg-red-400" },
+  { value: 'all', label: 'Alle', color: null },
+  { value: 'synced', label: 'Synchronisiert', color: 'bg-green-500' },
+  { value: 'inProgress', label: 'In Bearbeitung', color: 'bg-amber-400' },
+  { value: 'unprocessed', label: 'Unbearbeitet', color: 'bg-red-400' },
 ];
 
 interface GroupedItem {
-  type: "single" | "series";
+  type: 'single' | 'series';
   seriesId?: string;
   appointments: Appointment[];
   firstStart: Date;
 }
 
 // Helper: Check if an appointment is synced to ZEP
-function isAppointmentSynced(apt: Appointment, syncedEntries: ZepEntry[], syncMappings?: Map<string, RedisSyncMapping>): boolean {
+function isAppointmentSynced(
+  apt: Appointment,
+  syncedEntries: ZepEntry[],
+  syncMappings?: Map<string, RedisSyncMapping>,
+): boolean {
   return findSyncedEntry(apt, syncedEntries, syncMappings) !== null;
 }
 
 // Helper: Find the matching synced entry for an appointment
 // Priority 1: Redis mapping (outlookEventId -> zepAttendanceId) - most reliable
 // Priority 2: Subject/customRemark match on same date - fallback for pre-Redis entries
-function findSyncedEntry(apt: Appointment, syncedEntries: ZepEntry[], syncMappings?: Map<string, RedisSyncMapping>): ZepEntry | null {
+function findSyncedEntry(
+  apt: Appointment,
+  syncedEntries: ZepEntry[],
+  syncMappings?: Map<string, RedisSyncMapping>,
+): ZepEntry | null {
   if (!syncedEntries || syncedEntries.length === 0) {
     return null;
   }
@@ -228,21 +271,27 @@ function findSyncedEntry(apt: Appointment, syncedEntries: ZepEntry[], syncMappin
   }
 
   // Priority 2: Subject/customRemark match on same date
-  const aptDateStr = new Date(apt.start.dateTime).toISOString().split("T")[0];
-  const aptSubject = (apt.subject || "").trim();
-  const aptCustomRemark = (apt.customRemark || "").trim();
+  const aptDateStr = new Date(apt.start.dateTime).toISOString().split('T')[0];
+  const aptSubject = (apt.subject || '').trim();
+  const aptCustomRemark = (apt.customRemark || '').trim();
 
-  return syncedEntries.find((entry) => {
-    const entryDate = entry.date.split("T")[0];
-    if (entryDate !== aptDateStr) return false;
+  return (
+    syncedEntries.find((entry) => {
+      const entryDate = entry.date.split('T')[0];
+      if (entryDate !== aptDateStr) return false;
 
-    const entryNote = (entry.note || "").trim();
-    return entryNote === aptSubject || (aptCustomRemark && entryNote === aptCustomRemark);
-  }) || null;
+      const entryNote = (entry.note || '').trim();
+      return entryNote === aptSubject || (aptCustomRemark && entryNote === aptCustomRemark);
+    }) || null
+  );
 }
 
 // Helper: Check if an appointment is ready to sync (selected, complete, not yet synced)
-function isAppointmentSyncReady(apt: Appointment, syncedEntries: ZepEntry[], syncMappings?: Map<string, RedisSyncMapping>): boolean {
+function isAppointmentSyncReady(
+  apt: Appointment,
+  syncedEntries: ZepEntry[],
+  syncMappings?: Map<string, RedisSyncMapping>,
+): boolean {
   if (!apt.selected) return false;
   if (!apt.projectId || !apt.taskId) return false;
   if (isAppointmentSynced(apt, syncedEntries, syncMappings)) return false;
@@ -252,7 +301,7 @@ function isAppointmentSyncReady(apt: Appointment, syncedEntries: ZepEntry[], syn
 // Helper: Get actual duration for an online meeting from call records
 function getActualDuration(
   apt: Appointment,
-  actualDurations?: ActualDurationsMap
+  actualDurations?: ActualDurationsMap,
 ): ActualDuration | undefined {
   if (!actualDurations || !apt.isOnlineMeeting || !apt.onlineMeeting?.joinUrl) {
     return undefined;
@@ -260,7 +309,7 @@ function getActualDuration(
   const normalizedUrl = normalizeJoinUrl(apt.onlineMeeting.joinUrl);
   if (!normalizedUrl) return undefined;
   // Use date-specific key for recurring meetings (they share the same joinUrl)
-  const aptDate = new Date(apt.start.dateTime).toISOString().split("T")[0];
+  const aptDate = new Date(apt.start.dateTime).toISOString().split('T')[0];
   const durationKey = getDurationKey(normalizedUrl, aptDate);
   return actualDurations.get(durationKey);
 }
@@ -268,8 +317,8 @@ function getActualDuration(
 // Skeleton component for loading state - with variation for realistic look
 function AppointmentSkeleton({ variant = 0 }: { variant?: number }) {
   // Different title widths for variation
-  const titleWidths = ["w-64", "w-48", "w-72", "w-56", "w-40"];
-  const orgWidths = ["w-28", "w-24", "w-32", "w-20", "w-36"];
+  const titleWidths = ['w-64', 'w-48', 'w-72', 'w-56', 'w-40'];
+  const orgWidths = ['w-28', 'w-24', 'w-32', 'w-20', 'w-36'];
   const isSynced = variant === 0 || variant === 3; // Some appear synced
 
   return (
@@ -288,7 +337,9 @@ function AppointmentSkeleton({ variant = 0 }: { variant?: number }) {
           {/* Title row */}
           <div className="flex items-center gap-2 mb-2 flex-wrap">
             {/* Title */}
-            <div className={`h-4 bg-gray-200 rounded ${titleWidths[variant % titleWidths.length]}`} />
+            <div
+              className={`h-4 bg-gray-200 rounded ${titleWidths[variant % titleWidths.length]}`}
+            />
             {/* "von" text */}
             <div className={`h-3 bg-gray-100 rounded ${orgWidths[variant % orgWidths.length]}`} />
             {/* Separator dot */}
@@ -308,7 +359,7 @@ function AppointmentSkeleton({ variant = 0 }: { variant?: number }) {
             {/* Separator dot */}
             <div className="w-1 h-1 bg-gray-300 rounded-full" />
             {/* Duration badge */}
-            <div className={`h-6 rounded-full w-14 ${isSynced ? "bg-green-100" : "bg-gray-100"}`} />
+            <div className={`h-6 rounded-full w-14 ${isSynced ? 'bg-green-100' : 'bg-gray-100'}`} />
             {/* Separator */}
             <div className="w-px h-3 bg-gray-200" />
             {/* Actual duration */}
@@ -319,7 +370,9 @@ function AppointmentSkeleton({ variant = 0 }: { variant?: number }) {
         {/* Right side: Tags */}
         <div className="flex items-center gap-2 shrink-0">
           {isSynced && <div className="h-5 bg-green-100 rounded-full w-16" />}
-          <div className={`h-5 rounded-full w-12 ${variant % 2 === 0 ? "bg-blue-50" : "bg-orange-50"}`} />
+          <div
+            className={`h-5 rounded-full w-12 ${variant % 2 === 0 ? 'bg-blue-50' : 'bg-orange-50'}`}
+          />
         </div>
       </div>
 
@@ -488,7 +541,7 @@ export default function AppointmentList({
   onFilterDateClear,
   seriesFilterActive,
   onSeriesFilterClear,
-  statusFilter = "all",
+  statusFilter = 'all',
   onStatusFilterChange,
   hideSoloMeetings,
   onHideSoloMeetingsChange,
@@ -505,8 +558,8 @@ export default function AppointmentList({
   const statusTriggerRef = useRef<HTMLButtonElement>(null);
   const [soloPopoverOpenAbove, setSoloPopoverOpenAbove] = useState(false);
   const [soloToggleCount, setSoloToggleCount] = useState(() => {
-    if (typeof window !== "undefined") {
-      return parseInt(localStorage.getItem("soloToggleCount") || "0", 10);
+    if (typeof window !== 'undefined') {
+      return parseInt(localStorage.getItem('soloToggleCount') || '0', 10);
     }
     return 0;
   });
@@ -526,8 +579,8 @@ export default function AppointmentList({
       }
     }
     if (soloPopoverOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
     }
   }, [soloPopoverOpen]);
 
@@ -544,8 +597,8 @@ export default function AppointmentList({
       }
     }
     if (statusDropdownOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
     }
   }, [statusDropdownOpen]);
 
@@ -569,7 +622,7 @@ export default function AppointmentList({
     if (!willHide && soloToggleCount < 3) {
       const newCount = soloToggleCount + 1;
       setSoloToggleCount(newCount);
-      localStorage.setItem("soloToggleCount", String(newCount));
+      localStorage.setItem('soloToggleCount', String(newCount));
 
       openSoloPopover();
       // Auto-close after 3 seconds
@@ -582,7 +635,10 @@ export default function AppointmentList({
     if (!modifiedEntries) return 0;
     return Array.from(modifiedEntries.values()).filter((mod) => {
       // Must be complete (have project and task, or have time changes)
-      const isComplete = (mod.newProjectId > 0 && mod.newTaskId > 0) || mod.newVon !== undefined || mod.newBis !== undefined;
+      const isComplete =
+        (mod.newProjectId > 0 && mod.newTaskId > 0) ||
+        mod.newVon !== undefined ||
+        mod.newBis !== undefined;
       if (!isComplete) return false;
 
       // Must have actual changes compared to original
@@ -599,7 +655,7 @@ export default function AppointmentList({
 
   // Termine die auswählbar sind (nicht bereits gesynced)
   const selectableAppointments = useMemo(() => {
-    return appointments.filter(apt => !isAppointmentSynced(apt, syncedEntries, syncMappings));
+    return appointments.filter((apt) => !isAppointmentSynced(apt, syncedEntries, syncMappings));
   }, [appointments, syncedEntries, syncMappings]);
 
   // Collect ZEP entry IDs already linked to any appointment (via Redis or subject match)
@@ -618,7 +674,7 @@ export default function AppointmentList({
     const singleAppointments: Appointment[] = [];
 
     appointments.forEach((apt) => {
-      if (apt.seriesMasterId && apt.type === "occurrence") {
+      if (apt.seriesMasterId && apt.type === 'occurrence') {
         const existing = seriesMap.get(apt.seriesMasterId) || [];
         existing.push(apt);
         seriesMap.set(apt.seriesMasterId, existing);
@@ -634,12 +690,10 @@ export default function AppointmentList({
       if (seriesAppointments.length >= 2) {
         // Sortiere nach Startzeit
         seriesAppointments.sort(
-          (a, b) =>
-            new Date(a.start.dateTime).getTime() -
-            new Date(b.start.dateTime).getTime()
+          (a, b) => new Date(a.start.dateTime).getTime() - new Date(b.start.dateTime).getTime(),
         );
         items.push({
-          type: "series",
+          type: 'series',
           seriesId,
           appointments: seriesAppointments,
           firstStart: new Date(seriesAppointments[0].start.dateTime),
@@ -653,7 +707,7 @@ export default function AppointmentList({
     // Einzeltermine hinzufügen
     singleAppointments.forEach((apt) => {
       items.push({
-        type: "single",
+        type: 'single',
         appointments: [apt],
         firstStart: new Date(apt.start.dateTime),
       });
@@ -668,20 +722,24 @@ export default function AppointmentList({
   const selectedAppointments = appointments.filter((a) => a.selected);
 
   // Synced appointments (for footer: always count as "selected")
-  const syncedAppointments = appointments.filter(apt => isAppointmentSynced(apt, syncedEntries, syncMappings));
+  const syncedAppointments = appointments.filter((apt) =>
+    isAppointmentSynced(apt, syncedEntries, syncMappings),
+  );
 
   // Appointments that are ready to sync (selected, complete, NOT already synced)
-  const syncReadyAppointments = appointments.filter((a) => isAppointmentSyncReady(a, syncedEntries, syncMappings));
+  const syncReadyAppointments = appointments.filter((a) =>
+    isAppointmentSyncReady(a, syncedEntries, syncMappings),
+  );
 
   // Selected appointments that are NOT synced and still need project/task assignment
   const incompleteUnsyncedAppointments = selectedAppointments.filter(
-    (a) => !isAppointmentSynced(a, syncedEntries, syncMappings) && (!a.projectId || !a.taskId)
+    (a) => !isAppointmentSynced(a, syncedEntries, syncMappings) && (!a.projectId || !a.taskId),
   );
 
   // Effective selected = explicitly selected + synced (synced always counts as selected)
   const effectiveSelectedAppointments = useMemo(() => {
-    return appointments.filter(apt =>
-      apt.selected || isAppointmentSynced(apt, syncedEntries, syncMappings)
+    return appointments.filter(
+      (apt) => apt.selected || isAppointmentSynced(apt, syncedEntries, syncMappings),
     );
   }, [appointments, syncedEntries, syncMappings]);
 
@@ -695,18 +753,23 @@ export default function AppointmentList({
   const minutes = Math.round(totalMinutes % 60);
 
   // Handle confirm from dialog with filtered appointments and modifications
-  const handleConfirmSync = (includedAppointments: Appointment[], modifications?: ModifiedEntry[]) => {
+  const handleConfirmSync = (
+    includedAppointments: Appointment[],
+    modifications?: ModifiedEntry[],
+  ) => {
     setShowConfirmDialog(false);
     onSubmit(includedAppointments, modifications);
   };
 
   // Zähle Serien
-  const seriesCount = groupedItems.filter((g) => g.type === "series").length;
+  const seriesCount = groupedItems.filter((g) => g.type === 'series').length;
 
   // Berechne ob alle/einige/keine auswählbaren Termine ausgewählt sind
-  const selectedSelectableCount = selectableAppointments.filter(a => a.selected).length;
-  const allSelectableSelected = selectableAppointments.length > 0 && selectedSelectableCount === selectableAppointments.length;
-  const someSelectableSelected = selectedSelectableCount > 0 && selectedSelectableCount < selectableAppointments.length;
+  const selectedSelectableCount = selectableAppointments.filter((a) => a.selected).length;
+  const allSelectableSelected =
+    selectableAppointments.length > 0 && selectedSelectableCount === selectableAppointments.length;
+  const someSelectableSelected =
+    selectedSelectableCount > 0 && selectedSelectableCount < selectableAppointments.length;
 
   // Loading state - show skeleton
   if (loading) {
@@ -734,9 +797,7 @@ export default function AppointmentList({
           <div className="flex items-center">
             {/* Platzhalter für Checkbox-Bereich */}
             <div className="flex items-center gap-3 px-4 py-3">
-              <span className="text-sm text-gray-500 whitespace-nowrap">
-                Keine Ergebnisse
-              </span>
+              <span className="text-sm text-gray-500 whitespace-nowrap">Keine Ergebnisse</span>
             </div>
 
             {showFilterControls && (
@@ -746,18 +807,21 @@ export default function AppointmentList({
 
                 {/* Search input */}
                 <div className="relative flex-1">
-                  <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <Search
+                    size={18}
+                    className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+                  />
                   <input
                     type="text"
                     placeholder="Suchen..."
-                    value={searchQuery || ""}
+                    value={searchQuery || ''}
                     onChange={(e) => onSearchChange?.(e.target.value)}
                     className="w-full pl-11 pr-10 py-3 text-sm bg-transparent border-0 focus:outline-none focus:ring-0"
                     aria-label="Termine durchsuchen"
                   />
                   {searchQuery && (
                     <button
-                      onClick={() => onSearchChange?.("")}
+                      onClick={() => onSearchChange?.('')}
                       className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition"
                       aria-label="Suche löschen"
                     >
@@ -784,7 +848,7 @@ export default function AppointmentList({
           Keine Termine für diese Filterkriterien gefunden.
           {searchQuery && (
             <button
-              onClick={() => onSearchChange?.("")}
+              onClick={() => onSearchChange?.('')}
               className="ml-2 text-blue-600 hover:text-blue-800 underline"
             >
               Suche zurücksetzen
@@ -809,14 +873,16 @@ export default function AppointmentList({
                   onClick={() => onSelectAll(!allSelectableSelected)}
                   className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
                     allSelectableSelected || someSelectableSelected
-                      ? "bg-blue-50 border-blue-300 text-blue-500"
-                      : "border-gray-300 bg-white hover:bg-gray-50"
+                      ? 'bg-blue-50 border-blue-300 text-blue-500'
+                      : 'border-gray-300 bg-white hover:bg-gray-50'
                   }`}
                   aria-label="Alle Termine auswählen"
                   aria-pressed={allSelectableSelected}
                 >
                   {allSelectableSelected && <Check size={12} strokeWidth={2.5} />}
-                  {someSelectableSelected && !allSelectableSelected && <Minus size={12} strokeWidth={2.5} />}
+                  {someSelectableSelected && !allSelectableSelected && (
+                    <Minus size={12} strokeWidth={2.5} />
+                  )}
                 </button>
                 <span className="text-sm text-gray-600 whitespace-nowrap">
                   Alle ({selectableAppointments.length})
@@ -824,9 +890,7 @@ export default function AppointmentList({
               </>
             )}
             {selectableAppointments.length === 0 && appointments.length > 0 && (
-              <span className="text-sm text-gray-500 whitespace-nowrap">
-                Alle synchronisiert
-              </span>
+              <span className="text-sm text-gray-500 whitespace-nowrap">Alle synchronisiert</span>
             )}
           </div>
 
@@ -837,18 +901,21 @@ export default function AppointmentList({
 
               {/* Search input */}
               <div className="relative flex-1">
-                <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+                <Search
+                  size={18}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+                />
                 <input
                   type="text"
                   placeholder="Suchen..."
-                  value={searchQuery || ""}
+                  value={searchQuery || ''}
                   onChange={(e) => onSearchChange?.(e.target.value)}
                   className="w-full pl-11 pr-10 py-3 text-sm bg-transparent border-0 focus:outline-none focus:ring-0"
                   aria-label="Termine durchsuchen"
                 />
                 {searchQuery && (
                   <button
-                    onClick={() => onSearchChange?.("")}
+                    onClick={() => onSearchChange?.('')}
                     className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition"
                     aria-label="Suche löschen"
                   >
@@ -867,20 +934,26 @@ export default function AppointmentList({
                     ref={statusTriggerRef}
                     onClick={() => setStatusDropdownOpen(!statusDropdownOpen)}
                     className={`flex items-center gap-2 px-3 py-2 text-sm whitespace-nowrap transition rounded-lg mx-1 ${
-                      statusFilter !== "all"
-                        ? "text-gray-700 bg-gray-100"
-                        : "text-gray-500 hover:bg-gray-50"
+                      statusFilter !== 'all'
+                        ? 'text-gray-700 bg-gray-100'
+                        : 'text-gray-500 hover:bg-gray-50'
                     }`}
                     title="Nach Status filtern"
                   >
                     {/* Color dot */}
-                    <span className={`w-2.5 h-2.5 rounded-full ${
-                      STATUS_FILTER_OPTIONS.find(o => o.value === statusFilter)?.color || "bg-gray-300"
-                    }`} />
+                    <span
+                      className={`w-2.5 h-2.5 rounded-full ${
+                        STATUS_FILTER_OPTIONS.find((o) => o.value === statusFilter)?.color ||
+                        'bg-gray-300'
+                      }`}
+                    />
                     <span className="hidden sm:inline">
-                      {STATUS_FILTER_OPTIONS.find(o => o.value === statusFilter)?.label || "Alle"}
+                      {STATUS_FILTER_OPTIONS.find((o) => o.value === statusFilter)?.label || 'Alle'}
                     </span>
-                    <ChevronDown size={14} className={`transition-transform ${statusDropdownOpen ? "rotate-180" : ""}`} />
+                    <ChevronDown
+                      size={14}
+                      className={`transition-transform ${statusDropdownOpen ? 'rotate-180' : ''}`}
+                    />
                   </button>
 
                   {/* Dropdown menu */}
@@ -898,11 +971,13 @@ export default function AppointmentList({
                           }}
                           className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left transition ${
                             statusFilter === option.value
-                              ? "bg-blue-50 text-blue-700"
-                              : "text-gray-700 hover:bg-gray-50"
+                              ? 'bg-blue-50 text-blue-700'
+                              : 'text-gray-700 hover:bg-gray-50'
                           }`}
                         >
-                          <span className={`w-2.5 h-2.5 rounded-full ${option.color || "bg-gray-300"}`} />
+                          <span
+                            className={`w-2.5 h-2.5 rounded-full ${option.color || 'bg-gray-300'}`}
+                          />
                           <span>{option.label}</span>
                           {statusFilter === option.value && (
                             <Check size={14} className="ml-auto text-blue-600" />
@@ -920,9 +995,10 @@ export default function AppointmentList({
               {/* Filter count */}
               <div className="px-3 text-sm text-gray-500 whitespace-nowrap">
                 <span className="font-medium text-gray-700">{appointments.length}</span>
-                {totalAppointmentsCount !== undefined && totalAppointmentsCount !== appointments.length && (
-                  <span className="text-gray-400"> / {totalAppointmentsCount}</span>
-                )}
+                {totalAppointmentsCount !== undefined &&
+                  totalAppointmentsCount !== appointments.length && (
+                    <span className="text-gray-400"> / {totalAppointmentsCount}</span>
+                  )}
               </div>
 
               {/* Active filters */}
@@ -935,7 +1011,12 @@ export default function AppointmentList({
                         onClick={() => onFilterDateClear?.()}
                         className="flex items-center gap-1.5 px-2 py-1 text-xs text-blue-500 border border-blue-300 rounded-full hover:bg-blue-50 transition"
                       >
-                        <span>{new Date(filterDate).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}</span>
+                        <span>
+                          {new Date(filterDate).toLocaleDateString('de-DE', {
+                            day: '2-digit',
+                            month: '2-digit',
+                          })}
+                        </span>
                         <X size={12} />
                       </button>
                     )}
@@ -962,16 +1043,20 @@ export default function AppointmentList({
                   onClick={handleSoloToggle}
                   className={`flex items-center gap-2 px-4 py-3 text-sm whitespace-nowrap transition ${
                     !hideSoloMeetings
-                      ? "text-blue-600 bg-blue-50"
-                      : "text-gray-500 hover:bg-gray-50"
+                      ? 'text-blue-600 bg-blue-50'
+                      : 'text-gray-500 hover:bg-gray-50'
                   }`}
                 >
-                  <div className={`w-8 h-5 rounded-full relative transition-colors ${
-                    !hideSoloMeetings ? "bg-blue-600" : "bg-gray-300"
-                  }`}>
-                    <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
-                      !hideSoloMeetings ? "translate-x-3.5" : "translate-x-0.5"
-                    }`} />
+                  <div
+                    className={`w-8 h-5 rounded-full relative transition-colors ${
+                      !hideSoloMeetings ? 'bg-blue-600' : 'bg-gray-300'
+                    }`}
+                  >
+                    <div
+                      className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                        !hideSoloMeetings ? 'translate-x-3.5' : 'translate-x-0.5'
+                      }`}
+                    />
                   </div>
                   <User size={16} />
                 </button>
@@ -981,14 +1066,14 @@ export default function AppointmentList({
                   <div
                     ref={soloPopoverRef}
                     className={`absolute right-0 w-64 bg-white rounded-lg shadow-lg border border-gray-200 p-3 z-50 ${
-                      soloPopoverOpenAbove ? "bottom-full mb-1" : "top-full mt-1"
+                      soloPopoverOpenAbove ? 'bottom-full mb-1' : 'top-full mt-1'
                     }`}
                   >
                     <div className="text-sm font-medium text-gray-900 mb-1">Solo-Termine</div>
                     <p className="text-xs text-gray-500">
                       {hideSoloMeetings
-                        ? "Solo-Termine (Meetings ohne weitere Teilnehmer) werden jetzt ausgeblendet."
-                        : "Solo-Termine (Meetings ohne weitere Teilnehmer) werden jetzt angezeigt."}
+                        ? 'Solo-Termine (Meetings ohne weitere Teilnehmer) werden jetzt ausgeblendet.'
+                        : 'Solo-Termine (Meetings ohne weitere Teilnehmer) werden jetzt angezeigt.'}
                     </p>
                   </div>
                 )}
@@ -1007,10 +1092,13 @@ export default function AppointmentList({
                 className="group flex items-center gap-2 px-4 py-3 text-sm font-medium bg-green-600 text-white shadow-[0_0_10px_rgba(74,222,128,0.35),0_4px_8px_rgba(0,0,0,0.15)] hover:bg-green-700 hover:shadow-[0_0_14px_rgba(74,222,128,0.5),0_6px_12px_rgba(0,0,0,0.2)] disabled:bg-gray-100 disabled:text-gray-400 disabled:shadow-none disabled:cursor-not-allowed transition"
               >
                 {submitting ? (
-                  "Übertragen..."
+                  'Übertragen...'
                 ) : (
                   <>
-                    <ClockArrowUp size={18} className={`transition-transform ${(syncReadyAppointments.length > 0 || completeModificationsCount > 0) ? "animate-sync-hop" : ""}`} />
+                    <ClockArrowUp
+                      size={18}
+                      className={`transition-transform ${syncReadyAppointments.length > 0 || completeModificationsCount > 0 ? 'animate-sync-hop' : ''}`}
+                    />
                     <span>ZEP Sync</span>
                     {(syncReadyAppointments.length > 0 || completeModificationsCount > 0) && (
                       <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 text-xs font-medium bg-white/20 rounded-full">
@@ -1040,7 +1128,7 @@ export default function AppointmentList({
             <>
               <div className="flex-1" />
               <div className="text-sm text-blue-600 px-4">
-                {seriesCount} Terminserie{seriesCount > 1 ? "n" : ""}
+                {seriesCount} Terminserie{seriesCount > 1 ? 'n' : ''}
               </div>
             </>
           )}
@@ -1059,10 +1147,13 @@ export default function AppointmentList({
                 className="group flex items-center gap-2 px-4 py-3 text-sm font-medium bg-green-600 text-white shadow-[0_0_10px_rgba(74,222,128,0.35),0_4px_8px_rgba(0,0,0,0.15)] hover:bg-green-700 hover:shadow-[0_0_14px_rgba(74,222,128,0.5),0_6px_12px_rgba(0,0,0,0.2)] disabled:bg-gray-100 disabled:text-gray-400 disabled:shadow-none disabled:cursor-not-allowed transition"
               >
                 {submitting ? (
-                  "Übertragen..."
+                  'Übertragen...'
                 ) : (
                   <>
-                    <ClockArrowUp size={18} className={`transition-transform ${(syncReadyAppointments.length > 0 || completeModificationsCount > 0) ? "animate-sync-hop" : ""}`} />
+                    <ClockArrowUp
+                      size={18}
+                      className={`transition-transform ${syncReadyAppointments.length > 0 || completeModificationsCount > 0 ? 'animate-sync-hop' : ''}`}
+                    />
                     <span>ZEP Sync</span>
                     {(syncReadyAppointments.length > 0 || completeModificationsCount > 0) && (
                       <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 text-xs font-medium bg-white/20 rounded-full">
@@ -1089,76 +1180,81 @@ export default function AppointmentList({
       </div>
 
       <div className="flex flex-col gap-1 py-1">
-        {
-          groupedItems.map((item) =>
-            item.type === "series" ? (
-              <SeriesGroup
-                key={item.seriesId}
-                seriesId={item.seriesId!}
-                appointments={item.appointments}
-                projects={projects}
-                tasks={tasks}
-                activities={activities}
-                syncedEntries={syncedEntries}
-                syncMappings={syncMappings}
-                duplicateWarnings={duplicateWarnings}
-                loadingTasks={loadingTasks}
-                // Actual meeting durations from call records
-                actualDurations={actualDurations}
-                onToggle={onToggle}
-                onToggleSeries={onToggleSeries}
-                onProjectChange={onProjectChange}
-                onTaskChange={onTaskChange}
-                onActivityChange={onActivityChange}
-                onBillableChange={onBillableChange}
-                onCustomRemarkChange={onCustomRemarkChange}
-                onUseActualTimeChange={onUseActualTimeChange}
-                onManualDurationChange={onManualDurationChange}
-                onApplyToSeries={onApplyToSeries}
-                // Series sync
-                onSyncSeries={onSyncSeries}
-                syncingSeriesId={syncingSeriesId}
-                // Single sync
-                onSyncSingle={onSyncSingle}
-                syncingSingleId={syncingSingleId}
-                // Rescheduled time correction
-                onCorrectTime={onCorrectTime}
-                correctingTimeIds={correctingTimeIds}
-                // Conflict link popover
-                onLinkToZep={onLinkToZep}
-                linkedZepIds={linkedZepIds}
-                // Keyboard navigation focus
-                focusedAppointmentId={focusedAppointmentId}
-                globalWorkLocations={globalWorkLocations}
-                onWorkLocationChange={onWorkLocationChange}
-              />
-            ) : (
-              <div
-                key={item.appointments[0].id}
-                id={`appointment-${item.appointments[0].id}`}
-                className={`transition-all duration-300 ${
-                  highlightedAppointment?.id === item.appointments[0].id
-                    ? highlightedAppointment.type === "running"
-                      ? "ring-2 ring-red-500 ring-offset-2 rounded-lg"
-                      : "ring-2 ring-amber-500 ring-offset-2 rounded-lg"
-                    : ""
-                }`}
-              >
+        {groupedItems.map((item) =>
+          item.type === 'series' ? (
+            <SeriesGroup
+              key={item.seriesId}
+              seriesId={item.seriesId!}
+              appointments={item.appointments}
+              projects={projects}
+              tasks={tasks}
+              activities={activities}
+              syncedEntries={syncedEntries}
+              syncMappings={syncMappings}
+              duplicateWarnings={duplicateWarnings}
+              loadingTasks={loadingTasks}
+              // Actual meeting durations from call records
+              actualDurations={actualDurations}
+              onToggle={onToggle}
+              onToggleSeries={onToggleSeries}
+              onProjectChange={onProjectChange}
+              onTaskChange={onTaskChange}
+              onActivityChange={onActivityChange}
+              onBillableChange={onBillableChange}
+              onCustomRemarkChange={onCustomRemarkChange}
+              onUseActualTimeChange={onUseActualTimeChange}
+              onManualDurationChange={onManualDurationChange}
+              onApplyToSeries={onApplyToSeries}
+              // Series sync
+              onSyncSeries={onSyncSeries}
+              syncingSeriesId={syncingSeriesId}
+              // Single sync
+              onSyncSingle={onSyncSingle}
+              syncingSingleId={syncingSingleId}
+              // Rescheduled time correction
+              onCorrectTime={onCorrectTime}
+              correctingTimeIds={correctingTimeIds}
+              // Conflict link popover
+              onLinkToZep={onLinkToZep}
+              linkedZepIds={linkedZepIds}
+              // Keyboard navigation focus
+              focusedAppointmentId={focusedAppointmentId}
+              globalWorkLocations={globalWorkLocations}
+              onWorkLocationChange={onWorkLocationChange}
+            />
+          ) : (
+            <div
+              key={item.appointments[0].id}
+              id={`appointment-${item.appointments[0].id}`}
+              className={`transition-all duration-300 ${
+                highlightedAppointment?.id === item.appointments[0].id
+                  ? highlightedAppointment.type === 'running'
+                    ? 'ring-2 ring-red-500 ring-offset-2 rounded-lg'
+                    : 'ring-2 ring-amber-500 ring-offset-2 rounded-lg'
+                  : ''
+              }`}
+            >
               <AppointmentRow
                 appointment={item.appointments[0]}
                 projects={projects}
                 tasks={
-                  item.appointments[0].projectId
-                    ? tasks[item.appointments[0].projectId] || []
-                    : []
+                  item.appointments[0].projectId ? tasks[item.appointments[0].projectId] || [] : []
                 }
                 allTasks={tasks}
                 activities={activities}
                 isSynced={isAppointmentSynced(item.appointments[0], syncedEntries, syncMappings)}
-                isSyncReady={isAppointmentSyncReady(item.appointments[0], syncedEntries, syncMappings)}
+                isSyncReady={isAppointmentSyncReady(
+                  item.appointments[0],
+                  syncedEntries,
+                  syncMappings,
+                )}
                 syncedEntry={findSyncedEntry(item.appointments[0], syncedEntries, syncMappings)}
                 duplicateWarning={duplicateWarnings?.get(item.appointments[0].id)}
-                loadingTasks={item.appointments[0].projectId ? loadingTasks?.has(item.appointments[0].projectId) : false}
+                loadingTasks={
+                  item.appointments[0].projectId
+                    ? loadingTasks?.has(item.appointments[0].projectId)
+                    : false
+                }
                 // Actual meeting duration from call records
                 actualDuration={getActualDuration(item.appointments[0], actualDurations)}
                 onToggle={onToggle}
@@ -1201,9 +1297,9 @@ export default function AppointmentList({
                 onWorkLocationChange={onWorkLocationChange}
                 onModifyWorkLocation={onModifyWorkLocation}
               />
-              </div>
-            )
-          )}
+            </div>
+          ),
+        )}
       </div>
 
       {/* Footer - Status summary */}
@@ -1211,30 +1307,30 @@ export default function AppointmentList({
         <div className="flex items-center gap-4 text-sm text-gray-600">
           <span>
             <span className="font-medium text-gray-900">{appointments.length}</span> Termine
-            {totalAppointmentsCount !== undefined && totalAppointmentsCount !== appointments.length && (
-              <span className="text-gray-400"> / {totalAppointmentsCount}</span>
-            )}
+            {totalAppointmentsCount !== undefined &&
+              totalAppointmentsCount !== appointments.length && (
+                <span className="text-gray-400"> / {totalAppointmentsCount}</span>
+              )}
           </span>
           {effectiveSelectedAppointments.length > 0 && (
             <span>
-              <span className="font-medium text-gray-900">{effectiveSelectedAppointments.length}</span> ausgewählt
-              <span className="text-gray-400 ml-1">({hours}h {minutes}min)</span>
+              <span className="font-medium text-gray-900">
+                {effectiveSelectedAppointments.length}
+              </span>{' '}
+              ausgewählt
+              <span className="text-gray-400 ml-1">
+                ({hours}h {minutes}min)
+              </span>
             </span>
           )}
           {syncedAppointments.length > 0 && (
-            <span className="text-green-600">
-              {syncedAppointments.length} synchronisiert
-            </span>
+            <span className="text-green-600">{syncedAppointments.length} synchronisiert</span>
           )}
           {syncReadyAppointments.length > 0 && (
-            <span className="text-green-600">
-              {syncReadyAppointments.length} bereit
-            </span>
+            <span className="text-green-600">{syncReadyAppointments.length} bereit</span>
           )}
           {completeModificationsCount > 0 && (
-            <span className="text-blue-600">
-              {completeModificationsCount} zu aktualisieren
-            </span>
+            <span className="text-blue-600">{completeModificationsCount} zu aktualisieren</span>
           )}
           {incompleteUnsyncedAppointments.length > 0 && (
             <span className="text-amber-600">

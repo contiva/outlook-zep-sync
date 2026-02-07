@@ -83,13 +83,13 @@ Kompakt mit Edit-Option.
 
 ### Workflow-Verbesserung
 
-| Vorher | Nachher |
-|--------|---------|
-| 1. Checkbox klicken | 1. Hover/Klick auf Zeile |
-| 2. Projekt wählen | 2. Projekt wählen (Task öffnet auto) |
-| 3. Task wählen | 3. Task wählen → Sync aktiv |
-| 4. Sync klicken | (Enter = Sync) |
-| **4 Klicks** | **3 Klicks** |
+| Vorher              | Nachher                              |
+| ------------------- | ------------------------------------ |
+| 1. Checkbox klicken | 1. Hover/Klick auf Zeile             |
+| 2. Projekt wählen   | 2. Projekt wählen (Task öffnet auto) |
+| 3. Task wählen      | 3. Task wählen → Sync aktiv          |
+| 4. Sync klicken     | (Enter = Sync)                       |
+| **4 Klicks**        | **3 Klicks**                         |
 
 ---
 
@@ -99,12 +99,12 @@ Zeige nur was nötig ist, wähle automatisch wenn eindeutig.
 
 ### Regeln
 
-| Situation | Verhalten |
-|-----------|-----------|
-| 1 Task im Projekt | Auto-select, kein Dropdown |
-| 1 Tätigkeit im Task | Auto-select, kein Dropdown |
-| Standard-Tätigkeit definiert | Auto-select |
-| Fakturierbar ist locked | Kein Toggle, nur Icon |
+| Situation                    | Verhalten                  |
+| ---------------------------- | -------------------------- |
+| 1 Task im Projekt            | Auto-select, kein Dropdown |
+| 1 Tätigkeit im Task          | Auto-select, kein Dropdown |
+| Standard-Tätigkeit definiert | Auto-select                |
+| Fakturierbar ist locked      | Kein Toggle, nur Icon      |
 
 ### Beispiel: Projekt mit 1 Task
 
@@ -172,14 +172,14 @@ Klick auf ✎ oder Doppelklick auf synchronisierte Zeile.
 
 ### Farbsystem
 
-| Zustand | Hintergrund | Linker Rand | Icon |
-|---------|-------------|-------------|------|
-| Offen | Weiß | Keiner | ☐ Checkbox |
-| Fokussiert | `blue-50` | Blau 2px | ☐ Checkbox |
-| Sync-Ready | Amber-Gradient | Amber 2px | ☑ Checked |
-| Synchronisiert | Grün-Gradient | Grün 2px | ✓ Grün |
-| Zeit-Konflikt | Gelb | Gelb 2px | ⚠ Gelb |
-| Abgesagt | Grau | Rot 2px | ✗ Rot |
+| Zustand        | Hintergrund    | Linker Rand | Icon       |
+| -------------- | -------------- | ----------- | ---------- |
+| Offen          | Weiß           | Keiner      | ☐ Checkbox |
+| Fokussiert     | `blue-50`      | Blau 2px    | ☐ Checkbox |
+| Sync-Ready     | Amber-Gradient | Amber 2px   | ☑ Checked  |
+| Synchronisiert | Grün-Gradient  | Grün 2px    | ✓ Grün     |
+| Zeit-Konflikt  | Gelb           | Gelb 2px    | ⚠ Gelb     |
+| Abgesagt       | Grau           | Rot 2px     | ✗ Rot      |
 
 ### Typografie
 

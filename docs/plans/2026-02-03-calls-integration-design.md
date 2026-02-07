@@ -9,13 +9,13 @@ Ein Toggle-Button im Dashboard aktiviert das Laden von Call-Daten via Microsoft 
 
 ## Entscheidungen
 
-| Frage | Entscheidung |
-|-------|--------------|
-| Ansicht | Integriert - Calls und Termine gemischt, nach Zeit sortiert |
-| Laden | On-Demand via Toggle-Button |
-| Datenquelle | Live API (Microsoft Graph, ~30s) |
-| Visuelle Unterscheidung | Badge "Call" neben Titel |
-| Duplikate | Deduplizieren - Kalender-Termin hat Vorrang |
+| Frage                   | Entscheidung                                                |
+| ----------------------- | ----------------------------------------------------------- |
+| Ansicht                 | Integriert - Calls und Termine gemischt, nach Zeit sortiert |
+| Laden                   | On-Demand via Toggle-Button                                 |
+| Datenquelle             | Live API (Microsoft Graph, ~30s)                            |
+| Visuelle Unterscheidung | Badge "Call" neben Titel                                    |
+| Duplikate               | Deduplizieren - Kalender-Termin hat Vorrang                 |
 
 ## Datenfluss
 
@@ -38,11 +38,13 @@ Gemischte Liste anzeigen
 ### `GET /api/calls`
 
 **Input:**
+
 ```
 ?startDate=2026-01-05&endDate=2026-02-02
 ```
 
 **Output:**
+
 ```typescript
 {
   calls: [
@@ -63,6 +65,7 @@ Gemischte Liste anzeigen
 ```
 
 **Besonderheiten:**
+
 - Nutzt Microsoft Graph Token aus Session
 - Parallel-Batching (20 gleichzeitig)
 - Filtert: nur Calls > 5 min, keine geplanten Meetings
@@ -97,6 +100,7 @@ interface Appointment {
 ```
 
 **Deduplizierung:**
+
 - Für jeden Call: Prüfe ob Kalender-Termin mit ±5 min Überlappung existiert
 - Falls ja: Call verwerfen (Kalender-Termin bleibt)
 

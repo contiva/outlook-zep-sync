@@ -40,22 +40,22 @@ export function roundTimeUp(date: Date): Date {
   const rounded = new Date(date);
   const minutes = rounded.getMinutes();
   const remainder = minutes % 15;
-  
+
   if (remainder === 0) {
     // Already on a 15-minute boundary
     rounded.setSeconds(0, 0);
     return rounded;
   }
-  
+
   const roundedMinutes = Math.ceil(minutes / 15) * 15;
-  
+
   if (roundedMinutes === 60) {
     // Roll over to next hour
     rounded.setHours(rounded.getHours() + 1, 0, 0, 0);
   } else {
     rounded.setMinutes(roundedMinutes, 0, 0);
   }
-  
+
   return rounded;
 }
 
@@ -131,52 +131,49 @@ export interface DuplicateCheckResult {
 function levenshteinDistance(str1: string, str2: string): number {
   const m = str1.length;
   const n = str2.length;
-  
+
   // Create distance matrix
   const dp: number[][] = Array(m + 1)
     .fill(null)
     .map(() => Array(n + 1).fill(0));
-  
+
   // Initialize first row and column
   for (let i = 0; i <= m; i++) dp[i][0] = i;
   for (let j = 0; j <= n; j++) dp[0][j] = j;
-  
+
   // Fill the matrix
   for (let i = 1; i <= m; i++) {
     for (let j = 1; j <= n; j++) {
       if (str1[i - 1] === str2[j - 1]) {
         dp[i][j] = dp[i - 1][j - 1];
       } else {
-        dp[i][j] = 1 + Math.min(
-          dp[i - 1][j],     // deletion
-          dp[i][j - 1],     // insertion
-          dp[i - 1][j - 1]  // substitution
-        );
+        dp[i][j] =
+          1 +
+          Math.min(
+            dp[i - 1][j], // deletion
+            dp[i][j - 1], // insertion
+            dp[i - 1][j - 1], // substitution
+          );
       }
     }
   }
-  
+
   return dp[m][n];
 }
 
 // Check if two time ranges overlap
-function timeRangesOverlap(
-  start1: string,
-  end1: string,
-  start2: string,
-  end2: string
-): boolean {
+function timeRangesOverlap(start1: string, end1: string, start2: string, end2: string): boolean {
   // Times are in HH:mm:ss format
   const toMinutes = (time: string): number => {
-    const [h, m] = time.split(":").map(Number);
+    const [h, m] = time.split(':').map(Number);
     return h * 60 + m;
   };
-  
+
   const s1 = toMinutes(start1);
   const e1 = toMinutes(end1);
   const s2 = toMinutes(start2);
   const e2 = toMinutes(end2);
-  
+
   // Overlap exists if one range starts before the other ends
   return s1 < e2 && s2 < e1;
 }
@@ -191,28 +188,28 @@ export function findRescheduledEntry(
     startDateTime: string;
     endDateTime: string;
   },
-  syncedEntries: ZepAttendance[]
+  syncedEntries: ZepAttendance[],
 ): { entry: ZepAttendance; isTimeChanged: boolean } | null {
   if (!syncedEntries || syncedEntries.length === 0) {
     return null;
   }
 
   const aptDate = new Date(appointment.startDateTime);
-  const aptDateStr = aptDate.toISOString().split("T")[0];
+  const aptDateStr = aptDate.toISOString().split('T')[0];
   const aptEndDate = new Date(appointment.endDateTime);
   // Use consistent midpoint rounding (same as calculateZepTimes)
   const zepTimes = calculateZepTimes(aptDate, aptEndDate);
   const aptFromTime = zepTimes.start;
   const aptToTime = zepTimes.end;
-  const aptSubject = (appointment.subject || "").toLowerCase().trim();
-  const aptCustomRemark = (appointment.customRemark || "").toLowerCase().trim();
+  const aptSubject = (appointment.subject || '').toLowerCase().trim();
+  const aptCustomRemark = (appointment.customRemark || '').toLowerCase().trim();
 
   if (!aptSubject) return null;
 
   // Only check entries on the SAME DAY
   for (const entry of syncedEntries) {
-    const entrySubject = (entry.note || "").toLowerCase().trim();
-    const entryDateStr = entry.date.split("T")[0];
+    const entrySubject = (entry.note || '').toLowerCase().trim();
+    const entryDateStr = entry.date.split('T')[0];
 
     // Only consider entries on the same day
     if (entryDateStr !== aptDateStr) {
@@ -239,37 +236,37 @@ export function checkForDuplicate(
     subject: string;
     customRemark?: string;
     startDateTime: string; // ISO datetime
-    endDateTime: string;   // ISO datetime
+    endDateTime: string; // ISO datetime
   },
   syncedEntries: ZepAttendance[],
-  checkRescheduled: boolean = true // New option to check for rescheduled meetings
+  checkRescheduled: boolean = true, // New option to check for rescheduled meetings
 ): DuplicateCheckResult {
   if (!syncedEntries || syncedEntries.length === 0) {
     return { hasDuplicate: false, type: null };
   }
-  
+
   // Parse appointment date and times (use rounded times for comparison)
   const aptDate = new Date(appointment.startDateTime);
-  const aptDateStr = aptDate.toISOString().split("T")[0];
+  const aptDateStr = aptDate.toISOString().split('T')[0];
   const aptEndDate = new Date(appointment.endDateTime);
 
   // Use consistent midpoint rounding (same as calculateZepTimes)
   const zepTimes = calculateZepTimes(aptDate, aptEndDate);
   const aptFromTime = zepTimes.start;
   const aptToTime = zepTimes.end;
-  const aptSubject = (appointment.subject || "").toLowerCase().trim();
-  const aptCustomRemark = (appointment.customRemark || "").toLowerCase().trim();
+  const aptSubject = (appointment.subject || '').toLowerCase().trim();
+  const aptCustomRemark = (appointment.customRemark || '').toLowerCase().trim();
 
   // Filter entries for the same day
   const sameDayEntries = syncedEntries.filter((entry) => {
-    const entryDate = entry.date.split("T")[0];
+    const entryDate = entry.date.split('T')[0];
     return entryDate === aptDateStr;
   });
-  
+
   // Check for exact match first (same day)
   for (const entry of sameDayEntries) {
-    const entrySubject = (entry.note || "").toLowerCase().trim();
-    
+    const entrySubject = (entry.note || '').toLowerCase().trim();
+
     if (
       (entrySubject === aptSubject || (aptCustomRemark && entrySubject === aptCustomRemark)) &&
       entry.from === aptFromTime &&
@@ -283,14 +280,14 @@ export function checkForDuplicate(
       };
     }
   }
-  
+
   // Check for rescheduled meeting (same subject, same day, different time)
   // Only detects time changes within the same day
   if (checkRescheduled && aptSubject) {
     const rescheduled = findRescheduledEntry(appointment, syncedEntries);
     if (rescheduled) {
       const { entry } = rescheduled;
-      
+
       return {
         hasDuplicate: true,
         type: 'rescheduled',
@@ -310,7 +307,7 @@ export function checkForDuplicate(
       };
     }
   }
-  
+
   // Check for time overlap (only if no rescheduled match found)
   for (const entry of sameDayEntries) {
     if (timeRangesOverlap(aptFromTime, aptToTime, entry.from, entry.to)) {
@@ -322,19 +319,22 @@ export function checkForDuplicate(
       };
     }
   }
-  
+
   // Check for similar subject (Levenshtein distance <= 3)
   for (const entry of sameDayEntries) {
-    const entrySubject = (entry.note || "").toLowerCase().trim();
-    
+    const entrySubject = (entry.note || '').toLowerCase().trim();
+
     if (entrySubject && aptSubject) {
       // Also check against customRemark for Levenshtein distance
       const remarkToCheck = aptCustomRemark || aptSubject;
       const distance = levenshteinDistance(remarkToCheck, entrySubject);
-      
+
       // For short strings, use proportional threshold
-      const threshold = Math.min(3, Math.floor(Math.min(aptSubject.length, entrySubject.length) * 0.3));
-      
+      const threshold = Math.min(
+        3,
+        Math.floor(Math.min(aptSubject.length, entrySubject.length) * 0.3),
+      );
+
       if (distance <= threshold && distance > 0) {
         return {
           hasDuplicate: true,
@@ -345,7 +345,7 @@ export function checkForDuplicate(
       }
     }
   }
-  
+
   return { hasDuplicate: false, type: null };
 }
 
@@ -358,7 +358,7 @@ export function checkAppointmentsForDuplicates(
     startDateTime: string;
     endDateTime: string;
   }>,
-  syncedEntries: ZepAttendance[]
+  syncedEntries: ZepAttendance[],
 ): Map<string, DuplicateCheckResult> {
   const results = new Map<string, DuplicateCheckResult>();
 
@@ -370,13 +370,13 @@ export function checkAppointmentsForDuplicates(
         startDateTime: apt.startDateTime,
         endDateTime: apt.endDateTime,
       },
-      syncedEntries
+      syncedEntries,
     );
-    
+
     if (result.hasDuplicate) {
       results.set(apt.id, result);
     }
   }
-  
+
   return results;
 }

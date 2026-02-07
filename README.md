@@ -42,6 +42,7 @@ NEXTAUTH_SECRET=ein-langes-zufaelliges-secret-min-32-zeichen
 ```
 
 **NEXTAUTH_SECRET generieren:**
+
 ```bash
 openssl rand -base64 32
 ```
@@ -50,8 +51,8 @@ openssl rand -base64 32
 
 ```bash
 cd outlook-zep-sync
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 Öffne http://localhost:3000
@@ -103,13 +104,16 @@ outlook-zep-sync/
 ## Troubleshooting
 
 ### "Unauthorized" beim Laden der Termine
+
 - Prüfe ob die Azure App die Berechtigung `Calendars.Read` hat
 - Lösche Cookies und melde dich neu an
 
 ### ZEP-Projekte werden nicht geladen
+
 - Prüfe ob die ZEP URL korrekt ist (mit https://)
 - Prüfe ob der API-Token gültig ist
 
 ### "Failed to fetch" Fehler
+
 - Prüfe die Netzwerkverbindung
 - Prüfe die Browser-Konsole für Details

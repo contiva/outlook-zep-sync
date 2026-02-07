@@ -9,12 +9,12 @@ Integration der bestehenden ZEP Sync Anwendung als Microsoft Teams Tab-App für 
 
 ## Entscheidungen
 
-| Aspekt | Entscheidung |
-|--------|--------------|
-| Deployment | Organisationsweite App via Teams Admin Center |
-| Hosting | Bestehend: `https://zep.contiva.dev` |
-| Authentifizierung | Teams SSO (automatischer Login) |
-| UI | Bestehendes Dashboard 1:1 eingebettet |
+| Aspekt            | Entscheidung                                  |
+| ----------------- | --------------------------------------------- |
+| Deployment        | Organisationsweite App via Teams Admin Center |
+| Hosting           | Bestehend: `https://zep.contiva.dev`          |
+| Authentifizierung | Teams SSO (automatischer Login)               |
+| UI                | Bestehendes Dashboard 1:1 eingebettet         |
 
 ## Architektur
 
@@ -98,6 +98,7 @@ Integration der bestehenden ZEP Sync Anwendung als Microsoft Teams Tab-App für 
 ### 2. App Icons
 
 **Pfade:**
+
 - `teams-app/color.png` - 192x192 Pixel, farbiges Icon
 - `teams-app/outline.png` - 32x32 Pixel, transparenter Hintergrund, weiße Linien
 
@@ -106,6 +107,7 @@ Integration der bestehenden ZEP Sync Anwendung als Microsoft Teams Tab-App für 
 **Pfad:** `app/api/auth/teams-sso/route.ts`
 
 Funktion:
+
 - Empfängt Teams-Token vom Client
 - Führt OAuth2 On-Behalf-Of (OBO) Flow durch
 - Tauscht Teams-Token gegen Access-Token mit vollen Scopes
@@ -116,6 +118,7 @@ Funktion:
 **Pfad:** `lib/teams-sdk.ts`
 
 Funktion:
+
 - Lädt Microsoft Teams JavaScript SDK
 - Initialisiert SDK wenn in Teams-Kontext
 - Holt SSO-Token via `authentication.getAuthToken()`
@@ -125,6 +128,7 @@ Funktion:
 **Pfad:** `app/dashboard/page.tsx`
 
 Änderung:
+
 - Prüft URL-Parameter `?inTeams=true`
 - Wenn in Teams: Ruft Teams SSO auf statt normaler Login-Seite
 - Bestehende Funktionalität bleibt unverändert
@@ -134,6 +138,7 @@ Funktion:
 ### Bestehende App-Registrierung erweitern
 
 1. **Application ID URI setzen:**
+
    ```
    api://zep.contiva.dev/{client-id}
    ```
@@ -192,6 +197,7 @@ zip -r ../zep-sync-teams.zip manifest.json color.png outline.png
 ## Abhängigkeiten
 
 Neue npm-Pakete:
+
 - `@microsoft/teams-js` - Teams JavaScript SDK
 
 ## Nicht im Scope

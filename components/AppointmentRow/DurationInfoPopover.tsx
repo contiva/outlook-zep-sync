@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
-import React, { useState, useImperativeHandle } from "react";
-import { Check, Minus, Plus, RotateCcw } from "lucide-react";
-import { usePopover } from "./usePopover";
-import { formatDuration } from "./helpers";
-import { roundToNearest15Min } from "@/lib/time-utils";
+import React, { useState, useImperativeHandle } from 'react';
+import { Check, Minus, Plus, RotateCcw } from 'lucide-react';
+import { usePopover } from './usePopover';
+import { formatDuration } from './helpers';
+import { roundToNearest15Min } from '@/lib/time-utils';
 
 export interface DurationInfoPopoverHandle {
   open: () => void;
@@ -78,14 +78,17 @@ export default function DurationInfoPopover({
 }: DurationInfoPopoverProps) {
   const { isOpen, open, triggerProps, popoverProps } = usePopover({
     focusTrap: true,
-    popoverId: "duration-info-popover",
+    popoverId: 'duration-info-popover',
   });
 
   // Expose open() to parent via ref
   useImperativeHandle(popoverRef, () => ({ open }), [open]);
 
   const plannedWasRounded = originalStart !== plannedStart || originalEnd !== plannedEnd;
-  const actualWasRounded = hasActualData && originalActualStart && actualStart &&
+  const actualWasRounded =
+    hasActualData &&
+    originalActualStart &&
+    actualStart &&
     (originalActualStart !== actualStart || originalActualEnd !== actualEnd);
 
   // Manual duration stepper state
@@ -105,7 +108,7 @@ export default function DurationInfoPopover({
     if (!plannedStartDateTime) return null;
     const ps = roundToNearest15Min(new Date(plannedStartDateTime));
     const pe = new Date(ps.getTime() + stepperValue * 60 * 1000);
-    const fmt = (d: Date) => d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+    const fmt = (d: Date) => d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
     return { start: fmt(ps), end: fmt(pe) };
   }, [plannedStartDateTime, stepperValue]);
 
@@ -114,10 +117,8 @@ export default function DurationInfoPopover({
   // For non-synced entries: use useActualTime
   const isIstSelected = syncedTimeType
     ? syncedTimeType === 'actual'
-    : (useActualTime === true && (hasActualData || hasManualDuration));
-  const isPlanSelected = syncedTimeType
-    ? syncedTimeType === 'planned'
-    : !isIstSelected;
+    : useActualTime === true && (hasActualData || hasManualDuration);
+  const isPlanSelected = syncedTimeType ? syncedTimeType === 'planned' : !isIstSelected;
 
   const handleStepperChange = (newValue: number) => {
     const clamped = Math.max(15, Math.min(720, newValue));
@@ -158,9 +159,7 @@ export default function DurationInfoPopover({
             popoverProps.className
           }`}
         >
-          <div className="text-xs font-medium text-gray-700 mb-2">
-            Zeitoptionen für ZEP
-          </div>
+          <div className="text-xs font-medium text-gray-700 mb-2">Zeitoptionen für ZEP</div>
 
           <div className="space-y-2 text-xs">
             {/* Plan time explanation */}
@@ -178,20 +177,28 @@ export default function DurationInfoPopover({
               disabled={isPlanSelected && !hasManualDuration}
               className={`w-full text-left p-2 rounded-lg border transition-all ${
                 isPlanSelected
-                  ? "bg-blue-50 border-blue-200 ring-1 ring-blue-300"
-                  : (canSwitch || (hasManualDuration && !hasActualData))
-                    ? "bg-blue-50/50 border-blue-100 hover:bg-blue-50 hover:border-blue-200 cursor-pointer"
-                    : "bg-blue-50/50 border-blue-100"
+                  ? 'bg-blue-50 border-blue-200 ring-1 ring-blue-300'
+                  : canSwitch || (hasManualDuration && !hasActualData)
+                    ? 'bg-blue-50/50 border-blue-100 hover:bg-blue-50 hover:border-blue-200 cursor-pointer'
+                    : 'bg-blue-50/50 border-blue-100'
               }`}
             >
               <div className="flex items-center gap-2 mb-1">
-                <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${isPlanSelected ? "bg-blue-200 text-blue-800" : "bg-blue-100 text-blue-700"}`}>
+                <span
+                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${isPlanSelected ? 'bg-blue-200 text-blue-800' : 'bg-blue-100 text-blue-700'}`}
+                >
                   {isPlanSelected && <Check size={10} />}
                   Plan
                 </span>
-                <span className="text-[10px] text-gray-500">Geplante Dauer laut Outlook-Termin</span>
-                {isPlanSelected && <span className="ml-auto text-[10px] text-blue-600 font-medium">Aktiv</span>}
-                {!isPlanSelected && (canSwitch || (hasManualDuration && !hasActualData)) && <span className="ml-auto text-[10px] text-blue-500">Auswählen</span>}
+                <span className="text-[10px] text-gray-500">
+                  Geplante Dauer laut Outlook-Termin
+                </span>
+                {isPlanSelected && (
+                  <span className="ml-auto text-[10px] text-blue-600 font-medium">Aktiv</span>
+                )}
+                {!isPlanSelected && (canSwitch || (hasManualDuration && !hasActualData)) && (
+                  <span className="ml-auto text-[10px] text-blue-500">Auswählen</span>
+                )}
               </div>
               <div className="space-y-0.5">
                 <div className="flex justify-between items-center">
@@ -225,54 +232,66 @@ export default function DurationInfoPopover({
                 disabled={!canSwitch || !hasActualData || isIstSelected}
                 className={`w-full text-left p-2 rounded-lg border transition-all ${
                   isIstSelected
-                    ? "bg-orange-50 border-orange-200 ring-1 ring-orange-300"
+                    ? 'bg-orange-50 border-orange-200 ring-1 ring-orange-300'
                     : hasActualData && canSwitch
-                      ? "bg-orange-50/50 border-orange-100 hover:bg-orange-50 hover:border-orange-200 cursor-pointer"
+                      ? 'bg-orange-50/50 border-orange-100 hover:bg-orange-50 hover:border-orange-200 cursor-pointer'
                       : hasActualData
-                        ? "bg-orange-50/50 border-orange-100"
-                        : "bg-gray-50 border-gray-200"
+                        ? 'bg-orange-50/50 border-orange-100'
+                        : 'bg-gray-50 border-gray-200'
                 }`}
               >
                 <div className="flex items-center gap-2 mb-1">
-                  <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                    isIstSelected
-                      ? "bg-orange-200 text-orange-800"
-                      : hasActualData
-                        ? "bg-orange-100 text-orange-700"
-                        : "bg-gray-100 text-gray-400"
-                  }`}>
+                  <span
+                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                      isIstSelected
+                        ? 'bg-orange-200 text-orange-800'
+                        : hasActualData
+                          ? 'bg-orange-100 text-orange-700'
+                          : 'bg-gray-100 text-gray-400'
+                    }`}
+                  >
                     {isIstSelected && <Check size={10} />}
                     Ist
                   </span>
                   <span className="text-[10px] text-gray-500">
                     Tatsächliche Dauer aus Teams-Anrufdaten
                   </span>
-                  {isIstSelected && <span className="ml-auto text-[10px] text-orange-600 font-medium">Aktiv</span>}
-                  {!isIstSelected && canSwitch && <span className="ml-auto text-[10px] text-orange-500">Auswählen</span>}
+                  {isIstSelected && (
+                    <span className="ml-auto text-[10px] text-orange-600 font-medium">Aktiv</span>
+                  )}
+                  {!isIstSelected && canSwitch && (
+                    <span className="ml-auto text-[10px] text-orange-500">Auswählen</span>
+                  )}
                 </div>
-                {originalActualStart && originalActualEnd && originalActualDurationMinutes !== undefined && (
-                  <div className="space-y-0.5">
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-500">Teams:</span>
-                      <span className="text-gray-600 tabular-nums">
-                        {originalActualStart}–{originalActualEnd} ({formatDuration(originalActualDurationMinutes)})
-                      </span>
-                    </div>
-                    {actualWasRounded && actualStart && actualEnd && actualDurationMinutes !== undefined && (
+                {originalActualStart &&
+                  originalActualEnd &&
+                  originalActualDurationMinutes !== undefined && (
+                    <div className="space-y-0.5">
                       <div className="flex justify-between items-center">
-                        <span className="text-gray-500">Für ZEP:</span>
-                        <span className="text-orange-600 font-medium tabular-nums">
-                          {actualStart}–{actualEnd} ({formatDuration(actualDurationMinutes)})
+                        <span className="text-gray-500">Teams:</span>
+                        <span className="text-gray-600 tabular-nums">
+                          {originalActualStart}–{originalActualEnd} (
+                          {formatDuration(originalActualDurationMinutes)})
                         </span>
                       </div>
-                    )}
-                    {actualWasRounded && (
-                      <div className="text-[10px] text-gray-400 mt-1">
-                        ↳ Auf 15-Minuten-Raster gerundet
-                      </div>
-                    )}
-                  </div>
-                )}
+                      {actualWasRounded &&
+                        actualStart &&
+                        actualEnd &&
+                        actualDurationMinutes !== undefined && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-500">Für ZEP:</span>
+                            <span className="text-orange-600 font-medium tabular-nums">
+                              {actualStart}–{actualEnd} ({formatDuration(actualDurationMinutes)})
+                            </span>
+                          </div>
+                        )}
+                      {actualWasRounded && (
+                        <div className="text-[10px] text-gray-400 mt-1">
+                          ↳ Auf 15-Minuten-Raster gerundet
+                        </div>
+                      )}
+                    </div>
+                  )}
               </button>
             ) : isWaitingForTeamsData ? (
               /* Teams meeting - waiting for call data */
@@ -281,13 +300,11 @@ export default function DurationInfoPopover({
                   <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-400">
                     Ist
                   </span>
-                  <span className="text-[10px] text-gray-400">
-                    Warte auf Teams-Anrufdaten…
-                  </span>
+                  <span className="text-[10px] text-gray-400">Warte auf Teams-Anrufdaten…</span>
                 </div>
                 <div className="text-[10px] text-gray-400 mt-1">
-                  Ist-Zeiten werden ca. 1h nach Meeting-Ende verfügbar.
-                  Du kannst die Dauer dann manuell setzen, falls keine Daten eintreffen.
+                  Ist-Zeiten werden ca. 1h nach Meeting-Ende verfügbar. Du kannst die Dauer dann
+                  manuell setzen, falls keine Daten eintreffen.
                 </div>
               </div>
             ) : (
@@ -295,23 +312,25 @@ export default function DurationInfoPopover({
               <div
                 className={`w-full text-left p-2 rounded-lg border transition-all ${
                   isIstSelected
-                    ? "bg-orange-50 border-orange-200 ring-1 ring-orange-300"
-                    : "bg-gray-50 border-gray-200 hover:border-orange-200"
+                    ? 'bg-orange-50 border-orange-200 ring-1 ring-orange-300'
+                    : 'bg-gray-50 border-gray-200 hover:border-orange-200'
                 }`}
               >
                 <div className="flex items-center gap-2 mb-1">
-                  <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                    isIstSelected
-                      ? "bg-orange-200 text-orange-800"
-                      : "bg-gray-100 text-gray-500"
-                  }`}>
+                  <span
+                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                      isIstSelected ? 'bg-orange-200 text-orange-800' : 'bg-gray-100 text-gray-500'
+                    }`}
+                  >
                     {isIstSelected && <Check size={10} />}
                     Ist
                   </span>
                   <span className="text-[10px] text-gray-500">
-                    {isIstSelected ? "Manuelle Ist-Zeit" : "Ist-Zeit manuell setzen"}
+                    {isIstSelected ? 'Manuelle Ist-Zeit' : 'Ist-Zeit manuell setzen'}
                   </span>
-                  {isIstSelected && <span className="ml-auto text-[10px] text-orange-600 font-medium">Aktiv</span>}
+                  {isIstSelected && (
+                    <span className="ml-auto text-[10px] text-orange-600 font-medium">Aktiv</span>
+                  )}
                 </div>
 
                 {/* Duration stepper */}
@@ -319,7 +338,9 @@ export default function DurationInfoPopover({
                   {manualTimeInfo && (
                     <div className="flex justify-between items-center">
                       <span className="text-gray-500">Beginn:</span>
-                      <span className="text-gray-600 tabular-nums font-medium">{manualTimeInfo.start} (fest)</span>
+                      <span className="text-gray-600 tabular-nums font-medium">
+                        {manualTimeInfo.start} (fest)
+                      </span>
                     </div>
                   )}
 
@@ -335,16 +356,22 @@ export default function DurationInfoPopover({
                         disabled={!onManualDurationChange || stepperValue <= 15}
                         className={`p-1 rounded-md border transition-colors ${
                           !onManualDurationChange || stepperValue <= 15
-                            ? "text-gray-300 border-gray-200 bg-gray-50 cursor-not-allowed"
-                            : "text-orange-600 border-orange-200 bg-orange-50 hover:bg-orange-100 hover:border-orange-300 cursor-pointer"
+                            ? 'text-gray-300 border-gray-200 bg-gray-50 cursor-not-allowed'
+                            : 'text-orange-600 border-orange-200 bg-orange-50 hover:bg-orange-100 hover:border-orange-300 cursor-pointer'
                         }`}
-                        title={!onManualDurationChange ? "Nur im Bearbeitungsmodus änderbar" : "15 Minuten weniger"}
+                        title={
+                          !onManualDurationChange
+                            ? 'Nur im Bearbeitungsmodus änderbar'
+                            : '15 Minuten weniger'
+                        }
                       >
                         <Minus size={14} strokeWidth={2.5} />
                       </button>
-                      <span className={`tabular-nums font-semibold min-w-[60px] text-center ${
-                        isIstSelected ? "text-orange-700" : "text-gray-700"
-                      }`}>
+                      <span
+                        className={`tabular-nums font-semibold min-w-[60px] text-center ${
+                          isIstSelected ? 'text-orange-700' : 'text-gray-700'
+                        }`}
+                      >
                         {formatDuration(stepperValue)}
                       </span>
                       <button
@@ -356,10 +383,14 @@ export default function DurationInfoPopover({
                         disabled={!onManualDurationChange || stepperValue >= 720}
                         className={`p-1 rounded-md border transition-colors ${
                           !onManualDurationChange || stepperValue >= 720
-                            ? "text-gray-300 border-gray-200 bg-gray-50 cursor-not-allowed"
-                            : "text-orange-600 border-orange-200 bg-orange-50 hover:bg-orange-100 hover:border-orange-300 cursor-pointer"
+                            ? 'text-gray-300 border-gray-200 bg-gray-50 cursor-not-allowed'
+                            : 'text-orange-600 border-orange-200 bg-orange-50 hover:bg-orange-100 hover:border-orange-300 cursor-pointer'
                         }`}
-                        title={!onManualDurationChange ? "Nur im Bearbeitungsmodus änderbar" : "15 Minuten mehr"}
+                        title={
+                          !onManualDurationChange
+                            ? 'Nur im Bearbeitungsmodus änderbar'
+                            : '15 Minuten mehr'
+                        }
                       >
                         <Plus size={14} strokeWidth={2.5} />
                       </button>
@@ -369,7 +400,9 @@ export default function DurationInfoPopover({
                   {manualTimeInfo && (
                     <div className="flex justify-between items-center">
                       <span className="text-gray-500">Ende:</span>
-                      <span className={`tabular-nums font-medium ${isIstSelected ? "text-orange-600" : "text-gray-600"}`}>
+                      <span
+                        className={`tabular-nums font-medium ${isIstSelected ? 'text-orange-600' : 'text-gray-600'}`}
+                      >
                         {manualTimeInfo.end}
                       </span>
                     </div>
@@ -401,7 +434,9 @@ export default function DurationInfoPopover({
             </div>
           )}
 
-          <div className={`text-[10px] text-gray-400 ${hasDeviation ? "mt-1.5" : "mt-2 pt-2 border-t border-gray-100"}`}>
+          <div
+            className={`text-[10px] text-gray-400 ${hasDeviation ? 'mt-1.5' : 'mt-2 pt-2 border-t border-gray-100'}`}
+          >
             Wähle die Zeit, die in ZEP gebucht werden soll
           </div>
         </div>

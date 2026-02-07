@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
-import { useMemo, useEffect } from "react";
-import { format, eachDayOfInterval, parseISO, isWeekend, addDays as addDaysToDate } from "date-fns";
-import { de } from "date-fns/locale";
-import { PartyPopper } from "lucide-react";
-import { RedisSyncMapping } from "@/lib/redis";
+import { useMemo, useEffect } from 'react';
+import { format, eachDayOfInterval, parseISO, isWeekend, addDays as addDaysToDate } from 'date-fns';
+import { de } from 'date-fns/locale';
+import { PartyPopper } from 'lucide-react';
+import { RedisSyncMapping } from '@/lib/redis';
 
 interface Attendee {
   emailAddress: {
@@ -104,26 +104,26 @@ function getEasterSunday(year: number): Date {
 function getGermanHolidays(year: number): Map<string, string> {
   const easter = getEasterSunday(year);
   const holidays = new Map<string, string>();
-  const fmt = (d: Date) => format(d, "yyyy-MM-dd");
+  const fmt = (d: Date) => format(d, 'yyyy-MM-dd');
 
   // Feste Feiertage
-  holidays.set(`${year}-01-01`, "Neujahr");
-  holidays.set(`${year}-05-01`, "Tag der Arbeit");
-  holidays.set(`${year}-10-03`, "Tag der Deutschen Einheit");
-  holidays.set(`${year}-12-25`, "1. Weihnachtsfeiertag");
-  holidays.set(`${year}-12-26`, "2. Weihnachtsfeiertag");
+  holidays.set(`${year}-01-01`, 'Neujahr');
+  holidays.set(`${year}-05-01`, 'Tag der Arbeit');
+  holidays.set(`${year}-10-03`, 'Tag der Deutschen Einheit');
+  holidays.set(`${year}-12-25`, '1. Weihnachtsfeiertag');
+  holidays.set(`${year}-12-26`, '2. Weihnachtsfeiertag');
 
   // Bewegliche Feiertage (abhängig von Ostern)
-  holidays.set(fmt(addDaysToDate(easter, -2)), "Karfreitag");
-  holidays.set(fmt(addDaysToDate(easter, 1)), "Ostermontag");
-  holidays.set(fmt(addDaysToDate(easter, 39)), "Christi Himmelfahrt");
-  holidays.set(fmt(addDaysToDate(easter, 50)), "Pfingstmontag");
+  holidays.set(fmt(addDaysToDate(easter, -2)), 'Karfreitag');
+  holidays.set(fmt(addDaysToDate(easter, 1)), 'Ostermontag');
+  holidays.set(fmt(addDaysToDate(easter, 39)), 'Christi Himmelfahrt');
+  holidays.set(fmt(addDaysToDate(easter, 50)), 'Pfingstmontag');
 
   return holidays;
 }
 
-type DayStatus = "empty" | "unprocessed" | "edited" | "synced" | "syncedWithChanges" | "weekend";
-type AppointmentStatus = "synced" | "syncedWithChanges" | "edited" | "unprocessed" | "deselected";
+type DayStatus = 'empty' | 'unprocessed' | 'edited' | 'synced' | 'syncedWithChanges' | 'weekend';
+type AppointmentStatus = 'synced' | 'syncedWithChanges' | 'edited' | 'unprocessed' | 'deselected';
 
 export default function CalendarHeatmap({
   startDate,
@@ -145,7 +145,7 @@ export default function CalendarHeatmap({
   const isSoloMeeting = (apt: Appointment): boolean => {
     if (!userEmail) return false;
     const otherAttendees = (apt.attendees || []).filter(
-      (a) => a.emailAddress.address.toLowerCase() !== userEmail.toLowerCase()
+      (a) => a.emailAddress.address.toLowerCase() !== userEmail.toLowerCase(),
     );
     return otherAttendees.length === 0;
   };
@@ -153,14 +153,14 @@ export default function CalendarHeatmap({
   // Filter appointments based on hideSoloMeetings setting
   const filteredAppointments = useMemo(() => {
     if (!hideSoloMeetings) return appointments;
-    
+
     return appointments.filter((apt) => {
       // Always show if manually selected
       if (apt.selected) return true;
       // Otherwise, only show if not a solo meeting
       return !isSoloMeeting(apt);
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appointments, hideSoloMeetings, userEmail]);
 
   // Feiertage für alle relevanten Jahre im Bereich berechnen
@@ -195,7 +195,7 @@ export default function CalendarHeatmap({
   const appointmentsByDate = useMemo(() => {
     const map = new Map<string, Appointment[]>();
     filteredAppointments.forEach((apt) => {
-      const date = apt.start.dateTime.split("T")[0];
+      const date = apt.start.dateTime.split('T')[0];
       const existing = map.get(date) || [];
       map.set(date, [...existing, apt]);
     });
@@ -206,7 +206,7 @@ export default function CalendarHeatmap({
   const syncedByDate = useMemo(() => {
     const map = new Map<string, ZepAttendance[]>();
     syncedEntries.forEach((entry) => {
-      const date = entry.date.split("T")[0];
+      const date = entry.date.split('T')[0];
       const existing = map.get(date) || [];
       map.set(date, [...existing, entry]);
     });
@@ -216,9 +216,9 @@ export default function CalendarHeatmap({
   // Find all recurring series (appointments with seriesMasterId) - using filtered appointments
   const seriesData = useMemo(() => {
     const seriesMap = new Map<string, Appointment[]>();
-    
+
     filteredAppointments.forEach((apt) => {
-      if (apt.seriesMasterId && apt.type === "occurrence") {
+      if (apt.seriesMasterId && apt.type === 'occurrence') {
         const existing = seriesMap.get(apt.seriesMasterId) || [];
         existing.push(apt);
         seriesMap.set(apt.seriesMasterId, existing);
@@ -226,14 +226,9 @@ export default function CalendarHeatmap({
     });
 
     // Only count series with at least 2 occurrences
-    const validSeries = Array.from(seriesMap.entries()).filter(
-      ([, apts]) => apts.length >= 2
-    );
+    const validSeries = Array.from(seriesMap.entries()).filter(([, apts]) => apts.length >= 2);
 
-    const totalSeriesAppointments = validSeries.reduce(
-      (acc, [, apts]) => acc + apts.length,
-      0
-    );
+    const totalSeriesAppointments = validSeries.reduce((acc, [, apts]) => acc + apts.length, 0);
 
     return {
       count: validSeries.length,
@@ -249,17 +244,18 @@ export default function CalendarHeatmap({
   const isAppointmentSyncedCheck = (apt: Appointment): boolean => {
     // Priority 1: Redis mapping lookup - verify ZEP entry still exists
     const redisMapping = syncMappings?.get(apt.id);
-    if (redisMapping && syncedEntries.some((e) => e.id === redisMapping.zepAttendanceId)) return true;
+    if (redisMapping && syncedEntries.some((e) => e.id === redisMapping.zepAttendanceId))
+      return true;
 
-    const zepEntries = syncedByDate.get(apt.start.dateTime.split("T")[0]) || [];
+    const zepEntries = syncedByDate.get(apt.start.dateTime.split('T')[0]) || [];
     if (zepEntries.length === 0) return false;
 
     // Priority 2: Subject/customRemark match
-    const aptSubject = (apt.subject || "").trim();
-    const aptCustomRemark = (apt.customRemark || "").trim();
+    const aptSubject = (apt.subject || '').trim();
+    const aptCustomRemark = (apt.customRemark || '').trim();
 
     return zepEntries.some((entry) => {
-      const entryNote = (entry.note || "").trim();
+      const entryNote = (entry.note || '').trim();
       return entryNote === aptSubject || (aptCustomRemark && entryNote === aptCustomRemark);
     });
   };
@@ -294,13 +290,13 @@ export default function CalendarHeatmap({
     const allSynced = syncedCount === seriesAppointments.length;
     const someSynced = syncedCount > 0;
 
-    if (allSynced) return "synced";
+    if (allSynced) return 'synced';
     // Partially synced series = yellow (syncedWithChanges)
-    if (someSynced) return "syncedWithChanges";
-    if (hasUnprocessed) return "unprocessed";
-    if (hasEdited) return "edited";
-    if (allDeselectedOrSynced) return "deselected";
-    return "deselected";
+    if (someSynced) return 'syncedWithChanges';
+    if (hasUnprocessed) return 'unprocessed';
+    if (hasEdited) return 'edited';
+    if (allDeselectedOrSynced) return 'deselected';
+    return 'deselected';
   };
 
   // Helper: Check if a specific appointment is synced to ZEP
@@ -309,83 +305,88 @@ export default function CalendarHeatmap({
   const isAppointmentSynced = (apt: Appointment, zepEntries: ZepAttendance[]): boolean => {
     // Priority 1: Redis mapping lookup - verify ZEP entry still exists
     const redisMapping = syncMappings?.get(apt.id);
-    if (redisMapping && syncedEntries.some((e) => e.id === redisMapping.zepAttendanceId)) return true;
+    if (redisMapping && syncedEntries.some((e) => e.id === redisMapping.zepAttendanceId))
+      return true;
 
     if (!zepEntries || zepEntries.length === 0) return false;
 
     // Priority 2: Subject/customRemark match
-    const aptSubject = (apt.subject || "").trim();
-    const aptCustomRemark = (apt.customRemark || "").trim();
+    const aptSubject = (apt.subject || '').trim();
+    const aptCustomRemark = (apt.customRemark || '').trim();
 
     return zepEntries.some((entry) => {
-      const entryNote = (entry.note || "").trim();
+      const entryNote = (entry.note || '').trim();
       return entryNote === aptSubject || (aptCustomRemark && entryNote === aptCustomRemark);
     });
   };
 
   // Calculate status for each day
   const getDayStatus = (date: Date): DayStatus => {
-    const dateStr = format(date, "yyyy-MM-dd");
-    
+    const dateStr = format(date, 'yyyy-MM-dd');
+
     if (isWeekend(date)) {
-      return "weekend";
+      return 'weekend';
     }
 
     const dayAppointments = appointmentsByDate.get(dateStr) || [];
     const dayZepEntries = syncedByDate.get(dateStr) || [];
 
     if (dayAppointments.length === 0 && dayZepEntries.length === 0) {
-      return "empty";
+      return 'empty';
     }
 
     // Check each appointment's sync status - synced appointments count as done regardless of selected state
     const unsyncedAppointments = dayAppointments.filter(
-      (apt) => !isAppointmentSynced(apt, dayZepEntries) && !submittedIds.has(apt.id)
+      (apt) => !isAppointmentSynced(apt, dayZepEntries) && !submittedIds.has(apt.id),
     );
-    
+
     // All appointments are synced
     if (unsyncedAppointments.length === 0 && dayAppointments.length > 0) {
-      return "synced";
+      return 'synced';
     }
 
     // Check unsynced appointments that are selected
     const unsyncedSelected = unsyncedAppointments.filter((apt) => apt.selected);
-    
+
     // Check if any selected (non-synced) appointment has a project assigned
     const anyEdited = unsyncedSelected.some((apt) => apt.projectId !== null);
-    
+
     if (anyEdited) {
-      return "edited";
+      return 'edited';
     }
 
     // Has selected appointments without project (unprocessed)
     if (unsyncedSelected.length > 0) {
-      return "unprocessed";
+      return 'unprocessed';
     }
 
     // All unsynced appointments are deselected - treat as synced/done if there are synced ones
-    if (dayAppointments.some((apt) => isAppointmentSynced(apt, dayZepEntries) || submittedIds.has(apt.id))) {
-      return "synced";
+    if (
+      dayAppointments.some(
+        (apt) => isAppointmentSynced(apt, dayZepEntries) || submittedIds.has(apt.id),
+      )
+    ) {
+      return 'synced';
     }
 
-    return "empty";
+    return 'empty';
   };
 
   const getStatusLabel = (status: DayStatus): string => {
     switch (status) {
-      case "synced":
-        return "Synchronisiert";
-      case "syncedWithChanges":
-        return "Änderung ausstehend";
-      case "edited":
-        return "Bearbeitet";
-      case "unprocessed":
-        return "Unbearbeitet";
-      case "weekend":
-        return "Wochenende";
-      case "empty":
+      case 'synced':
+        return 'Synchronisiert';
+      case 'syncedWithChanges':
+        return 'Änderung ausstehend';
+      case 'edited':
+        return 'Bearbeitet';
+      case 'unprocessed':
+        return 'Unbearbeitet';
+      case 'weekend':
+        return 'Wochenende';
+      case 'empty':
       default:
-        return "Keine Termine";
+        return 'Keine Termine';
     }
   };
 
@@ -398,8 +399,8 @@ export default function CalendarHeatmap({
 
     // Find the matching synced entry
     const syncedEntry = zepEntries.find((entry) => {
-      const entryNote = (entry.note || "").trim();
-      return entryNote === (apt.subject || "").trim();
+      const entryNote = (entry.note || '').trim();
+      return entryNote === (apt.subject || '').trim();
     });
     if (!syncedEntry) return false;
 
@@ -415,52 +416,55 @@ export default function CalendarHeatmap({
   };
 
   // Get status for individual appointment
-  const getAppointmentStatus = (apt: Appointment, zepEntries: ZepAttendance[]): AppointmentStatus => {
+  const getAppointmentStatus = (
+    apt: Appointment,
+    zepEntries: ZepAttendance[],
+  ): AppointmentStatus => {
     // Synced check comes FIRST
     if (isAppointmentSynced(apt, zepEntries) || submittedIds.has(apt.id)) {
       // Check if synced but has pending modifications
       if (hasPendingModifications(apt, zepEntries)) {
-        return "syncedWithChanges";
+        return 'syncedWithChanges';
       }
-      return "synced";
+      return 'synced';
     }
     if (!apt.selected) {
-      return "deselected";
+      return 'deselected';
     }
     if (apt.projectId !== null) {
-      return "edited";
+      return 'edited';
     }
-    return "unprocessed";
+    return 'unprocessed';
   };
 
   const getAppointmentStatusColor = (status: AppointmentStatus): string => {
     switch (status) {
-      case "synced":
-        return "bg-green-600";
-      case "syncedWithChanges":
-        return "bg-yellow-400";
-      case "edited":
-        return "bg-amber-400";
-      case "unprocessed":
-        return "bg-red-400";
-      case "deselected":
-        return "bg-gray-300";
+      case 'synced':
+        return 'bg-green-600';
+      case 'syncedWithChanges':
+        return 'bg-yellow-400';
+      case 'edited':
+        return 'bg-amber-400';
+      case 'unprocessed':
+        return 'bg-red-400';
+      case 'deselected':
+        return 'bg-gray-300';
     }
   };
 
   // Series status colors - same as appointments but with amber for edited
   const getSeriesStatusColor = (status: AppointmentStatus): string => {
     switch (status) {
-      case "synced":
-        return "bg-green-600";
-      case "syncedWithChanges":
-        return "bg-yellow-400";
-      case "edited":
-        return "bg-amber-400"; // Ready to sync
-      case "unprocessed":
-        return "bg-red-400"; // Not ready - red
-      case "deselected":
-        return "bg-gray-300";
+      case 'synced':
+        return 'bg-green-600';
+      case 'syncedWithChanges':
+        return 'bg-yellow-400';
+      case 'edited':
+        return 'bg-amber-400'; // Ready to sync
+      case 'unprocessed':
+        return 'bg-red-400'; // Not ready - red
+      case 'deselected':
+        return 'bg-gray-300';
     }
   };
 
@@ -472,19 +476,19 @@ export default function CalendarHeatmap({
     let unprocessed = 0;
 
     filteredAppointments.forEach((apt) => {
-      const dateStr = apt.start.dateTime.split("T")[0];
+      const dateStr = apt.start.dateTime.split('T')[0];
       const zepEntries = syncedByDate.get(dateStr) || [];
       const status = getAppointmentStatus(apt, zepEntries);
 
-      if (status === "synced") synced++;
-      else if (status === "syncedWithChanges") syncedWithChanges++;
-      else if (status === "edited") edited++;
-      else if (status === "unprocessed") unprocessed++;
+      if (status === 'synced') synced++;
+      else if (status === 'syncedWithChanges') syncedWithChanges++;
+      else if (status === 'edited') edited++;
+      else if (status === 'unprocessed') unprocessed++;
       // deselected appointments are not counted
     });
 
     return { synced, syncedWithChanges, edited, unprocessed };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredAppointments, syncedByDate, submittedIds, modifiedEntries]);
 
   // Notify parent of stats changes
@@ -499,15 +503,17 @@ export default function CalendarHeatmap({
   return (
     <div className="p-4">
       {/* Horizontal row - series tile + divider + all days as boxes */}
-      <div 
+      <div
         className="grid gap-1 items-end"
         style={{ gridTemplateColumns: `auto auto repeat(${days.length}, minmax(0, 1fr))` }}
       >
         {/* Series tile - always first */}
         <div className="flex flex-col items-center gap-0.5">
           {/* Label */}
-          <span className="text-[10px] text-gray-400" aria-hidden="true">Serien</span>
-          
+          <span className="text-[10px] text-gray-400" aria-hidden="true">
+            Serien
+          </span>
+
           {/* Series box */}
           <button
             type="button"
@@ -522,10 +528,10 @@ export default function CalendarHeatmap({
             disabled={seriesData.count === 0}
             className={`w-10 h-10 rounded overflow-hidden flex items-center justify-center focus:outline-none transition-transform shadow-[inset_1px_1px_2px_rgba(0,0,0,0.08)] ${
               seriesData.count === 0
-                ? "bg-gray-100 border border-gray-200 cursor-default"
+                ? 'bg-gray-100 border border-gray-200 cursor-default'
                 : seriesFilterActive
-                  ? "cursor-pointer ring-2 ring-blue-600 ring-offset-1 scale-110"
-                  : "cursor-pointer hover:brightness-110 hover:shadow-md"
+                  ? 'cursor-pointer ring-2 ring-blue-600 ring-offset-1 scale-110'
+                  : 'cursor-pointer hover:brightness-110 hover:shadow-md'
             }`}
             aria-label={`Terminserien filtern: ${seriesData.count} Serien mit ${seriesData.totalAppointments} Terminen`}
             aria-pressed={seriesFilterActive}
@@ -544,54 +550,66 @@ export default function CalendarHeatmap({
                 })}
               </div>
             ) : (
-              <span className="text-[10px] text-gray-400" aria-hidden="true">-</span>
+              <span className="text-[10px] text-gray-400" aria-hidden="true">
+                -
+              </span>
             )}
           </button>
-          
+
           {/* Infinity symbol below */}
-          <span className={`text-[10px] font-medium ${
-            seriesData.count > 0 ? "text-gray-600" : "text-gray-400"
-          }`} aria-hidden="true">
+          <span
+            className={`text-[10px] font-medium ${
+              seriesData.count > 0 ? 'text-gray-600' : 'text-gray-400'
+            }`}
+            aria-hidden="true"
+          >
             ∞
           </span>
         </div>
-        
+
         {/* Divider between series and days */}
         <div className="flex flex-col items-center gap-0.5 px-1">
-          <span className="text-[10px] text-transparent" aria-hidden="true">.</span>
+          <span className="text-[10px] text-transparent" aria-hidden="true">
+            .
+          </span>
           <div className="w-px h-10 bg-gray-300" />
-          <span className="text-[10px] text-transparent" aria-hidden="true">.</span>
+          <span className="text-[10px] text-transparent" aria-hidden="true">
+            .
+          </span>
         </div>
-        
+
         {days.map((day) => {
           const status = getDayStatus(day);
-          const dateStr = format(day, "yyyy-MM-dd");
+          const dateStr = format(day, 'yyyy-MM-dd');
           const dayAppointments = appointmentsByDate.get(dateStr) || [];
           const selectedCount = dayAppointments.filter((apt) => apt.selected).length;
           const totalCount = dayAppointments.length;
-          const dayNum = format(day, "d");
-          const weekday = format(day, "EEEEEE", { locale: de });
+          const dayNum = format(day, 'd');
+          const weekday = format(day, 'EEEEEE', { locale: de });
           const holidayName = holidays.get(dateStr);
           const isHoliday = !!holidayName;
 
           const isSelected = selectedDate === dateStr;
-          
+
           return (
-            <div
-              key={day.toISOString()}
-              className="flex flex-col items-center gap-0.5"
-            >
+            <div key={day.toISOString()} className="flex flex-col items-center gap-0.5">
               {/* Weekday label */}
-              <span className="text-[10px] text-gray-400" aria-hidden="true">{weekday}</span>
-              
+              <span className="text-[10px] text-gray-400" aria-hidden="true">
+                {weekday}
+              </span>
+
               {/* Day box with stacked segments */}
               <button
                 type="button"
                 onClick={() => onDayClick(isSelected ? null : dateStr)}
                 className={`relative group w-full max-w-8 h-10 rounded overflow-hidden cursor-pointer focus:outline-none transition-transform shadow-[inset_1px_1px_2px_rgba(0,0,0,0.08)] flex items-center justify-center ${
-                  status === "weekend" || (isHoliday && totalCount === 0) ? "bg-gray-100" : totalCount === 0 ? "bg-gray-100 border border-gray-200" : ""
-                } ${isSelected ? "ring-2 ring-blue-600 ring-offset-1 scale-110" : totalCount > 0 ? "hover:brightness-110 hover:shadow-md" : "hover:bg-gray-200 hover:shadow-md"}`}
-                aria-label={`${format(day, "EEEE, d. MMMM", { locale: de })}${holidayName ? ` (${holidayName})` : ""}: ${totalCount} Termine, ${selectedCount} ausgewählt, Status: ${getStatusLabel(status)}`}
+                  status === 'weekend' || (isHoliday && totalCount === 0)
+                    ? 'bg-gray-100'
+                    : totalCount === 0
+                      ? 'bg-gray-100 border border-gray-200'
+                      : ''
+                } ${isSelected ? 'ring-2 ring-blue-600 ring-offset-1 scale-110' : totalCount > 0 ? 'hover:brightness-110 hover:shadow-md' : 'hover:bg-gray-200 hover:shadow-md'}`}
+                aria-label={`${format(day, 'EEEE, d. MMMM', { locale: de })}${holidayName ? ` (${holidayName})` : ''}: ${totalCount} Termine, ${selectedCount} ausgewählt, Status: ${getStatusLabel(status)}`}
                 aria-pressed={isSelected}
               >
                 {/* Stacked segments for appointments */}
@@ -608,21 +626,31 @@ export default function CalendarHeatmap({
                       );
                     })}
                   </div>
-                ) : status === "weekend" || isHoliday || (totalCount === 0 && isSelected) ? (
-                  <PartyPopper className={`w-4 h-4 transition-all duration-300 ${isSelected ? "text-gray-500 opacity-100" : isHoliday ? "text-gray-600 opacity-30" : "text-gray-300 opacity-0 group-hover:text-gray-500 group-hover:opacity-100"}`} aria-hidden="true" />
+                ) : status === 'weekend' || isHoliday || (totalCount === 0 && isSelected) ? (
+                  <PartyPopper
+                    className={`w-4 h-4 transition-all duration-300 ${isSelected ? 'text-gray-500 opacity-100' : isHoliday ? 'text-gray-600 opacity-30' : 'text-gray-300 opacity-0 group-hover:text-gray-500 group-hover:opacity-100'}`}
+                    aria-hidden="true"
+                  />
                 ) : null}
                 {/* Feiertag: PartyPopper-Overlay über Terminen */}
                 {isHoliday && totalCount > 0 && (
-                  <div className="absolute inset-0 flex items-center justify-center" aria-hidden="true">
+                  <div
+                    className="absolute inset-0 flex items-center justify-center"
+                    aria-hidden="true"
+                  >
                     <PartyPopper className="w-4 h-4 text-gray-800 opacity-30" />
                   </div>
                 )}
               </button>
-              
+
               {/* Day number below */}
               <span
                 className={`text-[10px] font-medium ${
-                  isHoliday ? "text-red-500" : status === "weekend" ? "text-gray-400" : "text-gray-600"
+                  isHoliday
+                    ? 'text-red-500'
+                    : status === 'weekend'
+                      ? 'text-gray-400'
+                      : 'text-gray-600'
                 }`}
                 title={holidayName || undefined}
               >
@@ -632,7 +660,6 @@ export default function CalendarHeatmap({
           );
         })}
       </div>
-      
     </div>
   );
 }

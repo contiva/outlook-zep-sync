@@ -1,17 +1,31 @@
-"use client";
+'use client';
 
-import { useState, useMemo } from "react";
-import { format } from "date-fns";
-import { ChevronDown, ChevronRight, Repeat, ClockArrowUp, Check, Minus, Banknote, Loader2 } from "lucide-react";
-import AppointmentRow from "./AppointmentRow";
-import SearchableSelect, { SelectOption } from "./SearchableSelect";
-import { DuplicateCheckResult } from "@/lib/zep-api";
-import { ActualDuration, ActualDurationsMap, normalizeJoinUrl, getDurationKey } from "@/lib/teams-utils";
-import { RedisSyncMapping } from "@/lib/redis";
+import { useState, useMemo } from 'react';
+import { format } from 'date-fns';
+import {
+  ChevronDown,
+  ChevronRight,
+  Repeat,
+  ClockArrowUp,
+  Check,
+  Minus,
+  Banknote,
+  Loader2,
+} from 'lucide-react';
+import AppointmentRow from './AppointmentRow';
+import SearchableSelect, { SelectOption } from './SearchableSelect';
+import { DuplicateCheckResult } from '@/lib/zep-api';
+import {
+  ActualDuration,
+  ActualDurationsMap,
+  normalizeJoinUrl,
+  getDurationKey,
+} from '@/lib/teams-utils';
+import { RedisSyncMapping } from '@/lib/redis';
 
 // Zugeordnete Tätigkeit (zu Projekt oder Vorgang)
 interface AssignedActivity {
-  name: string;      // Tätigkeit-Kürzel
+  name: string; // Tätigkeit-Kürzel
   standard: boolean; // true wenn Standard-Tätigkeit
 }
 
@@ -60,7 +74,7 @@ interface Attendee {
     name: string;
     address: string;
   };
-  type: "required" | "optional" | "resource";
+  type: 'required' | 'optional' | 'resource';
   status: {
     response: string;
   };
@@ -125,7 +139,7 @@ interface SeriesGroupProps {
     projectId: number | null,
     taskId: number | null,
     activityId: string,
-    billable?: boolean
+    billable?: boolean,
   ) => void;
   // Series sync - sync all sync-ready appointments in the series
   onSyncSeries?: (seriesId: string, appointments: Appointment[]) => void;
@@ -146,14 +160,22 @@ interface SeriesGroupProps {
 }
 
 // Helper: Check if an appointment is synced to ZEP
-function isAppointmentSynced(apt: Appointment, syncedEntries: ZepEntry[], syncMappings?: Map<string, RedisSyncMapping>): boolean {
+function isAppointmentSynced(
+  apt: Appointment,
+  syncedEntries: ZepEntry[],
+  syncMappings?: Map<string, RedisSyncMapping>,
+): boolean {
   return findSyncedEntry(apt, syncedEntries, syncMappings) !== null;
 }
 
 // Helper: Find the matching synced entry for an appointment
 // Priority 1: Redis mapping (outlookEventId -> zepAttendanceId) - most reliable
 // Priority 2: Subject/customRemark match on same date - fallback for pre-Redis entries
-function findSyncedEntry(apt: Appointment, syncedEntries: ZepEntry[], syncMappings?: Map<string, RedisSyncMapping>): ZepEntry | null {
+function findSyncedEntry(
+  apt: Appointment,
+  syncedEntries: ZepEntry[],
+  syncMappings?: Map<string, RedisSyncMapping>,
+): ZepEntry | null {
   if (!syncedEntries || syncedEntries.length === 0) {
     return null;
   }
@@ -166,21 +188,27 @@ function findSyncedEntry(apt: Appointment, syncedEntries: ZepEntry[], syncMappin
   }
 
   // Priority 2: Subject/customRemark match on same date
-  const aptDateStr = new Date(apt.start.dateTime).toISOString().split("T")[0];
-  const aptSubject = (apt.subject || "").trim();
-  const aptCustomRemark = (apt.customRemark || "").trim();
+  const aptDateStr = new Date(apt.start.dateTime).toISOString().split('T')[0];
+  const aptSubject = (apt.subject || '').trim();
+  const aptCustomRemark = (apt.customRemark || '').trim();
 
-  return syncedEntries.find((entry) => {
-    const entryDate = entry.date.split("T")[0];
-    if (entryDate !== aptDateStr) return false;
+  return (
+    syncedEntries.find((entry) => {
+      const entryDate = entry.date.split('T')[0];
+      if (entryDate !== aptDateStr) return false;
 
-    const entryNote = (entry.note || "").trim();
-    return entryNote === aptSubject || (aptCustomRemark && entryNote === aptCustomRemark);
-  }) || null;
+      const entryNote = (entry.note || '').trim();
+      return entryNote === aptSubject || (aptCustomRemark && entryNote === aptCustomRemark);
+    }) || null
+  );
 }
 
 // Helper: Check if an appointment is ready to sync (selected, complete, not yet synced)
-function isAppointmentSyncReady(apt: Appointment, syncedEntries: ZepEntry[], syncMappings?: Map<string, RedisSyncMapping>): boolean {
+function isAppointmentSyncReady(
+  apt: Appointment,
+  syncedEntries: ZepEntry[],
+  syncMappings?: Map<string, RedisSyncMapping>,
+): boolean {
   if (!apt.selected) return false;
   if (!apt.projectId || !apt.taskId) return false;
   if (isAppointmentSynced(apt, syncedEntries, syncMappings)) return false;
@@ -190,7 +218,7 @@ function isAppointmentSyncReady(apt: Appointment, syncedEntries: ZepEntry[], syn
 // Helper: Get actual duration for an online meeting from call records
 function getActualDuration(
   apt: Appointment,
-  actualDurations?: ActualDurationsMap
+  actualDurations?: ActualDurationsMap,
 ): ActualDuration | undefined {
   if (!actualDurations || !apt.isOnlineMeeting || !apt.onlineMeeting?.joinUrl) {
     return undefined;
@@ -198,7 +226,7 @@ function getActualDuration(
   const normalizedUrl = normalizeJoinUrl(apt.onlineMeeting.joinUrl);
   if (!normalizedUrl) return undefined;
   // Use date-specific key for recurring meetings (they share the same joinUrl)
-  const aptDate = new Date(apt.start.dateTime).toISOString().split("T")[0];
+  const aptDate = new Date(apt.start.dateTime).toISOString().split('T')[0];
   const durationKey = getDurationKey(normalizedUrl, aptDate);
   return actualDurations.get(durationKey);
 }
@@ -244,12 +272,16 @@ export default function SeriesGroup({
   const allSelected = appointments.every((a) => a.selected);
   const someSelected = appointments.some((a) => a.selected);
   const selectedCount = appointments.filter((a) => a.selected).length;
-  
+
   // Count how many appointments are already synced
-  const syncedCount = appointments.filter((a) => isAppointmentSynced(a, syncedEntries, syncMappings)).length;
-  
+  const syncedCount = appointments.filter((a) =>
+    isAppointmentSynced(a, syncedEntries, syncMappings),
+  ).length;
+
   // Count how many appointments are ready to sync
-  const syncReadyCount = appointments.filter((a) => isAppointmentSyncReady(a, syncedEntries, syncMappings)).length;
+  const syncReadyCount = appointments.filter((a) =>
+    isAppointmentSyncReady(a, syncedEntries, syncMappings),
+  ).length;
 
   // Berechne Gesamtdauer
   const totalMinutes = appointments.reduce((acc, apt) => {
@@ -263,15 +295,18 @@ export default function SeriesGroup({
   // Zeit des ersten Termins
   const firstStart = new Date(firstAppointment.start.dateTime);
   const firstEnd = new Date(firstAppointment.end.dateTime);
-  const timeRange = `${format(firstStart, "HH:mm")}–${format(firstEnd, "HH:mm")}`;
+  const timeRange = `${format(firstStart, 'HH:mm')}–${format(firstEnd, 'HH:mm')}`;
 
   // Dauer pro Termin (vom ersten Termin, da alle gleich lang sein sollten)
   const perAppointmentMinutes = (firstEnd.getTime() - firstStart.getTime()) / 1000 / 60;
   const perAppointmentHours = Math.floor(perAppointmentMinutes / 60);
   const perAppointmentMins = Math.round(perAppointmentMinutes % 60);
-  const perAppointmentDuration = perAppointmentHours > 0
-    ? (perAppointmentMins > 0 ? `${perAppointmentHours}h ${perAppointmentMins}m` : `${perAppointmentHours}h`)
-    : `${perAppointmentMins}m`;
+  const perAppointmentDuration =
+    perAppointmentHours > 0
+      ? perAppointmentMins > 0
+        ? `${perAppointmentHours}h ${perAppointmentMins}m`
+        : `${perAppointmentHours}h`
+      : `${perAppointmentMins}m`;
 
   // Turnus berechnen (basierend auf durchschnittlichem Abstand zwischen Terminen)
   const recurrenceLabel = useMemo(() => {
@@ -279,7 +314,7 @@ export default function SeriesGroup({
 
     // Sortiere nach Datum
     const sorted = [...appointments].sort(
-      (a, b) => new Date(a.start.dateTime).getTime() - new Date(b.start.dateTime).getTime()
+      (a, b) => new Date(a.start.dateTime).getTime() - new Date(b.start.dateTime).getTime(),
     );
 
     // Berechne durchschnittlichen Abstand in Tagen
@@ -292,36 +327,30 @@ export default function SeriesGroup({
     const avgDays = totalDays / (sorted.length - 1);
 
     // Bestimme Turnus basierend auf durchschnittlichem Abstand
-    if (avgDays <= 1.5) return "täglich";
-    if (avgDays <= 8) return "wöchentlich";
-    if (avgDays <= 16) return "2-wöchentlich";
-    if (avgDays <= 35) return "monatlich";
+    if (avgDays <= 1.5) return 'täglich';
+    if (avgDays <= 8) return 'wöchentlich';
+    if (avgDays <= 16) return '2-wöchentlich';
+    if (avgDays <= 35) return 'monatlich';
     return null;
   }, [appointments]);
 
   // Prüfe ob alle die gleichen Werte haben
-  const allSameProject = appointments.every(
-    (a) => a.projectId === firstAppointment.projectId
-  );
-  const allSameTask = appointments.every(
-    (a) => a.taskId === firstAppointment.taskId
-  );
-  const allSameActivity = appointments.every(
-    (a) => a.activityId === firstAppointment.activityId
-  );
-  const allSameBillable = appointments.every(
-    (a) => a.billable === firstAppointment.billable
-  );
+  const allSameProject = appointments.every((a) => a.projectId === firstAppointment.projectId);
+  const allSameTask = appointments.every((a) => a.taskId === firstAppointment.taskId);
+  const allSameActivity = appointments.every((a) => a.activityId === firstAppointment.activityId);
+  const allSameBillable = appointments.every((a) => a.billable === firstAppointment.billable);
   const allCanChangeBillable = appointments.every((a) => a.canChangeBillable);
 
   const seriesProjectId = allSameProject ? firstAppointment.projectId : null;
   const seriesTaskId = allSameTask ? firstAppointment.taskId : null;
-  const seriesActivityId = allSameActivity ? firstAppointment.activityId : "be";
+  const seriesActivityId = allSameActivity ? firstAppointment.activityId : 'be';
   const seriesBillable = allSameBillable ? firstAppointment.billable : true;
   const seriesCanChangeBillable = allCanChangeBillable && allSameBillable;
 
   // Get sync-ready appointments for series sync
-  const syncReadyAppointments = appointments.filter((a) => isAppointmentSyncReady(a, syncedEntries, syncMappings));
+  const syncReadyAppointments = appointments.filter((a) =>
+    isAppointmentSyncReady(a, syncedEntries, syncMappings),
+  );
   const isSyncingThisSeries = syncingSeriesId === seriesId;
 
   // Konvertiere zu SelectOptions
@@ -332,7 +361,7 @@ export default function SeriesGroup({
         label: p.name,
         description: p.description || null,
       })),
-    [projects]
+    [projects],
   );
 
   const taskOptions: SelectOption[] = useMemo(() => {
@@ -349,10 +378,10 @@ export default function SeriesGroup({
     // Find the selected task and project
     let selectedTask: Task | undefined;
     if (seriesTaskId && seriesProjectId && tasks[seriesProjectId]) {
-      selectedTask = tasks[seriesProjectId].find(t => t.id === seriesTaskId);
+      selectedTask = tasks[seriesProjectId].find((t) => t.id === seriesTaskId);
     }
     const selectedProject = seriesProjectId
-      ? projects.find(p => p.id === seriesProjectId)
+      ? projects.find((p) => p.id === seriesProjectId)
       : undefined;
 
     // Get assigned activities: Task activities take precedence over Project activities
@@ -365,11 +394,11 @@ export default function SeriesGroup({
 
     // If we have assigned activities, filter the global activities list
     if (assignedActivities.length > 0) {
-      const assignedNames = new Set(assignedActivities.map(a => a.name));
-      const filteredActivities = activities.filter(a => assignedNames.has(a.name));
-      
+      const assignedNames = new Set(assignedActivities.map((a) => a.name));
+      const filteredActivities = activities.filter((a) => assignedNames.has(a.name));
+
       return filteredActivities.map((a) => {
-        const assigned = assignedActivities.find(aa => aa.name === a.name);
+        const assigned = assignedActivities.find((aa) => aa.name === a.name);
         return {
           value: a.name,
           label: assigned?.standard ? `${a.name} (Standard)` : a.name,
@@ -415,23 +444,12 @@ export default function SeriesGroup({
   };
 
   const handleSeriesActivityChange = (activityId: string) => {
-    onApplyToSeries(
-      seriesId,
-      seriesProjectId,
-      seriesTaskId,
-      activityId
-    );
+    onApplyToSeries(seriesId, seriesProjectId, seriesTaskId, activityId);
   };
 
   const handleSeriesBillableChange = () => {
     if (!seriesTaskId || !seriesCanChangeBillable) return;
-    onApplyToSeries(
-      seriesId,
-      seriesProjectId,
-      seriesTaskId,
-      seriesActivityId,
-      !seriesBillable
-    );
+    onApplyToSeries(seriesId, seriesProjectId, seriesTaskId, seriesActivityId, !seriesBillable);
   };
 
   const handleSyncSeries = () => {
@@ -440,28 +458,31 @@ export default function SeriesGroup({
   };
 
   // Determine series status for left border color
-  const seriesStatus = syncedCount === appointments.length
-    ? "synced" // All synced - green
-    : syncedCount > 0
-    ? "partial" // Some synced - yellow
-    : syncReadyCount > 0
-    ? "ready" // Some ready to sync - amber
-    : someSelected
-    ? "unsynced" // Some selected but not sync-ready - red
-    : "idle"; // Nothing selected - gray
+  const seriesStatus =
+    syncedCount === appointments.length
+      ? 'synced' // All synced - green
+      : syncedCount > 0
+        ? 'partial' // Some synced - yellow
+        : syncReadyCount > 0
+          ? 'ready' // Some ready to sync - amber
+          : someSelected
+            ? 'unsynced' // Some selected but not sync-ready - red
+            : 'idle'; // Nothing selected - gray
 
   return (
-    <div className={`border-r border-b border-t border-l-4 transition-shadow ${
-      seriesStatus === "synced"
-        ? "border-l-green-600 border-gray-200 bg-green-50/20"
-        : seriesStatus === "partial"
-        ? "border-l-yellow-400 border-gray-200 bg-yellow-50/20"
-        : seriesStatus === "ready"
-        ? "border-l-amber-400 border-gray-200 bg-amber-50/20"
-        : seriesStatus === "unsynced"
-        ? "border-l-red-400 border-gray-200 bg-red-50/20"
-        : "border-l-gray-300 border-gray-200 bg-gray-50/30"
-    }`}>
+    <div
+      className={`border-r border-b border-t border-l-4 transition-shadow ${
+        seriesStatus === 'synced'
+          ? 'border-l-green-600 border-gray-200 bg-green-50/20'
+          : seriesStatus === 'partial'
+            ? 'border-l-yellow-400 border-gray-200 bg-yellow-50/20'
+            : seriesStatus === 'ready'
+              ? 'border-l-amber-400 border-gray-200 bg-amber-50/20'
+              : seriesStatus === 'unsynced'
+                ? 'border-l-red-400 border-gray-200 bg-red-50/20'
+                : 'border-l-gray-300 border-gray-200 bg-gray-50/30'
+      }`}
+    >
       {/* Series Header */}
       <div className="px-3 py-2">
         <div className="flex items-start gap-3">
@@ -470,7 +491,7 @@ export default function SeriesGroup({
             onClick={() => setExpanded(!expanded)}
             className="mt-0.5 p-0.5 hover:bg-gray-100 rounded transition"
             aria-expanded={expanded}
-            aria-label={expanded ? "Terminserie einklappen" : "Terminserie ausklappen"}
+            aria-label={expanded ? 'Terminserie einklappen' : 'Terminserie ausklappen'}
           >
             {expanded ? (
               <ChevronDown size={16} className="text-gray-500" aria-hidden="true" />
@@ -485,10 +506,10 @@ export default function SeriesGroup({
             onClick={() => onToggleSeries(seriesId, !allSelected)}
             className={`mt-0.5 h-4 w-4 rounded border flex items-center justify-center transition-colors ${
               allSelected
-                ? "bg-blue-50 border-blue-300 text-blue-500"
+                ? 'bg-blue-50 border-blue-300 text-blue-500'
                 : someSelected
-                ? "bg-blue-50 border-blue-300 text-blue-400"
-                : "border-gray-300 bg-white hover:bg-gray-50"
+                  ? 'bg-blue-50 border-blue-300 text-blue-400'
+                  : 'border-gray-300 bg-white hover:bg-gray-50'
             }`}
             aria-label={`Alle ${appointments.length} Termine der Serie "${seriesSubject}" auswählen`}
             aria-pressed={allSelected}
@@ -508,46 +529,71 @@ export default function SeriesGroup({
                   className="text-xs font-light text-gray-500 shrink-0"
                   title={firstAppointment.organizer.emailAddress.address}
                 >
-                  {firstAppointment.isOrganizer ? "von Dir" : `von ${firstAppointment.organizer.emailAddress.name || firstAppointment.organizer.emailAddress.address.split("@")[0]}`}
+                  {firstAppointment.isOrganizer
+                    ? 'von Dir'
+                    : `von ${firstAppointment.organizer.emailAddress.name || firstAppointment.organizer.emailAddress.address.split('@')[0]}`}
                 </span>
               )}
               {/* Dot separator before Teams icon */}
-              {firstAppointment.organizer && firstAppointment.isOnlineMeeting && firstAppointment.onlineMeetingProvider === "teamsForBusiness" && (
-                <span className="text-gray-300">·</span>
-              )}
+              {firstAppointment.organizer &&
+                firstAppointment.isOnlineMeeting &&
+                firstAppointment.onlineMeetingProvider === 'teamsForBusiness' && (
+                  <span className="text-gray-300">·</span>
+                )}
               {/* Teams Meeting Icon */}
-              {firstAppointment.isOnlineMeeting && firstAppointment.onlineMeetingProvider === "teamsForBusiness" && (
-                <span className="group shrink-0">
-                  <svg
-                    className="w-3.5 h-3.5 grayscale opacity-60 group-hover:grayscale-0 group-hover:opacity-100 transition-all"
-                    viewBox="0 0 2228.833 2073.333"
-                    xmlns="http://www.w3.org/2000/svg"
-                    aria-label="Teams Meeting"
-                  >
-                    <path fill="#5059C9" d="M1554.637 777.5h575.713c54.391 0 98.483 44.092 98.483 98.483v524.398c0 199.901-162.051 361.952-361.952 361.952h-1.711c-199.901.028-361.975-162.023-362.004-361.924V828.971c.001-28.427 23.045-51.471 51.471-51.471z"/>
-                    <circle fill="#5059C9" cx="1943.75" cy="440.583" r="233.25"/>
-                    <circle fill="#7B83EB" cx="1218.083" cy="336.917" r="336.917"/>
-                    <path fill="#7B83EB" d="M1667.323 777.5H717.01c-53.743 1.33-96.257 45.931-95.01 99.676v598.105c-7.505 322.519 247.657 590.16 570.167 598.053 322.51-7.893 577.671-275.534 570.167-598.053V877.176c1.245-53.745-41.268-98.346-95.011-99.676z"/>
-                    <linearGradient id="teams-gradient-series" gradientUnits="userSpaceOnUse" x1="198.099" y1="1683.0726" x2="942.2344" y2="394.2607" gradientTransform="matrix(1 0 0 -1 0 2075.3333)">
-                      <stop offset="0" stopColor="#5a62c3"/><stop offset=".5" stopColor="#4d55bd"/><stop offset="1" stopColor="#3940ab"/>
-                    </linearGradient>
-                    <path fill="url(#teams-gradient-series)" d="M95.01 466.5h950.312c52.473 0 95.01 42.538 95.01 95.01v950.312c0 52.473-42.538 95.01-95.01 95.01H95.01c-52.473 0-95.01-42.538-95.01-95.01V561.51c0-52.472 42.538-95.01 95.01-95.01z"/>
-                    <path fill="#FFF" d="M820.211 828.193H630.241v517.297H509.211V828.193H320.123V727.844h500.088v100.349z"/>
-                  </svg>
-                </span>
-              )}
+              {firstAppointment.isOnlineMeeting &&
+                firstAppointment.onlineMeetingProvider === 'teamsForBusiness' && (
+                  <span className="group shrink-0">
+                    <svg
+                      className="w-3.5 h-3.5 grayscale opacity-60 group-hover:grayscale-0 group-hover:opacity-100 transition-all"
+                      viewBox="0 0 2228.833 2073.333"
+                      xmlns="http://www.w3.org/2000/svg"
+                      aria-label="Teams Meeting"
+                    >
+                      <path
+                        fill="#5059C9"
+                        d="M1554.637 777.5h575.713c54.391 0 98.483 44.092 98.483 98.483v524.398c0 199.901-162.051 361.952-361.952 361.952h-1.711c-199.901.028-361.975-162.023-362.004-361.924V828.971c.001-28.427 23.045-51.471 51.471-51.471z"
+                      />
+                      <circle fill="#5059C9" cx="1943.75" cy="440.583" r="233.25" />
+                      <circle fill="#7B83EB" cx="1218.083" cy="336.917" r="336.917" />
+                      <path
+                        fill="#7B83EB"
+                        d="M1667.323 777.5H717.01c-53.743 1.33-96.257 45.931-95.01 99.676v598.105c-7.505 322.519 247.657 590.16 570.167 598.053 322.51-7.893 577.671-275.534 570.167-598.053V877.176c1.245-53.745-41.268-98.346-95.011-99.676z"
+                      />
+                      <linearGradient
+                        id="teams-gradient-series"
+                        gradientUnits="userSpaceOnUse"
+                        x1="198.099"
+                        y1="1683.0726"
+                        x2="942.2344"
+                        y2="394.2607"
+                        gradientTransform="matrix(1 0 0 -1 0 2075.3333)"
+                      >
+                        <stop offset="0" stopColor="#5a62c3" />
+                        <stop offset=".5" stopColor="#4d55bd" />
+                        <stop offset="1" stopColor="#3940ab" />
+                      </linearGradient>
+                      <path
+                        fill="url(#teams-gradient-series)"
+                        d="M95.01 466.5h950.312c52.473 0 95.01 42.538 95.01 95.01v950.312c0 52.473-42.538 95.01-95.01 95.01H95.01c-52.473 0-95.01-42.538-95.01-95.01V561.51c0-52.472 42.538-95.01 95.01-95.01z"
+                      />
+                      <path
+                        fill="#FFF"
+                        d="M820.211 828.193H630.241v517.297H509.211V828.193H320.123V727.844h500.088v100.349z"
+                      />
+                    </svg>
+                  </span>
+                )}
             </div>
             {/* Details row - Time, Recurrence, Count, Duration */}
             <div className="flex items-center gap-2 text-xs mt-0.5 text-gray-500">
               <span className="font-semibold text-gray-700">{timeRange}</span>
-              {recurrenceLabel && (
-                <span className="text-gray-400">({recurrenceLabel})</span>
-              )}
+              {recurrenceLabel && <span className="text-gray-400">({recurrenceLabel})</span>}
               <span className="text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
                 {appointments.length}x {perAppointmentDuration}
               </span>
               <span className="text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
-                Σ {hours}h{minutes > 0 ? ` ${minutes}m` : ""}
+                Σ {hours}h{minutes > 0 ? ` ${minutes}m` : ''}
               </span>
             </div>
           </div>
@@ -567,8 +613,8 @@ export default function SeriesGroup({
               <span
                 className={`px-2 py-0.5 text-xs font-medium rounded ${
                   syncedCount === appointments.length
-                    ? "bg-green-50 text-green-700"
-                    : "bg-yellow-50 text-yellow-700"
+                    ? 'bg-green-50 text-green-700'
+                    : 'bg-yellow-50 text-yellow-700'
                 }`}
                 title={`${syncedCount} von ${appointments.length} synchronisiert`}
               >
@@ -587,99 +633,110 @@ export default function SeriesGroup({
             <SearchableSelect
               options={projectOptions}
               value={seriesProjectId}
-              onChange={(val) =>
-                handleSeriesProjectChange(val !== null ? Number(val) : null)
-              }
-              placeholder={allSameProject ? "-- Projekt wählen --" : "-- Verschiedene --"}
+              onChange={(val) => handleSeriesProjectChange(val !== null ? Number(val) : null)}
+              placeholder={allSameProject ? '-- Projekt wählen --' : '-- Verschiedene --'}
               className="w-64 sm:w-72"
             />
           </div>
           <div className="flex flex-col min-w-0">
-            <label className={`text-xs mb-1 ${!seriesProjectId ? "text-gray-300" : "text-gray-500"}`}>Task</label>
+            <label
+              className={`text-xs mb-1 ${!seriesProjectId ? 'text-gray-300' : 'text-gray-500'}`}
+            >
+              Task
+            </label>
             <SearchableSelect
               options={taskOptions}
               value={seriesTaskId}
-              onChange={(val) =>
-                handleSeriesTaskChange(val !== null ? Number(val) : null)
-              }
+              onChange={(val) => handleSeriesTaskChange(val !== null ? Number(val) : null)}
               placeholder="-- Task wählen --"
               disabled={!seriesProjectId}
               disabledMessage={
                 !seriesProjectId
-                  ? "Erst Projekt wählen"
+                  ? 'Erst Projekt wählen'
                   : loadingTasks?.has(seriesProjectId)
-                  ? "Laden..."
-                  : "Keine Tasks vorhanden"
+                    ? 'Laden...'
+                    : 'Keine Tasks vorhanden'
               }
               loading={seriesProjectId ? loadingTasks?.has(seriesProjectId) : false}
               className="w-64 sm:w-72"
             />
           </div>
           <div className="flex flex-col min-w-0">
-            <label className={`text-xs mb-1 ${!seriesTaskId ? "text-gray-300" : "text-gray-500"}`}>Tätigkeit</label>
+            <label className={`text-xs mb-1 ${!seriesTaskId ? 'text-gray-300' : 'text-gray-500'}`}>
+              Tätigkeit
+            </label>
             <SearchableSelect
               options={activityOptions}
               value={seriesActivityId}
-              onChange={(val) =>
-                handleSeriesActivityChange(String(val ?? "be"))
-              }
+              onChange={(val) => handleSeriesActivityChange(String(val ?? 'be'))}
               placeholder="-- Tätigkeit wählen --"
               disabled={!seriesTaskId}
-              disabledMessage={!seriesProjectId ? "Erst Projekt wählen" : "Erst Task wählen"}
+              disabledMessage={!seriesProjectId ? 'Erst Projekt wählen' : 'Erst Task wählen'}
               className="w-40 sm:w-48"
             />
           </div>
           {/* Billable Toggle */}
           <div className="flex flex-col">
-            <label className={`text-xs mb-1 ${!seriesTaskId ? "text-gray-300" : "text-gray-500"}`}>Fakt.</label>
+            <label className={`text-xs mb-1 ${!seriesTaskId ? 'text-gray-300' : 'text-gray-500'}`}>
+              Fakt.
+            </label>
             <button
               type="button"
               onClick={handleSeriesBillableChange}
               disabled={!seriesTaskId || !seriesCanChangeBillable}
               className={`flex items-center justify-center w-10 h-9.5 rounded-lg border transition-colors ${
                 !seriesTaskId
-                  ? "bg-gray-50 border-gray-200 text-gray-300 cursor-not-allowed"
+                  ? 'bg-gray-50 border-gray-200 text-gray-300 cursor-not-allowed'
                   : !seriesCanChangeBillable
                     ? seriesBillable
-                      ? "bg-amber-50 border-amber-200 text-amber-500 cursor-not-allowed"
-                      : "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed"
+                      ? 'bg-amber-50 border-amber-200 text-amber-500 cursor-not-allowed'
+                      : 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
                     : seriesBillable
-                      ? "bg-amber-50 border-amber-300 text-amber-600 hover:bg-amber-100"
-                      : "bg-gray-100 border-gray-300 text-gray-400 hover:bg-gray-200"
+                      ? 'bg-amber-50 border-amber-300 text-amber-600 hover:bg-amber-100'
+                      : 'bg-gray-100 border-gray-300 text-gray-400 hover:bg-gray-200'
               }`}
               title={
                 !seriesTaskId
-                  ? "Erst Task wählen"
+                  ? 'Erst Task wählen'
                   : !seriesCanChangeBillable
-                    ? `Fakturierbarkeit vom Projekt/Vorgang festgelegt (${seriesBillable ? "fakturierbar" : "nicht fakturierbar"})`
+                    ? `Fakturierbarkeit vom Projekt/Vorgang festgelegt (${seriesBillable ? 'fakturierbar' : 'nicht fakturierbar'})`
                     : seriesBillable
-                      ? "Fakturierbar - klicken zum Ändern"
-                      : "Nicht fakturierbar (intern) - klicken zum Ändern"
+                      ? 'Fakturierbar - klicken zum Ändern'
+                      : 'Nicht fakturierbar (intern) - klicken zum Ändern'
               }
             >
-              <Banknote size={18} className={!seriesTaskId || (!seriesBillable && seriesCanChangeBillable) ? "opacity-50" : ""} />
+              <Banknote
+                size={18}
+                className={
+                  !seriesTaskId || (!seriesBillable && seriesCanChangeBillable) ? 'opacity-50' : ''
+                }
+              />
             </button>
           </div>
           {/* Series Sync Button */}
           {onSyncSeries && (
             <div className="flex flex-col">
-              <label className={`text-xs mb-1 ${syncReadyCount === 0 ? "text-gray-300" : "text-gray-500"}`}>Sync</label>
+              <label
+                className={`text-xs mb-1 ${syncReadyCount === 0 ? 'text-gray-300' : 'text-gray-500'}`}
+              >
+                Sync
+              </label>
               <button
                 type="button"
                 onClick={handleSyncSeries}
                 disabled={syncReadyCount === 0 || isSyncingThisSeries}
                 className={`group flex items-center justify-center gap-1 px-3 h-9.5 border transition-colors ${
                   isSyncingThisSeries
-                    ? "bg-green-500 border-green-500 text-white shadow-[0_0_10px_rgba(74,222,128,0.35),0_4px_8px_rgba(0,0,0,0.15)] cursor-wait"
+                    ? 'bg-green-500 border-green-500 text-white shadow-[0_0_10px_rgba(74,222,128,0.35),0_4px_8px_rgba(0,0,0,0.15)] cursor-wait'
                     : syncReadyCount === 0
-                      ? "bg-gray-50 border-gray-200 text-gray-300 cursor-not-allowed opacity-40"
-                      : "bg-green-600 border-green-600 text-white shadow-[0_0_10px_rgba(74,222,128,0.35),0_4px_8px_rgba(0,0,0,0.15)] hover:bg-green-700 hover:border-green-700 hover:shadow-[0_0_14px_rgba(74,222,128,0.5),0_6px_12px_rgba(0,0,0,0.2)]"
+                      ? 'bg-gray-50 border-gray-200 text-gray-300 cursor-not-allowed opacity-40'
+                      : 'bg-green-600 border-green-600 text-white shadow-[0_0_10px_rgba(74,222,128,0.35),0_4px_8px_rgba(0,0,0,0.15)] hover:bg-green-700 hover:border-green-700 hover:shadow-[0_0_14px_rgba(74,222,128,0.5),0_6px_12px_rgba(0,0,0,0.2)]'
                 }`}
                 title={
                   isSyncingThisSeries
-                    ? "Wird synchronisiert..."
+                    ? 'Wird synchronisiert...'
                     : syncReadyCount === 0
-                      ? "Keine Termine zum Synchronisieren bereit"
+                      ? 'Keine Termine zum Synchronisieren bereit'
                       : `${syncReadyCount} Termine zu ZEP synchronisieren`
                 }
               >
@@ -687,8 +744,13 @@ export default function SeriesGroup({
                   <Loader2 size={18} className="animate-spin" />
                 ) : (
                   <>
-                    <ClockArrowUp size={18} className={`transition-transform ${syncReadyCount > 0 ? "animate-sync-hop" : "opacity-50"}`} />
-                    {syncReadyCount > 0 && <span className="text-sm font-medium">{syncReadyCount}</span>}
+                    <ClockArrowUp
+                      size={18}
+                      className={`transition-transform ${syncReadyCount > 0 ? 'animate-sync-hop' : 'opacity-50'}`}
+                    />
+                    {syncReadyCount > 0 && (
+                      <span className="text-sm font-medium">{syncReadyCount}</span>
+                    )}
                   </>
                 )}
               </button>
@@ -712,7 +774,9 @@ export default function SeriesGroup({
               isSyncReady={isAppointmentSyncReady(appointment, syncedEntries, syncMappings)}
               syncedEntry={findSyncedEntry(appointment, syncedEntries, syncMappings)}
               duplicateWarning={duplicateWarnings?.get(appointment.id)}
-              loadingTasks={appointment.projectId ? loadingTasks?.has(appointment.projectId) : false}
+              loadingTasks={
+                appointment.projectId ? loadingTasks?.has(appointment.projectId) : false
+              }
               // Actual meeting duration from call records
               actualDuration={getActualDuration(appointment, actualDurations)}
               onToggle={onToggle}
@@ -754,7 +818,8 @@ export default function SeriesGroup({
           )}
           {allSameTask && seriesTaskId && (
             <span className="text-gray-500">
-              {" / "}{tasks[seriesProjectId!]?.find((t) => t.id === seriesTaskId)?.name}
+              {' / '}
+              {tasks[seriesProjectId!]?.find((t) => t.id === seriesTaskId)?.name}
             </span>
           )}
         </div>

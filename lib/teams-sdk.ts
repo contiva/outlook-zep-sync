@@ -5,7 +5,7 @@
  * for embedded Teams Tab applications.
  */
 
-import * as microsoftTeams from "@microsoft/teams-js";
+import * as microsoftTeams from '@microsoft/teams-js';
 
 let isInitialized = false;
 let initPromise: Promise<void> | null = null;
@@ -14,11 +14,11 @@ let initPromise: Promise<void> | null = null;
  * Check if the current context is within Microsoft Teams
  */
 export function isInTeams(): boolean {
-  if (typeof window === "undefined") return false;
+  if (typeof window === 'undefined') return false;
 
   // Check URL parameter (set by Teams when loading the tab)
   const params = new URLSearchParams(window.location.search);
-  if (params.get("inTeams") === "true") return true;
+  if (params.get('inTeams') === 'true') return true;
 
   // Check if Teams SDK context is available
   // This is a more reliable check once SDK is initialized
@@ -39,9 +39,9 @@ export async function initializeTeamsSDK(): Promise<void> {
     try {
       await microsoftTeams.app.initialize();
       isInitialized = true;
-      console.log("[Teams SDK] Initialized successfully");
+      console.log('[Teams SDK] Initialized successfully');
     } catch (error) {
-      console.error("[Teams SDK] Initialization failed:", error);
+      console.error('[Teams SDK] Initialization failed:', error);
       throw error;
     }
   })();
@@ -61,7 +61,7 @@ export async function getTeamsContext(): Promise<microsoftTeams.app.Context | nu
     const context = await microsoftTeams.app.getContext();
     return context;
   } catch (error) {
-    console.error("[Teams SDK] Failed to get context:", error);
+    console.error('[Teams SDK] Failed to get context:', error);
     return null;
   }
 }
@@ -77,10 +77,10 @@ export async function getTeamsSSOToken(): Promise<string | null> {
 
   try {
     const result = await microsoftTeams.authentication.getAuthToken();
-    console.log("[Teams SDK] SSO token obtained");
+    console.log('[Teams SDK] SSO token obtained');
     return result;
   } catch (error) {
-    console.error("[Teams SDK] Failed to get SSO token:", error);
+    console.error('[Teams SDK] Failed to get SSO token:', error);
     return null;
   }
 }
@@ -95,9 +95,9 @@ export async function notifyAppLoaded(): Promise<void> {
 
   try {
     microsoftTeams.app.notifySuccess();
-    console.log("[Teams SDK] App loaded notification sent");
+    console.log('[Teams SDK] App loaded notification sent');
   } catch (error) {
-    console.error("[Teams SDK] Failed to notify app loaded:", error);
+    console.error('[Teams SDK] Failed to notify app loaded:', error);
   }
 }
 
@@ -114,8 +114,8 @@ export async function notifyAppLoadFailed(reason: string): Promise<void> {
       reason: microsoftTeams.app.FailedReason.Other,
       message: reason,
     });
-    console.log("[Teams SDK] App failure notification sent:", reason);
+    console.log('[Teams SDK] App failure notification sent:', reason);
   } catch (error) {
-    console.error("[Teams SDK] Failed to notify app failure:", error);
+    console.error('[Teams SDK] Failed to notify app failure:', error);
   }
 }

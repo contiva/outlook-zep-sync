@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from 'react';
 
 interface UsePopoverOptions {
   onOpen?: () => void;
@@ -18,13 +18,13 @@ interface UsePopoverReturn {
   triggerProps: {
     ref: React.RefObject<HTMLButtonElement | null>;
     onClick: (e: React.MouseEvent) => void;
-    "aria-expanded": boolean;
-    "aria-haspopup": "dialog";
-    "aria-controls"?: string;
+    'aria-expanded': boolean;
+    'aria-haspopup': 'dialog';
+    'aria-controls'?: string;
   };
   popoverProps: {
     ref: React.RefObject<HTMLDivElement | null>;
-    role: "dialog";
+    role: 'dialog';
     id?: string;
     className: string;
   };
@@ -71,7 +71,7 @@ export function usePopover(options: UsePopoverOptions = {}): UsePopoverReturn {
         open();
       }
     },
-    [isOpen, close, open]
+    [isOpen, close, open],
   );
 
   // Recalculate position after the popover renders
@@ -98,11 +98,11 @@ export function usePopover(options: UsePopoverOptions = {}): UsePopoverReturn {
       }
     }
 
-    document.addEventListener("mousedown", handleOutside);
-    document.addEventListener("touchstart", handleOutside);
+    document.addEventListener('mousedown', handleOutside);
+    document.addEventListener('touchstart', handleOutside);
     return () => {
-      document.removeEventListener("mousedown", handleOutside);
-      document.removeEventListener("touchstart", handleOutside);
+      document.removeEventListener('mousedown', handleOutside);
+      document.removeEventListener('touchstart', handleOutside);
     };
   }, [isOpen, close]);
 
@@ -111,14 +111,14 @@ export function usePopover(options: UsePopoverOptions = {}): UsePopoverReturn {
     if (!isOpen) return;
 
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
+      if (event.key === 'Escape') {
         event.preventDefault();
         close();
       }
     }
 
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, close]);
 
   // Focus trap implementation
@@ -132,7 +132,7 @@ export function usePopover(options: UsePopoverOptions = {}): UsePopoverReturn {
     }
 
     function handleTabKey(event: KeyboardEvent) {
-      if (event.key !== "Tab" || !popoverRef.current) return;
+      if (event.key !== 'Tab' || !popoverRef.current) return;
 
       const focusable = popoverRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR);
       if (focusable.length === 0) return;
@@ -155,23 +155,23 @@ export function usePopover(options: UsePopoverOptions = {}): UsePopoverReturn {
       }
     }
 
-    document.addEventListener("keydown", handleTabKey);
-    return () => document.removeEventListener("keydown", handleTabKey);
+    document.addEventListener('keydown', handleTabKey);
+    return () => document.removeEventListener('keydown', handleTabKey);
   }, [isOpen, focusTrap]);
 
   const triggerProps = {
     ref: triggerRef,
     onClick: toggle,
-    "aria-expanded": isOpen,
-    "aria-haspopup": "dialog" as const,
-    ...(popoverId ? { "aria-controls": popoverId } : {}),
+    'aria-expanded': isOpen,
+    'aria-haspopup': 'dialog' as const,
+    ...(popoverId ? { 'aria-controls': popoverId } : {}),
   };
 
   const popoverProps = {
     ref: popoverRef,
-    role: "dialog" as const,
+    role: 'dialog' as const,
     ...(popoverId ? { id: popoverId } : {}),
-    className: openAbove ? "bottom-full mb-1" : "top-full mt-1",
+    className: openAbove ? 'bottom-full mb-1' : 'top-full mt-1',
   };
 
   return {

@@ -120,7 +120,11 @@ function determineCallType(modalities: string[]): CleanCall['type'] {
 }
 
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return new Date(iso).toLocaleDateString('de-DE', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
 }
 
 function formatTime(iso: string): string {
@@ -158,15 +162,20 @@ async function main() {
   phoneToUser = new Map();
   userIdToUser = new Map();
 
-  let userUrl: string | null = 'https://graph.microsoft.com/v1.0/users?$select=id,displayName,userPrincipalName,mobilePhone,businessPhones&$top=999';
+  let userUrl: string | null =
+    'https://graph.microsoft.com/v1.0/users?$select=id,displayName,userPrincipalName,mobilePhone,businessPhones&$top=999';
   while (userUrl) {
     const res = await fetch(userUrl, { headers: { Authorization: `Bearer ${token}` } });
     if (!res.ok) break;
     const data = await res.json();
     for (const u of data.value) {
       userIdToUser.set(u.id, u.displayName);
-      if (u.mobilePhone) phoneVariants(u.mobilePhone).forEach(v => phoneToUser.set(v, u.displayName));
-      if (u.businessPhones) u.businessPhones.forEach((p: string) => phoneVariants(p).forEach(v => phoneToUser.set(v, u.displayName)));
+      if (u.mobilePhone)
+        phoneVariants(u.mobilePhone).forEach((v) => phoneToUser.set(v, u.displayName));
+      if (u.businessPhones)
+        u.businessPhones.forEach((p: string) =>
+          phoneVariants(p).forEach((v) => phoneToUser.set(v, u.displayName)),
+        );
     }
     userUrl = data['@odata.nextLink'] || null;
   }
@@ -175,10 +184,13 @@ async function main() {
   // 2. Fetch scheduled meeting URLs
   console.log('📅 Loading calendar...');
   const scheduledUrls = new Set<string>();
-  let calUrl: string | null = `https://graph.microsoft.com/v1.0/users/${TARGET_USER_ID}/calendarView?startDateTime=${START_DATE}T00:00:00Z&endDateTime=${END_DATE}T23:59:59Z&$select=isOnlineMeeting,onlineMeeting&$top=250`;
+  let calUrl: string | null =
+    `https://graph.microsoft.com/v1.0/users/${TARGET_USER_ID}/calendarView?startDateTime=${START_DATE}T00:00:00Z&endDateTime=${END_DATE}T23:59:59Z&$select=isOnlineMeeting,onlineMeeting&$top=250`;
 
   while (calUrl) {
-    const res = await fetch(calUrl, { headers: { Authorization: `Bearer ${token}`, Prefer: 'outlook.timezone="Europe/Berlin"' } });
+    const res = await fetch(calUrl, {
+      headers: { Authorization: `Bearer ${token}`, Prefer: 'outlook.timezone="Europe/Berlin"' },
+    });
     if (!res.ok) break;
     const data = await res.json();
     for (const e of data.value) {
@@ -194,7 +206,8 @@ async function main() {
   // 3. Fetch call record IDs
   console.log('📞 Fetching call records...');
   const callIds: string[] = [];
-  let callUrl: string | null = `https://graph.microsoft.com/v1.0/communications/callRecords?$filter=startDateTime ge ${START_DATE}T00:00:00Z and startDateTime le ${END_DATE}T23:59:59Z`;
+  let callUrl: string | null =
+    `https://graph.microsoft.com/v1.0/communications/callRecords?$filter=startDateTime ge ${START_DATE}T00:00:00Z and startDateTime le ${END_DATE}T23:59:59Z`;
 
   while (callUrl) {
     const res = await fetch(callUrl, { headers: { Authorization: `Bearer ${token}` } });
@@ -218,21 +231,23 @@ async function main() {
         try {
           const res = await fetch(
             `https://graph.microsoft.com/v1.0/communications/callRecords/${id}?$expand=sessions($select=caller,callee)`,
-            { headers: { Authorization: `Bearer ${token}` } }
+            { headers: { Authorization: `Bearer ${token}` } },
           );
           return res.ok ? await res.json() : null;
         } catch {
           return null;
         }
-      })
+      }),
     );
 
     for (const details of results) {
       if (!details) continue;
 
       // Check Robert's participation
-      const robertIn = (details.participants || []).some((p: any) =>
-        p.user?.id === TARGET_USER_ID || p.user?.displayName?.toLowerCase().includes('robert fels')
+      const robertIn = (details.participants || []).some(
+        (p: any) =>
+          p.user?.id === TARGET_USER_ID ||
+          p.user?.displayName?.toLowerCase().includes('robert fels'),
       );
       if (!robertIn) continue;
 
@@ -289,27 +304,39 @@ async function main() {
   // Stats
   const totalMin = cleanCalls.reduce((s, c) => s + c.durationMinutes, 0);
   console.log('═'.repeat(60));
-  console.log(`📊 ${cleanCalls.length} Calls | ${Math.floor(totalMin / 60)}h ${totalMin % 60}m total`);
+  console.log(
+    `📊 ${cleanCalls.length} Calls | ${Math.floor(totalMin / 60)}h ${totalMin % 60}m total`,
+  );
   console.log('═'.repeat(60));
 
   // Display
   for (const c of cleanCalls) {
     const arrow = c.direction === 'outgoing' ? '📤' : '📥';
-    const others = c.participants.filter(p => !p.includes('Robert Fels')).join(', ') || c.organizer;
-    console.log(`${arrow} ${c.date} ${c.startTime}-${c.endTime} (${c.durationMinutes}m) [${c.type}]`);
+    const others =
+      c.participants.filter((p) => !p.includes('Robert Fels')).join(', ') || c.organizer;
+    console.log(
+      `${arrow} ${c.date} ${c.startTime}-${c.endTime} (${c.durationMinutes}m) [${c.type}]`,
+    );
     console.log(`   ${others}`);
   }
 
   // Export
   const exportPath = path.resolve(__dirname, '../call-history-clean.json');
-  fs.writeFileSync(exportPath, JSON.stringify({
-    generatedAt: new Date().toISOString(),
-    dateRange: { start: START_DATE, end: END_DATE },
-    minDurationMinutes: MIN_DURATION_SECONDS / 60,
-    totalCalls: cleanCalls.length,
-    totalDurationMinutes: totalMin,
-    calls: cleanCalls,
-  }, null, 2));
+  fs.writeFileSync(
+    exportPath,
+    JSON.stringify(
+      {
+        generatedAt: new Date().toISOString(),
+        dateRange: { start: START_DATE, end: END_DATE },
+        minDurationMinutes: MIN_DURATION_SECONDS / 60,
+        totalCalls: cleanCalls.length,
+        totalDurationMinutes: totalMin,
+        calls: cleanCalls,
+      },
+      null,
+      2,
+    ),
+  );
 
   const elapsed = ((Date.now() - startMs) / 1000).toFixed(1);
   console.log(`\n✅ Exported | ${elapsed}s`);

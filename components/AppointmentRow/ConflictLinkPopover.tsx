@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useState, useCallback } from "react";
-import { usePopover } from "./usePopover";
-import type { SyncedEntry } from "./types";
+import { useState, useCallback } from 'react';
+import { usePopover } from './usePopover';
+import type { SyncedEntry } from './types';
 
 export interface ConflictLinkPopoverProps {
   appointmentId: string;
@@ -31,9 +31,7 @@ export default function ConflictLinkPopover({
   onLink,
   children,
 }: ConflictLinkPopoverProps) {
-  const [selectedEntryId, setSelectedEntryId] = useState<number | null>(
-    suggestedEntryId ?? null
-  );
+  const [selectedEntryId, setSelectedEntryId] = useState<number | null>(suggestedEntryId ?? null);
 
   const popoverId = `conflict-link-popover-${appointmentId}`;
 
@@ -43,11 +41,9 @@ export default function ConflictLinkPopover({
     requestAnimationFrame(() => {
       const radioName = `link-zep-${appointmentId}`;
       const selected = document.querySelector<HTMLInputElement>(
-        `input[name="${radioName}"][checked]`
+        `input[name="${radioName}"][checked]`,
       );
-      const first = document.querySelector<HTMLInputElement>(
-        `input[name="${radioName}"]`
-      );
+      const first = document.querySelector<HTMLInputElement>(`input[name="${radioName}"]`);
       (selected ?? first)?.focus();
     });
   }, [suggestedEntryId, appointmentId]);
@@ -58,10 +54,10 @@ export default function ConflictLinkPopover({
     popoverId,
   });
 
-  const aptDateStr = new Date(appointmentDate).toISOString().split("T")[0];
+  const aptDateStr = new Date(appointmentDate).toISOString().split('T')[0];
   const sameDayEntries = syncedEntries
     .filter((entry) => {
-      const entryDate = entry.date.split("T")[0];
+      const entryDate = entry.date.split('T')[0];
       if (entryDate !== aptDateStr) return false;
       if (entry.id && linkedZepIds?.has(entry.id)) return false;
       return true;
@@ -86,30 +82,23 @@ export default function ConflictLinkPopover({
           {...popoverProps}
           className={`absolute right-0 z-50 bg-white rounded-lg shadow-lg border border-gray-200 p-3 min-w-72 max-w-96 font-[Inter] ${popoverProps.className}`}
         >
-          <div className="text-xs font-medium text-gray-700 mb-2">
-            ZEP-Eintrag verknüpfen
-          </div>
+          <div className="text-xs font-medium text-gray-700 mb-2">ZEP-Eintrag verknüpfen</div>
 
           {sameDayEntries.length === 0 ? (
             <div className="text-xs text-gray-500 py-2 space-y-2">
               <div>Keine verfügbaren ZEP-Einträge an diesem Tag.</div>
               {suggestedEntry && (
                 <div className="p-2 bg-amber-50 rounded-lg border border-amber-200">
-                  <div className="text-[11px] text-amber-600 mb-1">
-                    Überschneidung mit:
-                  </div>
+                  <div className="text-[11px] text-amber-600 mb-1">Überschneidung mit:</div>
                   <div className="text-xs font-medium text-gray-800 truncate">
-                    {suggestedEntry.note || "Ohne Bemerkung"}
+                    {suggestedEntry.note || 'Ohne Bemerkung'}
                   </div>
                   <div className="text-[11px] text-gray-500">
-                    {suggestedEntry.from.slice(0, 5)}–
-                    {suggestedEntry.to.slice(0, 5)}
+                    {suggestedEntry.from.slice(0, 5)}–{suggestedEntry.to.slice(0, 5)}
                     {suggestedEntry.projektNr && (
                       <span className="ml-1.5 text-gray-400">
                         {suggestedEntry.projektNr}
-                        {suggestedEntry.vorgangNr
-                          ? `/${suggestedEntry.vorgangNr}`
-                          : ""}
+                        {suggestedEntry.vorgangNr ? `/${suggestedEntry.vorgangNr}` : ''}
                       </span>
                     )}
                   </div>
@@ -130,10 +119,10 @@ export default function ConflictLinkPopover({
                   key={entry.id}
                   className={`flex items-start gap-2 p-2 rounded-lg cursor-pointer transition ${
                     selectedEntryId === entry.id
-                      ? "bg-blue-50 border border-blue-200"
+                      ? 'bg-blue-50 border border-blue-200'
                       : entry.id === suggestedEntryId
-                        ? "bg-amber-50 border border-amber-200 hover:bg-amber-100"
-                        : "hover:bg-gray-50 border border-transparent"
+                        ? 'bg-amber-50 border border-amber-200 hover:bg-amber-100'
+                        : 'hover:bg-gray-50 border border-transparent'
                   }`}
                 >
                   <input
@@ -145,14 +134,14 @@ export default function ConflictLinkPopover({
                   />
                   <div className="flex-1 min-w-0">
                     <div className="text-xs font-medium text-gray-800 truncate">
-                      {entry.note || "Ohne Bemerkung"}
+                      {entry.note || 'Ohne Bemerkung'}
                     </div>
                     <div className="text-[11px] text-gray-500">
                       {entry.from.slice(0, 5)}–{entry.to.slice(0, 5)}
                       {entry.projektNr && (
                         <span className="ml-1.5 text-gray-400">
                           {entry.projektNr}
-                          {entry.vorgangNr ? `/${entry.vorgangNr}` : ""}
+                          {entry.vorgangNr ? `/${entry.vorgangNr}` : ''}
                         </span>
                       )}
                     </div>

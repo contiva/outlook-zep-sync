@@ -1,10 +1,10 @@
-import { DuplicateCheckResult } from "@/lib/zep-api";
-import { RedisSyncMapping } from "@/lib/redis";
-import { ActualDuration } from "@/lib/teams-utils";
+import { DuplicateCheckResult } from '@/lib/zep-api';
+import { RedisSyncMapping } from '@/lib/redis';
+import { ActualDuration } from '@/lib/teams-utils';
 
 // Zugeordnete Tätigkeit (zu Projekt oder Vorgang)
 export interface AssignedActivity {
-  name: string;      // Tätigkeit-Kürzel
+  name: string; // Tätigkeit-Kürzel
   standard: boolean; // true wenn Standard-Tätigkeit
 }
 
@@ -84,7 +84,7 @@ export interface Attendee {
     name: string;
     address: string;
   };
-  type: "required" | "optional" | "resource";
+  type: 'required' | 'optional' | 'resource';
   status: {
     response: string;
   };
@@ -163,15 +163,45 @@ export interface AppointmentRowProps {
   modifiedEntry?: ModifiedEntry;
   onStartEditSynced?: (appointmentId: string) => void;
   onCancelEditSynced?: (appointmentId: string) => void;
-  onModifyProject?: (appointmentId: string, apt: Appointment, syncedEntry: SyncedEntry, projectId: number) => void;
+  onModifyProject?: (
+    appointmentId: string,
+    apt: Appointment,
+    syncedEntry: SyncedEntry,
+    projectId: number,
+  ) => void;
   onModifyTask?: (appointmentId: string, taskId: number) => void;
-  onModifyActivity?: (appointmentId: string, apt: Appointment, syncedEntry: SyncedEntry, activityId: string) => void;
-  onModifyBillable?: (appointmentId: string, apt: Appointment, syncedEntry: SyncedEntry, billable: boolean) => void;
-  onModifyBemerkung?: (appointmentId: string, apt: Appointment, syncedEntry: SyncedEntry, bemerkung: string) => void;
-  onModifyTime?: (appointmentId: string, apt: Appointment, syncedEntry: SyncedEntry, useActualTime: boolean) => void;
+  onModifyActivity?: (
+    appointmentId: string,
+    apt: Appointment,
+    syncedEntry: SyncedEntry,
+    activityId: string,
+  ) => void;
+  onModifyBillable?: (
+    appointmentId: string,
+    apt: Appointment,
+    syncedEntry: SyncedEntry,
+    billable: boolean,
+  ) => void;
+  onModifyBemerkung?: (
+    appointmentId: string,
+    apt: Appointment,
+    syncedEntry: SyncedEntry,
+    bemerkung: string,
+  ) => void;
+  onModifyTime?: (
+    appointmentId: string,
+    apt: Appointment,
+    syncedEntry: SyncedEntry,
+    useActualTime: boolean,
+  ) => void;
   globalWorkLocations?: WorkLocation[];
   onWorkLocationChange?: (id: string, workLocation: string | undefined) => void;
-  onModifyWorkLocation?: (appointmentId: string, apt: Appointment, syncedEntry: SyncedEntry, workLocation: string | undefined) => void;
+  onModifyWorkLocation?: (
+    appointmentId: string,
+    apt: Appointment,
+    syncedEntry: SyncedEntry,
+    workLocation: string | undefined,
+  ) => void;
   onSaveModifiedSingle?: (modifiedEntry: ModifiedEntry) => void;
   isSavingModifiedSingle?: boolean;
   // Delete synced entry

@@ -1,18 +1,18 @@
 /**
  * ZEP SOAP API Client
- * 
+ *
  * SOAP-basierte Schnittstelle zu ZEP (Zeiterfassung Projektmanagement)
  * Verwendet die ZEP SOAP API V10
  */
 
-import * as soap from "soap";
+import * as soap from 'soap';
 
 // =============================================================================
 // CONFIGURATION
 // =============================================================================
 
-const ZEP_SOAP_ENDPOINT = process.env.ZEP_SOAP_ENDPOINT || 
-  "https://www.zep-online.de/zepcontiva/sync/soap.php?v=10&wsdl";
+const ZEP_SOAP_ENDPOINT =
+  process.env.ZEP_SOAP_ENDPOINT || 'https://www.zep-online.de/zepcontiva/sync/soap.php?v=10&wsdl';
 
 // =============================================================================
 // TYPE DEFINITIONS - Request/Response Headers
@@ -34,17 +34,17 @@ interface ResponseHeader {
 
 export interface SoapProjektzeit {
   id?: string;
-  userId: string;         // Benutzername (z.B. "rfels")
-  datum: string;          // ISO Date: YYYY-MM-DD
-  von?: string;           // ISO Time: HH:MM
-  bis?: string;           // ISO Time: HH:MM
-  dauer?: string;         // Format: HH:MM
+  userId: string; // Benutzername (z.B. "rfels")
+  datum: string; // ISO Date: YYYY-MM-DD
+  von?: string; // ISO Time: HH:MM
+  bis?: string; // ISO Time: HH:MM
+  dauer?: string; // Format: HH:MM
   istFakturierbar?: boolean;
   bemerkung?: string;
-  projektNr: string;      // Projektnummer
-  vorgangNr: string;      // Vorgangsnummer
-  taetigkeit: string;     // Taetigkeitskuerzel (z.B. "be", "ew")
-  ort?: string;           // Arbeitsort (max 32 Zeichen, z.B. "Büro", "Home Office")
+  projektNr: string; // Projektnummer
+  vorgangNr: string; // Vorgangsnummer
+  taetigkeit: string; // Taetigkeitskuerzel (z.B. "be", "ew")
+  ort?: string; // Arbeitsort (max 32 Zeichen, z.B. "Büro", "Home Office")
   projektId?: number;
   vorgangId?: number;
   created?: string;
@@ -52,8 +52,8 @@ export interface SoapProjektzeit {
 }
 
 interface ReadProjektzeitenSearchCriteria {
-  von?: string;           // ISO Date: YYYY-MM-DD
-  bis?: string;           // ISO Date: YYYY-MM-DD
+  von?: string; // ISO Date: YYYY-MM-DD
+  bis?: string; // ISO Date: YYYY-MM-DD
   userIdListe?: { userId: string[] };
   projektNrListe?: { projektNr: string[] };
   projektId?: number;
@@ -97,21 +97,21 @@ interface ReadProjektzeitenResponse {
 
 // Projekt-Tätigkeit: Eine dem Projekt zugeordnete Tätigkeit
 export interface ProjektTaetigkeit {
-  taetigkeit: string;    // Kürzel der Tätigkeit (z.B. "re", "vw")
-  standard?: boolean;    // true wenn dies die Standard-Tätigkeit ist
-  defaultFakt?: number;  // 0=Einstellung vom Vorgang, 1-4=Fakt-Einstellung
+  taetigkeit: string; // Kürzel der Tätigkeit (z.B. "re", "vw")
+  standard?: boolean; // true wenn dies die Standard-Tätigkeit ist
+  defaultFakt?: number; // 0=Einstellung vom Vorgang, 1-4=Fakt-Einstellung
 }
 
 // Projekt-Arbeitsort: Ein dem Projekt zugeordneter Arbeitsort (Einschränkung)
 export interface ProjektOrt {
-  ort: string;           // Kurzform des Arbeitsortes (String32, max 32 Zeichen)
-  action?: string;       // z.B. "delete" (nur für SOAP-Mutations)
+  ort: string; // Kurzform des Arbeitsortes (String32, max 32 Zeichen)
+  action?: string; // z.B. "delete" (nur für SOAP-Mutations)
 }
 
 // Globaler Arbeitsort aus der ZEP-Ortsliste
 export interface SoapOrt {
-  kurzform: string;      // Kürzel (String32, z.B. "H", "O", "D")
-  bezeichnung?: string;  // Volltext (String64, z.B. "Homeoffice")
+  kurzform: string; // Kürzel (String32, z.B. "H", "O", "D")
+  bezeichnung?: string; // Volltext (String64, z.B. "Homeoffice")
   heimarbeitsort?: boolean;
   inland?: boolean;
   waehrung?: string;
@@ -129,7 +129,7 @@ interface SoapOrtsliste {
 interface ReadOrtslisteRequest {
   requestHeader: RequestHeader;
   readOrtslisteSearchCriteria?: {
-    datum?: string;       // IsoDate - liefert Ortsliste gültig an diesem Datum
+    datum?: string; // IsoDate - liefert Ortsliste gültig an diesem Datum
   };
 }
 
@@ -163,7 +163,7 @@ export interface SoapProjekt {
     ort?: ProjektOrt | ProjektOrt[];
   };
   // Fakturierbarkeits-Voreinstellungen
-  // voreinstFakturierbarkeit (int1_4): 
+  // voreinstFakturierbarkeit (int1_4):
   //   1=Voreinstellung Fakturierbar, durch Mitarbeiter änderbar
   //   2=Voreinstellung Fakturierbar, durch Mitarbeiter NICHT änderbar
   //   3=Voreinstellung Nicht Fakturierbar, durch Mitarbeiter änderbar
@@ -192,7 +192,7 @@ interface ReadProjekteSearchCriteria {
   projektNr?: string;
   abteilung?: string;
   status?: string;
-  userId?: string;        // Mitarbeiter-Filter
+  userId?: string; // Mitarbeiter-Filter
 }
 
 interface ReadProjekteRequest {
@@ -222,8 +222,8 @@ export interface VorgangMitarbeiter {
 
 // Vorgang-Tätigkeit: Eine dem Vorgang zugeordnete Tätigkeit
 export interface VorgangTaetigkeit {
-  taetigkeit: string;    // Kürzel der Tätigkeit (z.B. "re", "vw")
-  standard?: boolean;    // true wenn dies die Standard-Tätigkeit ist
+  taetigkeit: string; // Kürzel der Tätigkeit (z.B. "re", "vw")
+  standard?: boolean; // true wenn dies die Standard-Tätigkeit ist
 }
 
 export interface SoapVorgang {
@@ -312,8 +312,8 @@ interface ReadMitarbeiterResponse {
 // =============================================================================
 
 export interface SoapTaetigkeit {
-  taetigkeit: string;     // Kuerzel (z.B. "be", "ew", "re")
-  bezeichnung?: string;   // Beschreibung
+  taetigkeit: string; // Kuerzel (z.B. "be", "ew", "re")
+  bezeichnung?: string; // Beschreibung
   bemerkung?: string;
   istReise?: boolean;
 }
@@ -349,11 +349,11 @@ async function getClient(): Promise<soap.Client> {
   return new Promise((resolve, reject) => {
     soap.createClient(ZEP_SOAP_ENDPOINT, (err, client) => {
       if (err) {
-        console.error("Failed to create SOAP client:", err);
+        console.error('Failed to create SOAP client:', err);
         reject(new Error(`SOAP client creation failed: ${err.message}`));
         return;
       }
-      
+
       soapClient = client;
       resolve(client);
     });
@@ -374,9 +374,9 @@ function ensureArray<T>(items: T | T[] | undefined): T[] {
 function checkResponse(responseHeader: ResponseHeader, operation: string): void {
   // returnCode can be string "0" or number 0
   const code = String(responseHeader.returnCode);
-  if (code !== "0") {
+  if (code !== '0') {
     throw new Error(
-      `ZEP SOAP ${operation} failed: ${responseHeader.message || `Error code ${code}`}`
+      `ZEP SOAP ${operation} failed: ${responseHeader.message || `Error code ${code}`}`,
     );
   }
 }
@@ -387,14 +387,14 @@ function checkResponse(responseHeader: ResponseHeader, operation: string): void 
 
 /**
  * Read projects from ZEP via SOAP
- * 
+ *
  * @param token - ZEP SOAP API token
  * @param criteria - Optional search criteria
  * @returns Array of projects
  */
 export async function readProjekte(
   token: string,
-  criteria: ReadProjekteSearchCriteria = {}
+  criteria: ReadProjekteSearchCriteria = {},
 ): Promise<SoapProjekt[]> {
   const client = await getClient();
 
@@ -411,7 +411,7 @@ export async function readProjekte(
       }
 
       try {
-        checkResponse(result.responseHeader, "readProjekte");
+        checkResponse(result.responseHeader, 'readProjekte');
         const projekte = ensureArray(result.projektListe?.projekt);
         resolve(projekte);
       } catch (e) {
@@ -432,14 +432,14 @@ export async function readProjekte(
 export async function getBookableProjects(
   token: string,
   userId?: string,
-  referenceDate?: string // Date for which to check if project is bookable (YYYY-MM-DD)
+  referenceDate?: string, // Date for which to check if project is bookable (YYYY-MM-DD)
 ): Promise<SoapProjekt[]> {
   const criteria: ReadProjekteSearchCriteria = {};
-  
+
   if (userId) {
     criteria.userId = userId;
   }
-  
+
   // Use date filter in SOAP call to reduce data transfer
   // von/bis in readProjekte filters by project date range overlap
   if (referenceDate) {
@@ -448,19 +448,19 @@ export async function getBookableProjects(
   }
 
   const projekte = await readProjekte(token, criteria);
-  
+
   // Use reference date or today for filtering
-  const checkDate = referenceDate || new Date().toISOString().split("T")[0];
-  
+  const checkDate = referenceDate || new Date().toISOString().split('T')[0];
+
   // Closed project statuses
-  const closedStatuses = ["abgeschlossen", "geschlossen", "beendet", "archiviert"];
-  
-  return projekte.filter(p => {
+  const closedStatuses = ['abgeschlossen', 'geschlossen', 'beendet', 'archiviert'];
+
+  return projekte.filter((p) => {
     // 1. Filter by project status - exclude closed projects
     if (p.status && closedStatuses.includes(p.status.toLowerCase())) {
       return false;
     }
-    
+
     // 2. Filter by project date range
     // Project must have started (startDatum <= checkDate)
     if (p.startDatum && p.startDatum > checkDate) {
@@ -470,12 +470,12 @@ export async function getBookableProjects(
     if (p.endeDatum && p.endeDatum < checkDate) {
       return false;
     }
-    
+
     // 3. Filter by employee assignment period (if userId provided)
     if (userId && p.projektmitarbeiterListe?.projektmitarbeiter) {
       const mitarbeiter = ensureArray(p.projektmitarbeiterListe.projektmitarbeiter);
-      const userAssignment = mitarbeiter.find(m => m.userId === userId);
-      
+      const userAssignment = mitarbeiter.find((m) => m.userId === userId);
+
       if (userAssignment) {
         // Check assignment start date (von <= checkDate)
         if (userAssignment.von && userAssignment.von > checkDate) {
@@ -489,7 +489,7 @@ export async function getBookableProjects(
       // If no assignment found for user, the SOAP API already filtered by userId,
       // so this shouldn't happen - but keep the project just in case
     }
-    
+
     return true;
   });
 }
@@ -503,7 +503,7 @@ export async function getBookableProjects(
  */
 export async function readVorgang(
   token: string,
-  criteria: ReadVorgangSearchCriteria
+  criteria: ReadVorgangSearchCriteria,
 ): Promise<SoapVorgang[]> {
   const client = await getClient();
 
@@ -520,7 +520,7 @@ export async function readVorgang(
       }
 
       try {
-        checkResponse(result.responseHeader, "readVorgang");
+        checkResponse(result.responseHeader, 'readVorgang');
         const vorgaenge = ensureArray(result.vorgangListe?.vorgang);
         resolve(vorgaenge);
       } catch (e) {
@@ -532,11 +532,11 @@ export async function readVorgang(
 
 // Bookable task statuses - these are filtered directly in the SOAP API
 const BOOKABLE_TASK_STATUSES = [
-  "offen",
-  "Bestellung fehlt", 
-  "Keine Planstunden",
-  "ausstehend",
-  "in Arbeit",
+  'offen',
+  'Bestellung fehlt',
+  'Keine Planstunden',
+  'ausstehend',
+  'in Arbeit',
 ];
 
 /**
@@ -551,54 +551,54 @@ export async function getProjectTasks(
   options?: {
     userId?: string;
     referenceDate?: Date; // Date to check against (for calendar entries)
-  }
+  },
 ): Promise<SoapVorgang[]> {
   // Filter by bookable statuses directly in the SOAP API
-  const vorgaenge = await readVorgang(token, { 
+  const vorgaenge = await readVorgang(token, {
     projektNr,
-    statusListe: { status: BOOKABLE_TASK_STATUSES }
+    statusListe: { status: BOOKABLE_TASK_STATUSES },
   });
-  
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  
+
   const referenceDate = options?.referenceDate || today;
   const refDateOnly = new Date(referenceDate);
   refDateOnly.setHours(0, 0, 0, 0);
-  
-  return vorgaenge.filter(v => {
+
+  return vorgaenge.filter((v) => {
     // Exclude tasks that have ended before the reference date
     if (v.endeDatum) {
       const endDate = new Date(v.endeDatum);
       endDate.setHours(0, 0, 0, 0);
       if (endDate < refDateOnly) return false;
     }
-    
+
     // Exclude tasks that haven't started yet (if startDatum is set)
     if (v.startDatum) {
       const startDate = new Date(v.startDatum);
       startDate.setHours(0, 0, 0, 0);
       if (startDate > refDateOnly) return false;
     }
-    
+
     // Check employee assignment if userId is provided
     if (options?.userId) {
       const mitarbeiterListe = v.vorgangMitarbeiterListe;
-      
+
       // If alleImplizitZugeordnet is true, all project members are assigned
       if (mitarbeiterListe?.alleImplizitZugeordnet) {
         return true;
       }
-      
+
       // Check if user is in the vorgangMitarbeiter list
       if (mitarbeiterListe?.vorgangMitarbeiter) {
         const mitarbeiter = ensureArray(mitarbeiterListe.vorgangMitarbeiter);
-        const userAssignment = mitarbeiter.find(m => m.userId === options.userId);
-        
+        const userAssignment = mitarbeiter.find((m) => m.userId === options.userId);
+
         if (!userAssignment) {
           return false; // User not assigned to this task
         }
-        
+
         // Check if assignment is valid for the reference date
         if (userAssignment.von) {
           const assignmentStart = new Date(userAssignment.von);
@@ -615,7 +615,7 @@ export async function getProjectTasks(
         return false;
       }
     }
-    
+
     return true;
   });
 }
@@ -629,7 +629,7 @@ export async function getProjectTasks(
  */
 export async function readMitarbeiter(
   token: string,
-  criteria: ReadMitarbeiterSearchCriteria = {}
+  criteria: ReadMitarbeiterSearchCriteria = {},
 ): Promise<SoapMitarbeiter[]> {
   const client = await getClient();
 
@@ -646,7 +646,7 @@ export async function readMitarbeiter(
       }
 
       try {
-        checkResponse(result.responseHeader, "readMitarbeiter");
+        checkResponse(result.responseHeader, 'readMitarbeiter');
         const mitarbeiter = ensureArray(result.mitarbeiterListe?.mitarbeiter);
         resolve(mitarbeiter);
       } catch (e) {
@@ -661,7 +661,7 @@ export async function readMitarbeiter(
  */
 export async function findEmployeeByEmail(
   token: string,
-  email: string
+  email: string,
 ): Promise<SoapMitarbeiter | null> {
   // Try direct email search first
   const byEmail = await readMitarbeiter(token, { email });
@@ -672,22 +672,18 @@ export async function findEmployeeByEmail(
   // Fallback: Get all employees and match
   const allEmployees = await readMitarbeiter(token, {});
   const normalizedEmail = email.toLowerCase();
-  
+
   // Exact email match
-  const exactMatch = allEmployees.find(
-    emp => emp.email?.toLowerCase() === normalizedEmail
-  );
+  const exactMatch = allEmployees.find((emp) => emp.email?.toLowerCase() === normalizedEmail);
   if (exactMatch) return exactMatch;
 
   // Try username pattern matching (e.g., robert.fels@domain.com -> rfels)
-  const localPart = email.split("@")[0].toLowerCase();
-  const parts = localPart.split(".");
-  
+  const localPart = email.split('@')[0].toLowerCase();
+  const parts = localPart.split('.');
+
   if (parts.length >= 2) {
     const shortUsername = parts[0].charAt(0) + parts[parts.length - 1];
-    const matchByUsername = allEmployees.find(
-      emp => emp.userId.toLowerCase() === shortUsername
-    );
+    const matchByUsername = allEmployees.find((emp) => emp.userId.toLowerCase() === shortUsername);
     if (matchByUsername) return matchByUsername;
   }
 
@@ -703,7 +699,7 @@ export async function findEmployeeByEmail(
  */
 export async function readTaetigkeit(
   token: string,
-  taetigkeit?: string
+  taetigkeit?: string,
 ): Promise<SoapTaetigkeit[]> {
   const client = await getClient();
 
@@ -720,7 +716,7 @@ export async function readTaetigkeit(
       }
 
       try {
-        checkResponse(result.responseHeader, "readTaetigkeit");
+        checkResponse(result.responseHeader, 'readTaetigkeit');
         const taetigkeiten = ensureArray(result.taetigkeitListe?.taetigkeit);
         resolve(taetigkeiten);
       } catch (e) {
@@ -738,10 +734,7 @@ export async function readTaetigkeit(
  * Read global work locations from ZEP via SOAP.
  * Returns all OrtType entries from the Ortsliste valid on the given date.
  */
-export async function readOrtsliste(
-  token: string,
-  datum?: string
-): Promise<SoapOrt[]> {
+export async function readOrtsliste(token: string, datum?: string): Promise<SoapOrt[]> {
   const client = await getClient();
 
   const request: ReadOrtslisteRequest = {
@@ -757,7 +750,7 @@ export async function readOrtsliste(
       }
 
       try {
-        checkResponse(result.responseHeader, "readOrtsliste");
+        checkResponse(result.responseHeader, 'readOrtsliste');
         const ortslisten = ensureArray(result.ortslisteListe?.ortsliste);
         // Flatten all OrtType entries from all valid Ortslisten, deduplicate by kurzform
         const seen = new Set<string>();
@@ -799,7 +792,7 @@ export function mapOrtToRestFormat(ort: SoapOrt) {
  */
 export async function readProjektzeiten(
   token: string,
-  criteria: ReadProjektzeitenSearchCriteria
+  criteria: ReadProjektzeitenSearchCriteria,
 ): Promise<SoapProjektzeit[]> {
   const client = await getClient();
 
@@ -816,7 +809,7 @@ export async function readProjektzeiten(
       }
 
       try {
-        checkResponse(result.responseHeader, "readProjektzeiten");
+        checkResponse(result.responseHeader, 'readProjektzeiten');
         const projektzeiten = ensureArray(result.projektzeitListe?.projektzeiten);
         resolve(projektzeiten);
       } catch (e) {
@@ -833,7 +826,7 @@ export async function getTimeEntries(
   token: string,
   userId: string,
   startDate: string,
-  endDate: string
+  endDate: string,
 ): Promise<SoapProjektzeit[]> {
   return readProjektzeiten(token, {
     von: startDate,
@@ -847,7 +840,7 @@ export async function getTimeEntries(
  */
 export async function createProjektzeit(
   token: string,
-  projektzeit: Omit<SoapProjektzeit, "id" | "created" | "modified">
+  projektzeit: Omit<SoapProjektzeit, 'id' | 'created' | 'modified'>,
 ): Promise<string> {
   const client = await getClient();
 
@@ -864,8 +857,8 @@ export async function createProjektzeit(
       }
 
       try {
-        checkResponse(result.responseHeader, "createProjektzeit");
-        resolve(result.ids || "");
+        checkResponse(result.responseHeader, 'createProjektzeit');
+        resolve(result.ids || '');
       } catch (e) {
         reject(e);
       }
@@ -879,10 +872,10 @@ export async function createProjektzeit(
  */
 export async function updateProjektzeit(
   token: string,
-  projektzeit: SoapProjektzeit
+  projektzeit: SoapProjektzeit,
 ): Promise<string> {
   if (!projektzeit.id) {
-    throw new Error("updateProjektzeit requires projektzeit.id");
+    throw new Error('updateProjektzeit requires projektzeit.id');
   }
 
   const client = await getClient();
@@ -900,8 +893,8 @@ export async function updateProjektzeit(
       }
 
       try {
-        checkResponse(result.responseHeader, "updateProjektzeit");
-        resolve(result.ids || "");
+        checkResponse(result.responseHeader, 'updateProjektzeit');
+        resolve(result.ids || '');
       } catch (e) {
         reject(e);
       }
@@ -912,10 +905,7 @@ export async function updateProjektzeit(
 /**
  * Delete a time entry in ZEP via SOAP
  */
-export async function deleteProjektzeit(
-  token: string,
-  id: string
-): Promise<void> {
+export async function deleteProjektzeit(token: string, id: string): Promise<void> {
   const client = await getClient();
 
   const request = {
@@ -924,19 +914,22 @@ export async function deleteProjektzeit(
   };
 
   return new Promise((resolve, reject) => {
-    client.deleteProjektzeit(request, (err: Error | null, result: { responseHeader: ResponseHeader }) => {
-      if (err) {
-        reject(new Error(`SOAP deleteProjektzeit failed: ${err.message}`));
-        return;
-      }
+    client.deleteProjektzeit(
+      request,
+      (err: Error | null, result: { responseHeader: ResponseHeader }) => {
+        if (err) {
+          reject(new Error(`SOAP deleteProjektzeit failed: ${err.message}`));
+          return;
+        }
 
-      try {
-        checkResponse(result.responseHeader, "deleteProjektzeit");
-        resolve();
-      } catch (e) {
-        reject(e);
-      }
-    });
+        try {
+          checkResponse(result.responseHeader, 'deleteProjektzeit');
+          resolve();
+        } catch (e) {
+          reject(e);
+        }
+      },
+    );
   });
 }
 
@@ -948,15 +941,15 @@ export async function deleteProjektzeit(
  * Format date for ZEP SOAP API (YYYY-MM-DD)
  */
 export function formatSoapDate(date: Date): string {
-  return date.toISOString().split("T")[0];
+  return date.toISOString().split('T')[0];
 }
 
 /**
  * Format time for ZEP SOAP API (HH:MM)
  */
 export function formatSoapTime(date: Date): string {
-  const hours = date.getHours().toString().padStart(2, "0");
-  const minutes = date.getMinutes().toString().padStart(2, "0");
+  const hours = date.getHours().toString().padStart(2, '0');
+  const minutes = date.getMinutes().toString().padStart(2, '0');
   return `${hours}:${minutes}`;
 }
 
@@ -978,20 +971,20 @@ export function roundTimeUp(date: Date): Date {
   const rounded = new Date(date);
   const minutes = rounded.getMinutes();
   const remainder = minutes % 15;
-  
+
   if (remainder === 0) {
     rounded.setSeconds(0, 0);
     return rounded;
   }
-  
+
   const roundedMinutes = Math.ceil(minutes / 15) * 15;
-  
+
   if (roundedMinutes === 60) {
     rounded.setHours(rounded.getHours() + 1, 0, 0, 0);
   } else {
     rounded.setMinutes(roundedMinutes, 0, 0);
   }
-  
+
   return rounded;
 }
 
@@ -1023,7 +1016,7 @@ export function mapProjektToRestFormat(projekt: SoapProjekt) {
   if (projekt.projekttaetigkeitListe?.taetigkeit) {
     const taetigkeitData = projekt.projekttaetigkeitListe.taetigkeit;
     const taetigkeitArray = Array.isArray(taetigkeitData) ? taetigkeitData : [taetigkeitData];
-    activities = taetigkeitArray.map(t => ({
+    activities = taetigkeitArray.map((t) => ({
       name: t.taetigkeit,
       standard: t.standard || false,
       defaultFakt: t.defaultFakt, // 0=vom Vorgang, 1-4=eigene Einstellung
@@ -1035,19 +1028,17 @@ export function mapProjektToRestFormat(projekt: SoapProjekt) {
   if (projekt.projektortListe?.ort) {
     const ortData = projekt.projektortListe.ort;
     const ortArray = Array.isArray(ortData) ? ortData : [ortData];
-    workLocations = ortArray
-      .filter(o => o.action !== "delete")
-      .map(o => o.ort);
+    workLocations = ortArray.filter((o) => o.action !== 'delete').map((o) => o.ort);
   }
 
   return {
     id: projekt.id || 0,
-    name: projekt.projektNr,           // REST uses projektNr as name
-    description: projekt.bezeichnung || "", // REST uses bezeichnung as description
-    project_status_id: projekt.status || "",
+    name: projekt.projektNr, // REST uses projektNr as name
+    description: projekt.bezeichnung || '', // REST uses bezeichnung as description
+    project_status_id: projekt.status || '',
     status: {
-      id: projekt.status || "",
-      name: projekt.status || "",
+      id: projekt.status || '',
+      name: projekt.status || '',
       bookable: true, // SOAP doesn't have this directly
     },
     customer_id: projekt.kundenNr || null,
@@ -1072,7 +1063,7 @@ export function mapVorgangToRestFormat(vorgang: SoapVorgang) {
   if (vorgang.vorgangstaetigkeitListe?.taetigkeit) {
     const taetigkeitData = vorgang.vorgangstaetigkeitListe.taetigkeit;
     const taetigkeitArray = Array.isArray(taetigkeitData) ? taetigkeitData : [taetigkeitData];
-    activities = taetigkeitArray.map(t => ({
+    activities = taetigkeitArray.map((t) => ({
       name: t.taetigkeit,
       standard: t.standard || false,
     }));
@@ -1096,38 +1087,38 @@ export function mapVorgangToRestFormat(vorgang: SoapVorgang) {
 
 /**
  * Ermittelt die Fakturierbarkeit basierend auf Projekt- und Vorgang-Einstellungen.
- * 
+ *
  * Hierarchie:
  * 1. Vorgang.defaultFakt (wenn != 0): verwendet die Vorgang-Einstellung
  * 2. Sonst: Projekt.voreinstFakturierbarkeit oder Projekt.defaultFakt
- * 
+ *
  * Werte (int1_4 bzw. int0_4):
  *   0 = vom Projekt geerbt (nur bei Vorgang)
  *   1 = Fakturierbar, änderbar durch Mitarbeiter
  *   2 = Fakturierbar, NICHT änderbar durch Mitarbeiter
  *   3 = Nicht fakturierbar, änderbar durch Mitarbeiter
  *   4 = Nicht fakturierbar, NICHT änderbar durch Mitarbeiter
- * 
+ *
  * @param projektFakt - voreinstFakturierbarkeit oder defaultFakt vom Projekt (int1_4)
  * @param vorgangFakt - defaultFakt vom Vorgang (int0_4), 0 = vom Projekt geerbt
  * @returns boolean - true wenn fakturierbar, false wenn nicht fakturierbar
  */
 export function determineBillable(
   projektFakt: number | undefined,
-  vorgangFakt: number | undefined
+  vorgangFakt: number | undefined,
 ): boolean {
   // Vorgang hat eigene Einstellung (nicht 0 = "geerbt")
   if (vorgangFakt !== undefined && vorgangFakt !== 0) {
     // 1, 2 = Fakturierbar; 3, 4 = Nicht Fakturierbar
     return vorgangFakt === 1 || vorgangFakt === 2;
   }
-  
+
   // Fallback auf Projekt-Einstellung
   if (projektFakt !== undefined) {
     // 1, 2 = Fakturierbar; 3, 4 = Nicht Fakturierbar
     return projektFakt === 1 || projektFakt === 2;
   }
-  
+
   // Default: fakturierbar (wenn keine Einstellung vorhanden)
   return true;
 }
@@ -1150,7 +1141,7 @@ export function mapMitarbeiterToRestFormat(mitarbeiter: SoapMitarbeiter) {
 export function mapTaetigkeitToRestFormat(taetigkeit: SoapTaetigkeit) {
   return {
     name: taetigkeit.taetigkeit,
-    description: taetigkeit.bezeichnung || "",
+    description: taetigkeit.bezeichnung || '',
     is_travel: taetigkeit.istReise || false,
   };
 }
@@ -1160,19 +1151,21 @@ export function mapTaetigkeitToRestFormat(taetigkeit: SoapTaetigkeit) {
  */
 export function mapProjektzeitToRestFormat(projektzeit: SoapProjektzeit) {
   // Convert HH:MM to HH:MM:SS format
-  const fromTime = projektzeit.von ? `${projektzeit.von}:00` : "00:00:00";
-  const toTime = projektzeit.bis ? `${projektzeit.bis}:00` : "00:00:00";
-  
+  const fromTime = projektzeit.von ? `${projektzeit.von}:00` : '00:00:00';
+  const toTime = projektzeit.bis ? `${projektzeit.bis}:00` : '00:00:00';
+
   return {
     id: projektzeit.id ? parseInt(projektzeit.id, 10) : undefined,
-    date: projektzeit.datum ? `${projektzeit.datum}T00:00:00.000000Z` : "",
+    date: projektzeit.datum ? `${projektzeit.datum}T00:00:00.000000Z` : '',
     from: fromTime,
     to: toTime,
     employee_id: projektzeit.userId,
     duration: projektzeit.dauer ? parseDurationToMinutes(projektzeit.dauer) : undefined,
     note: projektzeit.bemerkung || null,
     // SOAP returns "true"/"false" as strings, need explicit check
-    billable: projektzeit.istFakturierbar === true || String(projektzeit.istFakturierbar).toLowerCase() === "true",
+    billable:
+      projektzeit.istFakturierbar === true ||
+      String(projektzeit.istFakturierbar).toLowerCase() === 'true',
     activity_id: projektzeit.taetigkeit,
     project_id: projektzeit.projektId || 0,
     project_task_id: projektzeit.vorgangId || 0,
@@ -1187,7 +1180,7 @@ export function mapProjektzeitToRestFormat(projektzeit: SoapProjektzeit) {
  * Parse duration string (HH:MM) to minutes
  */
 function parseDurationToMinutes(duration: string): number {
-  const parts = duration.split(":");
+  const parts = duration.split(':');
   if (parts.length >= 2) {
     return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
   }

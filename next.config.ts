@@ -1,5 +1,5 @@
-import type { NextConfig } from "next";
-import packageJson from "./package.json" with { type: "json" };
+import type { NextConfig } from 'next';
+import packageJson from './package.json' with { type: 'json' };
 
 const nextConfig: NextConfig = {
   env: {

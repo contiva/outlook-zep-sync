@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { Pencil, X, RefreshCw, RotateCcw } from "lucide-react";
-import { Appointment, SyncedEntry } from "./types";
-import { DuplicateCheckResult } from "@/lib/zep-api";
-import ConflictLinkPopover from "./ConflictLinkPopover";
+import { Pencil, X, RefreshCw, RotateCcw } from 'lucide-react';
+import { Appointment, SyncedEntry } from './types';
+import { DuplicateCheckResult } from '@/lib/zep-api';
+import ConflictLinkPopover from './ConflictLinkPopover';
 
 export interface AppointmentStatusBarProps {
   appointment: Appointment;
@@ -85,8 +85,10 @@ export default function AppointmentStatusBar({
       )}
 
       {/* Duplicate / Time overlap / Similar badges (not rescheduled) */}
-      {duplicateWarning?.hasDuplicate && !isSynced && duplicateWarning.type !== 'rescheduled' && (
-        onLinkToZep && syncedEntries ? (
+      {duplicateWarning?.hasDuplicate &&
+        !isSynced &&
+        duplicateWarning.type !== 'rescheduled' &&
+        (onLinkToZep && syncedEntries ? (
           <ConflictLinkPopover
             appointmentId={appointment.id}
             appointmentDate={appointment.start.dateTime}
@@ -100,7 +102,11 @@ export default function AppointmentStatusBar({
               className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded font-medium text-orange-700 bg-orange-50 hover:bg-orange-100 transition cursor-pointer"
               title={`${duplicateWarning.message} — Klicken zum Verknüpfen`}
             >
-              {duplicateWarning.type === 'exact' ? 'Duplikat' : duplicateWarning.type === 'timeOverlap' ? 'Zeitüberschneidung' : 'Ähnlich'}
+              {duplicateWarning.type === 'exact'
+                ? 'Duplikat'
+                : duplicateWarning.type === 'timeOverlap'
+                  ? 'Zeitüberschneidung'
+                  : 'Ähnlich'}
             </span>
           </ConflictLinkPopover>
         ) : (
@@ -108,10 +114,13 @@ export default function AppointmentStatusBar({
             className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded font-medium text-orange-700 bg-orange-50"
             title={duplicateWarning.message}
           >
-            {duplicateWarning.type === 'exact' ? 'Duplikat' : duplicateWarning.type === 'timeOverlap' ? 'Zeitüberschneidung' : 'Ähnlich'}
+            {duplicateWarning.type === 'exact'
+              ? 'Duplikat'
+              : duplicateWarning.type === 'timeOverlap'
+                ? 'Zeitüberschneidung'
+                : 'Ähnlich'}
           </span>
-        )
-      )}
+        ))}
 
       {/* Rescheduled appointment - correction button and link option */}
       {duplicateWarning?.type === 'rescheduled' && !isSynced && (
@@ -123,7 +132,7 @@ export default function AppointmentStatusBar({
               className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 transition disabled:opacity-50"
               title={duplicateWarning.message}
             >
-              <RefreshCw size={10} className={isCorrectingTime ? "animate-spin" : ""} />
+              <RefreshCw size={10} className={isCorrectingTime ? 'animate-spin' : ''} />
               Zeiten korrigieren
             </button>
           )}
@@ -163,17 +172,16 @@ export default function AppointmentStatusBar({
       {/* Edit/Cancel button for synced entries */}
       {isSynced && onStartEditSynced && onCancelEditSynced && (
         <button
-          onClick={() => isEditing
-            ? onCancelEditSynced(appointment.id)
-            : onStartEditSynced(appointment.id)
+          onClick={() =>
+            isEditing ? onCancelEditSynced(appointment.id) : onStartEditSynced(appointment.id)
           }
           className={`p-1.5 rounded transition ${
             isEditing
-              ? "text-blue-600 hover:text-blue-800 hover:bg-blue-100"
-              : "text-gray-400 hover:text-blue-600 hover:bg-blue-50"
+              ? 'text-blue-600 hover:text-blue-800 hover:bg-blue-100'
+              : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50'
           }`}
-          title={isEditing ? "Bearbeitung abbrechen" : "Bearbeiten"}
-          aria-label={isEditing ? "Bearbeitung abbrechen" : "Bearbeiten"}
+          title={isEditing ? 'Bearbeitung abbrechen' : 'Bearbeiten'}
+          aria-label={isEditing ? 'Bearbeitung abbrechen' : 'Bearbeiten'}
         >
           {isEditing ? <X size={12} /> : <Pencil size={12} />}
         </button>

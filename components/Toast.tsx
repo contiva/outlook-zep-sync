@@ -1,17 +1,17 @@
-"use client";
+'use client';
 
-import { createContext, useContext, useState, useCallback, ReactNode } from "react";
-import { CheckCircle2, AlertCircle, X } from "lucide-react";
+import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import { CheckCircle2, AlertCircle, X } from 'lucide-react';
 
 interface Toast {
   id: string;
   text: string;
-  type: "success" | "error";
+  type: 'success' | 'error';
   details?: string[];
 }
 
 interface ToastContextType {
-  toast: (options: Omit<Toast, "id">) => void;
+  toast: (options: Omit<Toast, 'id'>) => void;
   dismissToast: (id: string) => void;
 }
 
@@ -20,7 +20,7 @@ const ToastContext = createContext<ToastContextType | null>(null);
 export function useToast() {
   const context = useContext(ToastContext);
   if (!context) {
-    throw new Error("useToast must be used within a ToastProvider");
+    throw new Error('useToast must be used within a ToastProvider');
   }
   return context;
 }
@@ -37,19 +37,19 @@ export function ToastProvider({ children }: ToastProviderProps) {
   }, []);
 
   const toast = useCallback(
-    (options: Omit<Toast, "id">) => {
+    (options: Omit<Toast, 'id'>) => {
       const id = Math.random().toString(36).substring(2, 9);
       const newToast: Toast = { ...options, id };
 
       setToasts((prev) => [...prev, newToast]);
 
       // Auto-dismiss nach 5 Sekunden (Success) oder 8 Sekunden (Error)
-      const duration = options.type === "error" ? 8000 : 5000;
+      const duration = options.type === 'error' ? 8000 : 5000;
       setTimeout(() => {
         dismissToast(id);
       }, duration);
     },
-    [dismissToast]
+    [dismissToast],
   );
 
   return (
@@ -74,18 +74,12 @@ function Toaster({ toasts, onDismiss }: ToasterProps) {
         <div
           key={toast.id}
           className={`pointer-events-auto flex items-start gap-3 px-4 py-3 rounded-xl shadow-lg animate-slide-down min-w-[320px] max-w-[480px] ${
-            toast.type === "error"
-              ? "bg-red-600 text-white"
-              : "bg-emerald-600 text-white"
+            toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-emerald-600 text-white'
           }`}
         >
           {/* Icon */}
           <div className="shrink-0 mt-0.5 text-white/90">
-            {toast.type === "error" ? (
-              <AlertCircle size={22} />
-            ) : (
-              <CheckCircle2 size={22} />
-            )}
+            {toast.type === 'error' ? <AlertCircle size={22} /> : <CheckCircle2 size={22} />}
           </div>
 
           {/* Content */}

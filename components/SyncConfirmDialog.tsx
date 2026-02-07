@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
-import { X, ClockArrowUp, AlertTriangle, RefreshCw } from "lucide-react";
-import { DuplicateCheckResult } from "@/lib/zep-api";
-import { useMemo, useState } from "react";
+import { Dialog, DialogPanel, DialogTitle } from '@headlessui/react';
+import { X, ClockArrowUp, AlertTriangle, RefreshCw } from 'lucide-react';
+import { DuplicateCheckResult } from '@/lib/zep-api';
+import { useMemo, useState } from 'react';
 
 // Modified entry for rebooking synced entries
 interface ModifiedEntry {
@@ -75,7 +75,7 @@ export default function SyncConfirmDialog({
   const [excludedModificationIds, setExcludedModificationIds] = useState<Set<string>>(new Set());
   // Track if we've seen the dialog open (to reset state on first open)
   const [wasOpen, setWasOpen] = useState(false);
-  
+
   // Reset excluded when dialog opens for the first time or reopens
   if (isOpen && !wasOpen) {
     setWasOpen(true);
@@ -93,18 +93,18 @@ export default function SyncConfirmDialog({
   const completeModifications = useMemo(() => {
     if (!modifiedEntries) return [];
     return Array.from(modifiedEntries.values()).filter(
-      (mod) => mod.newProjectId > 0 && mod.newTaskId > 0
+      (mod) => mod.newProjectId > 0 && mod.newTaskId > 0,
     );
   }, [modifiedEntries]);
 
   // Filter to only included modifications
   const includedModifications = useMemo(() => {
-    return completeModifications.filter(mod => !excludedModificationIds.has(mod.outlookEventId));
+    return completeModifications.filter((mod) => !excludedModificationIds.has(mod.outlookEventId));
   }, [completeModifications, excludedModificationIds]);
 
   // Toggle modification exclude/include
   const toggleModificationExclude = (id: string) => {
-    setExcludedModificationIds(prev => {
+    setExcludedModificationIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) {
         next.delete(id);
@@ -114,15 +114,15 @@ export default function SyncConfirmDialog({
       return next;
     });
   };
-  
+
   // Filter to only included appointments
   const includedAppointments = useMemo(() => {
-    return appointments.filter(apt => !excludedIds.has(apt.id));
+    return appointments.filter((apt) => !excludedIds.has(apt.id));
   }, [appointments, excludedIds]);
-  
+
   // Toggle exclude/include
   const toggleExclude = (id: string) => {
-    setExcludedIds(prev => {
+    setExcludedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) {
         next.delete(id);
@@ -155,19 +155,19 @@ export default function SyncConfirmDialog({
   // Format time helper
   const formatTime = (dateTime: string) => {
     const date = new Date(dateTime);
-    return date.toLocaleTimeString("de-DE", {
-      hour: "2-digit",
-      minute: "2-digit",
+    return date.toLocaleTimeString('de-DE', {
+      hour: '2-digit',
+      minute: '2-digit',
     });
   };
 
   // Format date helper
   const formatDate = (dateTime: string) => {
     const date = new Date(dateTime);
-    return date.toLocaleDateString("de-DE", {
-      weekday: "short",
-      day: "2-digit",
-      month: "2-digit",
+    return date.toLocaleDateString('de-DE', {
+      weekday: 'short',
+      day: '2-digit',
+      month: '2-digit',
     });
   };
 
@@ -175,7 +175,7 @@ export default function SyncConfirmDialog({
   const appointmentsByDate = useMemo(() => {
     const grouped = new Map<string, Appointment[]>();
     appointments.forEach((apt) => {
-      const dateStr = apt.start.dateTime.split("T")[0];
+      const dateStr = apt.start.dateTime.split('T')[0];
       const existing = grouped.get(dateStr) || [];
       existing.push(apt);
       grouped.set(dateStr, existing);
@@ -203,10 +203,7 @@ export default function SyncConfirmDialog({
               <ClockArrowUp className="h-5 w-5 text-amber-500" />
               Termine an ZEP übertragen
             </DialogTitle>
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition"
-            >
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition">
               <X className="h-5 w-5" />
             </button>
           </div>
@@ -217,7 +214,10 @@ export default function SyncConfirmDialog({
               {includedAppointments.length === appointments.length ? (
                 <>Folgende {appointments.length} Termine werden synchronisiert:</>
               ) : (
-                <>{includedAppointments.length} von {appointments.length} Terminen werden synchronisiert:</>
+                <>
+                  {includedAppointments.length} von {appointments.length} Terminen werden
+                  synchronisiert:
+                </>
               )}
             </p>
 
@@ -248,11 +248,11 @@ export default function SyncConfirmDialog({
                       <div
                         key={apt.id}
                         className={`px-3 py-2 flex items-center gap-2 text-sm ${
-                          isExcluded 
-                            ? "bg-gray-100 opacity-60" 
-                            : duplicateWarnings?.has(apt.id) 
-                              ? "bg-amber-50" 
-                              : ""
+                          isExcluded
+                            ? 'bg-gray-100 opacity-60'
+                            : duplicateWarnings?.has(apt.id)
+                              ? 'bg-amber-50'
+                              : ''
                         }`}
                       >
                         <input
@@ -260,15 +260,23 @@ export default function SyncConfirmDialog({
                           checked={!isExcluded}
                           onChange={() => toggleExclude(apt.id)}
                           className="w-4 h-4 accent-sky-300 rounded border-gray-300 focus:ring-blue-300 flex-shrink-0"
-                          aria-label={isExcluded ? `${apt.subject} einschließen` : `${apt.subject} ausschließen`}
+                          aria-label={
+                            isExcluded
+                              ? `${apt.subject} einschließen`
+                              : `${apt.subject} ausschließen`
+                          }
                         />
                         <div className="flex items-start gap-2 min-w-0 flex-1">
-                          <span className={`font-mono text-xs whitespace-nowrap pt-0.5 ${isExcluded ? "text-gray-400" : "text-gray-500"}`}>
+                          <span
+                            className={`font-mono text-xs whitespace-nowrap pt-0.5 ${isExcluded ? 'text-gray-400' : 'text-gray-500'}`}
+                          >
                             {formatTime(apt.start.dateTime)}-{formatTime(apt.end.dateTime)}
                           </span>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1">
-                              <span className={`truncate ${isExcluded ? "text-gray-400 line-through" : "text-gray-900"}`}>
+                              <span
+                                className={`truncate ${isExcluded ? 'text-gray-400 line-through' : 'text-gray-900'}`}
+                              >
                                 {apt.subject}
                               </span>
                               {duplicateWarnings?.has(apt.id) && !isExcluded && (
@@ -282,8 +290,10 @@ export default function SyncConfirmDialog({
                             )}
                           </div>
                         </div>
-                        <span className={`text-xs ml-2 whitespace-nowrap ${isExcluded ? "text-gray-400" : "text-gray-500"}`}>
-                          {apt.projectId ? projectMap.get(apt.projectId) || "?" : "-"}
+                        <span
+                          className={`text-xs ml-2 whitespace-nowrap ${isExcluded ? 'text-gray-400' : 'text-gray-500'}`}
+                        >
+                          {apt.projectId ? projectMap.get(apt.projectId) || '?' : '-'}
                         </span>
                       </div>
                     );
@@ -295,7 +305,7 @@ export default function SyncConfirmDialog({
             {/* Total duration for new entries */}
             {includedAppointments.length > 0 && (
               <div className="mt-3 text-sm text-gray-600">
-                Gesamt:{" "}
+                Gesamt:{' '}
                 <span className="font-medium text-gray-900">
                   {hours}h {minutes}min
                 </span>
@@ -318,7 +328,7 @@ export default function SyncConfirmDialog({
                       <div
                         key={mod.outlookEventId}
                         className={`px-3 py-2 flex items-center gap-2 text-sm ${
-                          isExcluded ? "bg-gray-100 opacity-60" : ""
+                          isExcluded ? 'bg-gray-100 opacity-60' : ''
                         }`}
                       >
                         <input
@@ -326,17 +336,25 @@ export default function SyncConfirmDialog({
                           checked={!isExcluded}
                           onChange={() => toggleModificationExclude(mod.outlookEventId)}
                           className="w-4 h-4 text-amber-600 rounded border-gray-300 focus:ring-amber-500 flex-shrink-0"
-                          aria-label={isExcluded ? "Änderung einschließen" : "Änderung ausschließen"}
+                          aria-label={
+                            isExcluded ? 'Änderung einschließen' : 'Änderung ausschließen'
+                          }
                         />
                         <div className="flex flex-col min-w-0 flex-1">
-                          <span className={`truncate ${isExcluded ? "text-gray-400 line-through" : "text-gray-700"}`}>
+                          <span
+                            className={`truncate ${isExcluded ? 'text-gray-400 line-through' : 'text-gray-700'}`}
+                          >
                             {mod.bemerkung || `Eintrag vom ${mod.datum}`}
                           </span>
-                          <span className={`text-xs ${isExcluded ? "text-gray-400" : "text-amber-700"}`}>
+                          <span
+                            className={`text-xs ${isExcluded ? 'text-gray-400' : 'text-amber-700'}`}
+                          >
                             → {mod.newProjektNr} / {mod.newVorgangNr}
                           </span>
                         </div>
-                        <span className={`text-xs whitespace-nowrap ${isExcluded ? "text-gray-400" : "text-gray-500"}`}>
+                        <span
+                          className={`text-xs whitespace-nowrap ${isExcluded ? 'text-gray-400' : 'text-gray-500'}`}
+                        >
                           {mod.von} - {mod.bis}
                         </span>
                       </div>
@@ -357,8 +375,16 @@ export default function SyncConfirmDialog({
               Abbrechen
             </button>
             <button
-              onClick={() => onConfirm(includedAppointments, includedModifications.length > 0 ? includedModifications : undefined)}
-              disabled={submitting || (includedAppointments.length === 0 && includedModifications.length === 0)}
+              onClick={() =>
+                onConfirm(
+                  includedAppointments,
+                  includedModifications.length > 0 ? includedModifications : undefined,
+                )
+              }
+              disabled={
+                submitting ||
+                (includedAppointments.length === 0 && includedModifications.length === 0)
+              }
               className="px-4 py-2 text-sm font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition flex items-center gap-2"
             >
               {submitting ? (
@@ -388,12 +414,11 @@ export default function SyncConfirmDialog({
               ) : (
                 <>
                   <ClockArrowUp className="h-4 w-4" />
-                  {includedAppointments.length > 0 && includedModifications.length > 0 
+                  {includedAppointments.length > 0 && includedModifications.length > 0
                     ? `Übertragen (${includedAppointments.length} neu, ${includedModifications.length} ändern)`
-                    : includedModifications.length > 0 
+                    : includedModifications.length > 0
                       ? `${includedModifications.length} Änderung(en) übertragen`
-                      : "Übertragen"
-                  }
+                      : 'Übertragen'}
                 </>
               )}
             </button>

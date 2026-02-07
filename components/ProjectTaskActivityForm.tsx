@@ -1,11 +1,11 @@
-"use client";
+'use client';
 
-import { useMemo, useState, useEffect } from "react";
-import { Banknote, ClockArrowUp, Loader2 } from "lucide-react";
-import SearchableSelect, { SelectOption } from "./SearchableSelect";
+import { useMemo, useState, useEffect } from 'react';
+import { Banknote, ClockArrowUp, Loader2 } from 'lucide-react';
+import SearchableSelect, { SelectOption } from './SearchableSelect';
 
 // === Shared Styles ===
-const labelBase = "text-xs mb-1 font-medium";
+const labelBase = 'text-xs mb-1 font-medium';
 const labelEnabled = `${labelBase} text-gray-600`;
 const labelDisabled = `${labelBase} text-gray-400`;
 
@@ -132,7 +132,10 @@ export default function ProjectTaskActivityForm({
       // Use setTimeout to avoid synchronous setState in effect body
       const startTimer = setTimeout(() => setShowHopAnimation(true), 0);
       const endTimer = setTimeout(() => setShowHopAnimation(false), 5000);
-      return () => { clearTimeout(startTimer); clearTimeout(endTimer); };
+      return () => {
+        clearTimeout(startTimer);
+        clearTimeout(endTimer);
+      };
     } else {
       const timer = setTimeout(() => setShowHopAnimation(false), 0);
       return () => clearTimeout(timer);
@@ -152,7 +155,7 @@ export default function ProjectTaskActivityForm({
           label: p.name,
           description: p.description || null,
         })),
-    [projects, allTasks]
+    [projects, allTasks],
   );
 
   // === taskOptions ===
@@ -163,7 +166,7 @@ export default function ProjectTaskActivityForm({
         label: t.name,
         description: t.description,
       })),
-    [tasks]
+    [tasks],
   );
 
   // === activityOptions ===
@@ -173,36 +176,27 @@ export default function ProjectTaskActivityForm({
     if (taskId && projectId) {
       selectedTask = tasks.find((t) => t.id === taskId);
     }
-    const selectedProject = projectId
-      ? projects.find((p) => p.id === projectId)
-      : undefined;
+    const selectedProject = projectId ? projects.find((p) => p.id === projectId) : undefined;
 
     // Get assigned activities: Task activities take precedence over Project activities
     let assignedActivities: AssignedActivity[] = [];
     if (selectedTask?.activities && selectedTask.activities.length > 0) {
       assignedActivities = selectedTask.activities;
-    } else if (
-      selectedProject?.activities &&
-      selectedProject.activities.length > 0
-    ) {
+    } else if (selectedProject?.activities && selectedProject.activities.length > 0) {
       assignedActivities = selectedProject.activities;
     }
 
     // If we have assigned activities, filter the global activities list
     if (assignedActivities.length > 0) {
       const assignedNames = new Set(assignedActivities.map((a) => a.name));
-      const filteredActivities = activities.filter((a) =>
-        assignedNames.has(a.name)
-      );
+      const filteredActivities = activities.filter((a) => assignedNames.has(a.name));
 
       return filteredActivities.map((a) => {
         const assigned = assignedActivities.find((aa) => aa.name === a.name);
         return {
           value: a.name,
           label: a.name,
-          description: assigned?.standard
-            ? `${a.description} (Standard)`
-            : a.description,
+          description: assigned?.standard ? `${a.description} (Standard)` : a.description,
         };
       });
     }
@@ -223,7 +217,7 @@ export default function ProjectTaskActivityForm({
         label: loc.kurzform,
         description: loc.bezeichnung !== loc.kurzform ? loc.bezeichnung : null,
       })),
-    [workLocations]
+    [workLocations],
   );
 
   return (
@@ -247,9 +241,7 @@ export default function ProjectTaskActivityForm({
 
       {/* Task-Dropdown */}
       <div className="flex flex-col flex-3 min-w-0">
-        <label className={isTaskDisabled ? labelDisabled : labelEnabled}>
-          Task
-        </label>
+        <label className={isTaskDisabled ? labelDisabled : labelEnabled}>Task</label>
         <SearchableSelect
           options={taskOptions}
           value={taskId}
@@ -257,11 +249,7 @@ export default function ProjectTaskActivityForm({
           placeholder="Task wählen"
           disabled={isTaskDisabled}
           disabledMessage={
-            !projectId
-              ? "Erst Projekt wählen"
-              : loadingTasks
-                ? "Laden..."
-                : "Keine Tasks vorhanden"
+            !projectId ? 'Erst Projekt wählen' : loadingTasks ? 'Laden...' : 'Keine Tasks vorhanden'
           }
           loading={loadingTasks}
         />
@@ -269,25 +257,23 @@ export default function ProjectTaskActivityForm({
 
       {/* Activity-Dropdown */}
       <div className="flex flex-col w-24 shrink-0">
-        <label className={isFieldDisabled ? labelDisabled : labelEnabled}>
-          Tätigkeit
-        </label>
+        <label className={isFieldDisabled ? labelDisabled : labelEnabled}>Tätigkeit</label>
         <SearchableSelect
           options={activityOptions}
           value={activityId}
-          onChange={(val) => onActivityChange(String(val ?? "be"))}
+          onChange={(val) => onActivityChange(String(val ?? 'be'))}
           placeholder="Tätigkeit"
           disabled={isFieldDisabled}
-          disabledMessage={
-            !projectId ? "Erst Projekt wählen" : "Erst Task wählen"
-          }
+          disabledMessage={!projectId ? 'Erst Projekt wählen' : 'Erst Task wählen'}
           compact
         />
       </div>
 
       {/* Arbeitsort-Dropdown */}
       <div className="flex flex-col w-28 shrink-0">
-        <label className={isFieldDisabled || workLocations.length === 0 ? labelDisabled : labelEnabled}>
+        <label
+          className={isFieldDisabled || workLocations.length === 0 ? labelDisabled : labelEnabled}
+        >
           Ort
         </label>
         <SearchableSelect
@@ -297,11 +283,11 @@ export default function ProjectTaskActivityForm({
           placeholder="Ort"
           disabled={isFieldDisabled || workLocations.length === 0}
           disabledMessage={
-            !projectId 
-              ? "Erst Projekt wählen" 
-              : workLocations.length === 0 
-                ? "Keine Orte verfügbar" 
-                : "Erst Task wählen"
+            !projectId
+              ? 'Erst Projekt wählen'
+              : workLocations.length === 0
+                ? 'Keine Orte verfügbar'
+                : 'Erst Task wählen'
           }
           compact
         />
@@ -309,9 +295,7 @@ export default function ProjectTaskActivityForm({
 
       {/* Bemerkung */}
       <div className="flex flex-col flex-2 min-w-0">
-        <label className={isFieldDisabled ? labelDisabled : labelEnabled}>
-          Bemerkung
-        </label>
+        <label className={isFieldDisabled ? labelDisabled : labelEnabled}>Bemerkung</label>
         <input
           type="text"
           value={bemerkung}
@@ -320,10 +304,10 @@ export default function ProjectTaskActivityForm({
           disabled={isFieldDisabled}
           className={`h-8 px-2.5 text-sm border transition-colors focus:outline-none ${
             isFieldDisabled
-              ? "bg-gray-50 border-gray-200 text-gray-300 cursor-not-allowed opacity-40"
+              ? 'bg-gray-50 border-gray-200 text-gray-300 cursor-not-allowed opacity-40'
               : isCustomBemerkung
-                ? "bg-blue-50 border-blue-200 text-blue-800 focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
-                : "bg-white border-gray-200 text-gray-700 focus:ring-1 focus:ring-blue-400 focus:border-blue-400 placeholder-gray-400 hover:border-gray-300"
+                ? 'bg-blue-50 border-blue-200 text-blue-800 focus:ring-1 focus:ring-blue-400 focus:border-blue-400'
+                : 'bg-white border-gray-200 text-gray-700 focus:ring-1 focus:ring-blue-400 focus:border-blue-400 placeholder-gray-400 hover:border-gray-300'
           }`}
           title={
             isCustomBemerkung
@@ -335,9 +319,7 @@ export default function ProjectTaskActivityForm({
 
       {/* Billable Toggle */}
       <div className="flex flex-col shrink-0">
-        <label className={isFieldDisabled ? labelDisabled : labelEnabled}>
-          Fakt.
-        </label>
+        <label className={isFieldDisabled ? labelDisabled : labelEnabled}>Fakt.</label>
         <button
           type="button"
           onClick={() => {
@@ -348,46 +330,38 @@ export default function ProjectTaskActivityForm({
           disabled={isFieldDisabled || !canChangeBillable}
           className={`flex items-center justify-center w-8 h-8 border transition-colors ${
             isFieldDisabled
-              ? "bg-gray-50 border-gray-200 text-gray-300 cursor-not-allowed opacity-40"
+              ? 'bg-gray-50 border-gray-200 text-gray-300 cursor-not-allowed opacity-40'
               : !canChangeBillable
                 ? billable
-                  ? "bg-amber-50 border-amber-200 text-amber-500 cursor-not-allowed"
-                  : "bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed"
+                  ? 'bg-amber-50 border-amber-200 text-amber-500 cursor-not-allowed'
+                  : 'bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed'
                 : billable
-                  ? "bg-amber-50 border-amber-200 text-amber-600 hover:bg-amber-100"
-                  : "bg-white border-gray-200 text-gray-400 hover:bg-gray-50 hover:text-gray-500"
+                  ? 'bg-amber-50 border-amber-200 text-amber-600 hover:bg-amber-100'
+                  : 'bg-white border-gray-200 text-gray-400 hover:bg-gray-50 hover:text-gray-500'
           }`}
           title={
             isFieldDisabled
-              ? "Erst Task wählen"
+              ? 'Erst Task wählen'
               : !canChangeBillable
-                ? `Fakturierbarkeit vom Projekt/Vorgang festgelegt (${billable ? "fakturierbar" : "nicht fakturierbar"})`
+                ? `Fakturierbarkeit vom Projekt/Vorgang festgelegt (${billable ? 'fakturierbar' : 'nicht fakturierbar'})`
                 : billable
-                  ? "Fakturierbar - klicken zum Ändern"
-                  : "Nicht fakturierbar (intern) - klicken zum Ändern"
+                  ? 'Fakturierbar - klicken zum Ändern'
+                  : 'Nicht fakturierbar (intern) - klicken zum Ändern'
           }
         >
           <Banknote
             size={18}
-            className={
-              isFieldDisabled || (!billable && canChangeBillable)
-                ? "opacity-50"
-                : ""
-            }
+            className={isFieldDisabled || (!billable && canChangeBillable) ? 'opacity-50' : ''}
           />
         </button>
       </div>
 
       {/* Time Type Toggle (Plan/Ist) */}
       <div className="flex flex-col shrink-0">
-        <label className={isFieldDisabled ? labelDisabled : labelEnabled}>
-          Zeit
-        </label>
+        <label className={isFieldDisabled ? labelDisabled : labelEnabled}>Zeit</label>
         <div
           className={`inline-flex items-center h-8 border text-xs overflow-hidden ${
-            isFieldDisabled
-              ? "border-gray-200 bg-gray-50 opacity-40"
-              : "border-gray-200 bg-white"
+            isFieldDisabled ? 'border-gray-200 bg-gray-50 opacity-40' : 'border-gray-200 bg-white'
           }`}
         >
           <button
@@ -396,16 +370,12 @@ export default function ProjectTaskActivityForm({
             disabled={isFieldDisabled}
             className={`px-2 h-full transition-colors ${
               isFieldDisabled
-                ? "text-gray-300 cursor-not-allowed"
+                ? 'text-gray-300 cursor-not-allowed'
                 : !useActualTime
-                  ? "bg-blue-50 text-blue-600 font-medium"
-                  : "text-gray-500 hover:bg-gray-50"
+                  ? 'bg-blue-50 text-blue-600 font-medium'
+                  : 'text-gray-500 hover:bg-gray-50'
             }`}
-            title={
-              isFieldDisabled
-                ? "Erst Task wählen"
-                : `Plan-Zeit: ${plannedTimeLabel}`
-            }
+            title={isFieldDisabled ? 'Erst Task wählen' : `Plan-Zeit: ${plannedTimeLabel}`}
           >
             Plan
           </button>
@@ -413,27 +383,24 @@ export default function ProjectTaskActivityForm({
           <button
             type="button"
             onClick={() =>
-              !isFieldDisabled &&
-              hasActualTime &&
-              actualTimeDiffers &&
-              onTimeChange(true)
+              !isFieldDisabled && hasActualTime && actualTimeDiffers && onTimeChange(true)
             }
             disabled={isFieldDisabled || !hasActualTime || !actualTimeDiffers}
             className={`px-2 h-full transition-colors ${
               isFieldDisabled || !hasActualTime || !actualTimeDiffers
-                ? "text-gray-300 cursor-not-allowed"
+                ? 'text-gray-300 cursor-not-allowed'
                 : useActualTime
-                  ? "bg-blue-50 text-blue-600 font-medium"
-                  : "text-gray-500 hover:bg-gray-50"
+                  ? 'bg-blue-50 text-blue-600 font-medium'
+                  : 'text-gray-500 hover:bg-gray-50'
             }`}
             title={
               isFieldDisabled
-                ? "Erst Task wählen"
+                ? 'Erst Task wählen'
                 : hasActualTime
                   ? !actualTimeDiffers
-                    ? "Ist-Zeit entspricht Plan-Zeit"
+                    ? 'Ist-Zeit entspricht Plan-Zeit'
                     : `Ist-Zeit: ${actualTimeLabel}`
-                  : "Keine Ist-Zeit verfügbar"
+                  : 'Keine Ist-Zeit verfügbar'
             }
           >
             Ist
@@ -448,10 +415,10 @@ export default function ProjectTaskActivityForm({
           disabled={!isSyncReady || isSyncing}
           className={`group flex items-center justify-center w-8 h-8 border transition-all ${
             isSyncing
-              ? "bg-green-500 border-green-500 text-white cursor-wait shadow-[0_0_10px_rgba(74,222,128,0.35),0_4px_8px_rgba(0,0,0,0.15)]"
+              ? 'bg-green-500 border-green-500 text-white cursor-wait shadow-[0_0_10px_rgba(74,222,128,0.35),0_4px_8px_rgba(0,0,0,0.15)]'
               : !isSyncReady
-                ? "bg-gray-50 border-gray-200 text-gray-300 cursor-not-allowed opacity-40"
-                : "bg-green-600 border-green-600 text-white shadow-[0_0_10px_rgba(74,222,128,0.35),0_4px_8px_rgba(0,0,0,0.15)] hover:bg-green-700 hover:border-green-700 hover:shadow-[0_0_14px_rgba(74,222,128,0.5),0_6px_12px_rgba(0,0,0,0.2)]"
+                ? 'bg-gray-50 border-gray-200 text-gray-300 cursor-not-allowed opacity-40'
+                : 'bg-green-600 border-green-600 text-white shadow-[0_0_10px_rgba(74,222,128,0.35),0_4px_8px_rgba(0,0,0,0.15)] hover:bg-green-700 hover:border-green-700 hover:shadow-[0_0_14px_rgba(74,222,128,0.5),0_6px_12px_rgba(0,0,0,0.2)]'
           }`}
           title={syncTooltip}
         >
@@ -460,7 +427,7 @@ export default function ProjectTaskActivityForm({
           ) : (
             <ClockArrowUp
               size={18}
-              className={`transition-transform ${showHopAnimation ? "animate-sync-hop" : ""} ${!isSyncReady ? "opacity-50" : ""}`}
+              className={`transition-transform ${showHopAnimation ? 'animate-sync-hop' : ''} ${!isSyncReady ? 'opacity-50' : ''}`}
             />
           )}
         </button>

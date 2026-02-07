@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useState, useEffect, useMemo } from "react";
-import { Video, ArrowDown, PartyPopper, Quote } from "lucide-react";
-import dailyQuotes from "@/lib/daily-quotes.json";
+import { useState, useEffect, useMemo } from 'react';
+import { Video, ArrowDown, PartyPopper, Quote } from 'lucide-react';
+import dailyQuotes from '@/lib/daily-quotes.json';
 
 interface Appointment {
   id: string;
@@ -18,13 +18,15 @@ interface Appointment {
 interface UpcomingMeetingBarProps {
   appointments: Appointment[];
   isToday?: boolean;
-  onJumpToAppointment?: (appointmentId: string, highlight: "running" | "upcoming") => void;
+  onJumpToAppointment?: (appointmentId: string, highlight: 'running' | 'upcoming') => void;
 }
 
 // Helper to extract Teams URL from body
 function getTeamsJoinUrlFromBody(apt: Appointment): string | null {
   if (!apt.bodyPreview) return null;
-  const teamsUrlMatch = apt.bodyPreview.match(/https:\/\/teams\.microsoft\.com\/l\/meetup-join\/[^\s<>"]+/);
+  const teamsUrlMatch = apt.bodyPreview.match(
+    /https:\/\/teams\.microsoft\.com\/l\/meetup-join\/[^\s<>"]+/,
+  );
   return teamsUrlMatch ? teamsUrlMatch[0] : null;
 }
 
@@ -38,16 +40,18 @@ function getZoomUrlFromBody(apt: Appointment): string | null {
 function getDailyQuote(): { text: string; author?: string } {
   const today = new Date();
   const dayOfYear = Math.floor(
-    (today.getTime() - new Date(today.getFullYear(), 0, 0).getTime()) / 86400000
+    (today.getTime() - new Date(today.getFullYear(), 0, 0).getTime()) / 86400000,
   );
   const raw = dailyQuotes[dayOfYear % dailyQuotes.length];
-  const parts = raw.split(" — ");
-  return parts.length > 1
-    ? { text: parts[0], author: parts[1] }
-    : { text: raw };
+  const parts = raw.split(' — ');
+  return parts.length > 1 ? { text: parts[0], author: parts[1] } : { text: raw };
 }
 
-export default function UpcomingMeetingBar({ appointments, isToday = false, onJumpToAppointment }: UpcomingMeetingBarProps) {
+export default function UpcomingMeetingBar({
+  appointments,
+  isToday = false,
+  onJumpToAppointment,
+}: UpcomingMeetingBarProps) {
   const [now, setNow] = useState(new Date());
 
   // Update current time every 30 seconds
@@ -109,7 +113,7 @@ export default function UpcomingMeetingBar({ appointments, isToday = false, onJu
   // Today's appointments
   const todayAppointments = useMemo(() => {
     if (!isToday) return [];
-    const todayStr = now.toISOString().split("T")[0];
+    const todayStr = now.toISOString().split('T')[0];
     return appointments.filter((apt) => apt.start.dateTime.startsWith(todayStr));
   }, [isToday, appointments, now]);
 
@@ -132,8 +136,8 @@ export default function UpcomingMeetingBar({ appointments, isToday = false, onJu
     if (allDoneForToday) {
       const quote = getDailyQuote();
       const fullLength = quote.text.length + (quote.author?.length || 0);
-      const quoteSize = fullLength > 120 ? "text-sm" : fullLength > 80 ? "text-base" : "text-lg";
-      const authorSize = fullLength > 120 ? "text-[9px]" : "text-[11px]";
+      const quoteSize = fullLength > 120 ? 'text-sm' : fullLength > 80 ? 'text-base' : 'text-lg';
+      const authorSize = fullLength > 120 ? 'text-[9px]' : 'text-[11px]';
       return (
         <div className="flex items-center px-4 py-2.5 text-sm border-t bg-green-50/50 border-green-100">
           <div className="flex items-center gap-2.5 min-w-0 flex-1">
@@ -144,13 +148,14 @@ export default function UpcomingMeetingBar({ appointments, isToday = false, onJu
             <span className="text-gray-300 shrink-0">|</span>
             <Quote className="shrink-0 w-3.5 h-3.5 text-gray-400 -mr-3 -mt-3" />
             <span className="min-w-0">
-              <span className={`text-gray-800 ${quoteSize}`} style={{ fontFamily: "var(--font-caveat)" }}>
+              <span
+                className={`text-gray-800 ${quoteSize}`}
+                style={{ fontFamily: 'var(--font-caveat)' }}
+              >
                 {quote.text}
               </span>
               {quote.author && (
-                <span className={`text-gray-400 ${authorSize} ml-1.5`}>
-                  — {quote.author}
-                </span>
+                <span className={`text-gray-400 ${authorSize} ml-1.5`}>— {quote.author}</span>
               )}
             </span>
           </div>
@@ -158,9 +163,9 @@ export default function UpcomingMeetingBar({ appointments, isToday = false, onJu
       );
     }
     if (nextAppointment) {
-      const nextStart = new Date(nextAppointment.start.dateTime).toLocaleTimeString("de-DE", {
-        hour: "2-digit",
-        minute: "2-digit",
+      const nextStart = new Date(nextAppointment.start.dateTime).toLocaleTimeString('de-DE', {
+        hour: '2-digit',
+        minute: '2-digit',
       });
       return (
         <div className="flex items-center px-4 py-2.5 text-sm border-t bg-blue-50/50 border-blue-100">
@@ -170,10 +175,10 @@ export default function UpcomingMeetingBar({ appointments, isToday = false, onJu
               Nächster Termin
             </span>
             <span className="text-gray-300">|</span>
-            <span className="text-gray-700 truncate font-medium">{nextAppointment.subject || "(Kein Titel)"}</span>
-            <span className="text-gray-400 text-xs shrink-0">
-              um {nextStart}
+            <span className="text-gray-700 truncate font-medium">
+              {nextAppointment.subject || '(Kein Titel)'}
             </span>
+            <span className="text-gray-400 text-xs shrink-0">um {nextStart}</span>
           </div>
         </div>
       );
@@ -183,38 +188,38 @@ export default function UpcomingMeetingBar({ appointments, isToday = false, onJu
 
   // Show only the first (most relevant) meeting
   const meeting = upcomingMeetings[0];
-  const startTime = new Date(meeting.start.dateTime).toLocaleTimeString("de-DE", {
-    hour: "2-digit",
-    minute: "2-digit",
+  const startTime = new Date(meeting.start.dateTime).toLocaleTimeString('de-DE', {
+    hour: '2-digit',
+    minute: '2-digit',
   });
-  const endTime = new Date(meeting.end.dateTime).toLocaleTimeString("de-DE", {
-    hour: "2-digit",
-    minute: "2-digit",
+  const endTime = new Date(meeting.end.dateTime).toLocaleTimeString('de-DE', {
+    hour: '2-digit',
+    minute: '2-digit',
   });
 
   return (
     <div
       className={`flex items-center justify-between px-4 py-2.5 text-sm border-t ${
-        meeting.isRunning
-          ? "bg-red-50/50 border-red-100"
-          : "bg-amber-50/50 border-amber-100"
+        meeting.isRunning ? 'bg-red-50/50 border-red-100' : 'bg-amber-50/50 border-amber-100'
       }`}
     >
       <div className="flex items-center gap-2.5 min-w-0 flex-1">
         <div
           className={`shrink-0 w-1.5 h-1.5 rounded-full ${
-            meeting.isRunning ? "bg-red-500 animate-pulse" : "bg-amber-500"
+            meeting.isRunning ? 'bg-red-500 animate-pulse' : 'bg-amber-500'
           }`}
         />
         <span
           className={`text-xs font-medium uppercase tracking-wide ${
-            meeting.isRunning ? "text-red-600" : "text-amber-600"
+            meeting.isRunning ? 'text-red-600' : 'text-amber-600'
           }`}
         >
-          {meeting.isRunning ? "Läuft" : `In ${meeting.minutesUntilStart} Min`}
+          {meeting.isRunning ? 'Läuft' : `In ${meeting.minutesUntilStart} Min`}
         </span>
         <span className="text-gray-300">|</span>
-        <span className="text-gray-700 truncate font-medium">{meeting.subject || "(Kein Titel)"}</span>
+        <span className="text-gray-700 truncate font-medium">
+          {meeting.subject || '(Kein Titel)'}
+        </span>
         <span className="text-gray-400 text-xs shrink-0">
           {startTime}–{endTime}
         </span>
@@ -223,11 +228,13 @@ export default function UpcomingMeetingBar({ appointments, isToday = false, onJu
       <div className="flex items-center gap-2 shrink-0 ml-3">
         {onJumpToAppointment && (
           <button
-            onClick={() => onJumpToAppointment(meeting.id, meeting.isRunning ? "running" : "upcoming")}
+            onClick={() =>
+              onJumpToAppointment(meeting.id, meeting.isRunning ? 'running' : 'upcoming')
+            }
             className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition-colors border ${
               meeting.isRunning
-                ? "border-red-300 text-red-600 hover:bg-red-50"
-                : "border-amber-300 text-amber-600 hover:bg-amber-50"
+                ? 'border-red-300 text-red-600 hover:bg-red-50'
+                : 'border-amber-300 text-amber-600 hover:bg-amber-50'
             }`}
           >
             <ArrowDown className="w-3.5 h-3.5" />
@@ -240,9 +247,7 @@ export default function UpcomingMeetingBar({ appointments, isToday = false, onJu
             target="_blank"
             rel="noopener noreferrer"
             className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs text-white font-medium transition-colors ${
-              meeting.isRunning
-                ? "bg-red-500 hover:bg-red-600"
-                : "bg-amber-500 hover:bg-amber-600"
+              meeting.isRunning ? 'bg-red-500 hover:bg-red-600' : 'bg-amber-500 hover:bg-amber-600'
             }`}
           >
             <Video className="w-3.5 h-3.5" />

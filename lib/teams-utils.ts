@@ -21,8 +21,8 @@ export function normalizeJoinUrl(url?: string): string | null {
  * Actual duration data for a meeting call
  */
 export interface ActualDuration {
-  actualStart: string;  // ISO datetime
-  actualEnd: string;    // ISO datetime
+  actualStart: string; // ISO datetime
+  actualEnd: string; // ISO datetime
 }
 
 /**
@@ -50,7 +50,7 @@ export function getDurationKey(normalizedUrl: string, date: string): string {
  * @returns The date part (YYYY-MM-DD) or null if invalid
  */
 export function getDateFromDurationKey(key: string): string | null {
-  const parts = key.split("_");
+  const parts = key.split('_');
   const datePart = parts[parts.length - 1];
   // Validate it looks like a date
   if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {

@@ -12,9 +12,9 @@ Ein kundenspezifisches Attribut (Key-Value).
 
 #### Felder
 
-| Feld | Typ | Pflicht | Beschreibung |
-|------|-----|---------|-------------|
-| `value` | `string` | Ja | Der Wert des kundenspezifischen Attributes. |
+| Feld    | Typ      | Pflicht | Beschreibung                                |
+| ------- | -------- | ------- | ------------------------------------------- |
+| `value` | `string` | Ja      | Der Wert des kundenspezifischen Attributes. |
 
 #### Attribute
 
@@ -26,7 +26,6 @@ Liste von Attributen für kundenspezifische Erweiterungen
 
 #### Felder
 
-| Feld | Typ | Pflicht | Beschreibung |
-|------|-----|---------|-------------|
-| `attribute` | `AttributeType` | Nein | Liste von Attributen für kundenspezifische Erweiterungen. |
-
+| Feld        | Typ             | Pflicht | Beschreibung                                              |
+| ----------- | --------------- | ------- | --------------------------------------------------------- |
+| `attribute` | `AttributeType` | Nein    | Liste von Attributen für kundenspezifische Erweiterungen. |

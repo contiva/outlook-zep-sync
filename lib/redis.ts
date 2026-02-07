@@ -1,4 +1,4 @@
-import { Redis } from "@upstash/redis";
+import { Redis } from '@upstash/redis';
 
 // Redis client singleton using Vercel KV environment variables
 const redis = new Redis({
@@ -31,10 +31,7 @@ function getSyncKey(userId: string, outlookEventId: string): string {
  * Key format: sync:{userId}:{outlookEventId}
  * TTL: 180 days
  */
-export async function saveSyncMapping(
-  userId: string,
-  mapping: RedisSyncMapping
-): Promise<void> {
+export async function saveSyncMapping(userId: string, mapping: RedisSyncMapping): Promise<void> {
   const key = getSyncKey(userId, mapping.outlookEventId);
   await redis.set(key, mapping, { ex: SYNC_MAPPING_TTL });
 }
@@ -45,7 +42,7 @@ export async function saveSyncMapping(
  */
 export async function getSyncMapping(
   userId: string,
-  outlookEventId: string
+  outlookEventId: string,
 ): Promise<RedisSyncMapping | null> {
   const key = getSyncKey(userId, outlookEventId);
   const data = await redis.get<RedisSyncMapping>(key);
@@ -56,12 +53,10 @@ export async function getSyncMapping(
  * Get all sync mappings for a user using SCAN with pattern matching.
  * Pattern: sync:{userId}:*
  */
-export async function getSyncMappingsByUser(
-  userId: string
-): Promise<RedisSyncMapping[]> {
+export async function getSyncMappingsByUser(userId: string): Promise<RedisSyncMapping[]> {
   const pattern = `sync:${userId}:*`;
   const mappings: RedisSyncMapping[] = [];
-  let cursor = "0";
+  let cursor = '0';
 
   do {
     const result = await redis.scan(cursor, {
@@ -73,16 +68,14 @@ export async function getSyncMappingsByUser(
     cursor = nextCursor;
 
     if (keys.length > 0) {
-      const values = await Promise.all(
-        keys.map((key) => redis.get<RedisSyncMapping>(key))
-      );
+      const values = await Promise.all(keys.map((key) => redis.get<RedisSyncMapping>(key)));
       for (const value of values) {
         if (value) {
           mappings.push(value);
         }
       }
     }
-  } while (cursor !== "0");
+  } while (cursor !== '0');
 
   return mappings;
 }
@@ -90,10 +83,7 @@ export async function getSyncMappingsByUser(
 /**
  * Delete a single sync mapping.
  */
-export async function deleteSyncMapping(
-  userId: string,
-  outlookEventId: string
-): Promise<void> {
+export async function deleteSyncMapping(userId: string, outlookEventId: string): Promise<void> {
   const key = getSyncKey(userId, outlookEventId);
   await redis.del(key);
 }
@@ -103,24 +93,19 @@ export async function deleteSyncMapping(
  */
 export async function batchSaveSyncMappings(
   userId: string,
-  mappings: RedisSyncMapping[]
+  mappings: RedisSyncMapping[],
 ): Promise<void> {
-  await Promise.all(
-    mappings.map((mapping) => saveSyncMapping(userId, mapping))
-  );
+  await Promise.all(mappings.map((mapping) => saveSyncMapping(userId, mapping)));
 }
 
 // --- Notification user registration ---
 
-const NOTIFICATION_USERS_KEY = "notification-users";
+const NOTIFICATION_USERS_KEY = 'notification-users';
 
 /**
  * Register a user for notifications (stores azureId → email mapping).
  */
-export async function registerUserForNotifications(
-  azureId: string,
-  email: string
-): Promise<void> {
+export async function registerUserForNotifications(azureId: string, email: string): Promise<void> {
   await redis.hset(NOTIFICATION_USERS_KEY, { [azureId]: email });
 }
 
@@ -128,12 +113,8 @@ export async function registerUserForNotifications(
  * Get all registered users for notifications.
  * Returns an array of { azureId, email } objects.
  */
-export async function getRegisteredUsers(): Promise<
-  { azureId: string; email: string }[]
-> {
-  const data = await redis.hgetall<Record<string, string>>(
-    NOTIFICATION_USERS_KEY
-  );
+export async function getRegisteredUsers(): Promise<{ azureId: string; email: string }[]> {
+  const data = await redis.hgetall<Record<string, string>>(NOTIFICATION_USERS_KEY);
   if (!data) return [];
   return Object.entries(data).map(([azureId, email]) => ({ azureId, email }));
 }

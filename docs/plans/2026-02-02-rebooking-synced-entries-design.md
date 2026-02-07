@@ -7,10 +7,12 @@ Bereits synchronisierte Termine können nachträglich auf ein anderes Projekt/Ta
 ## Anforderungen
 
 ### Was geändert werden kann
+
 - Projekt und Task (Umbuchen auf anderes Projekt/Vorgang)
 - Tätigkeit (z.B. von "Besprechung" auf "Entwicklung")
 
 ### Was NICHT geändert wird
+
 - Zeiten (Start/Ende bleiben wie synchronisiert)
 - Bemerkung/Notizen
 
@@ -19,11 +21,13 @@ Bereits synchronisierte Termine können nachträglich auf ein anderes Projekt/Ta
 ### AppointmentRow für synchronisierte Termine
 
 **Aktueller Zustand:**
+
 - Grüner Haken + "In ZEP" Badge
 - Projekt/Task/Tätigkeit werden als read-only Badge angezeigt
 - Keine Bearbeitungsmöglichkeit
 
 **Neuer Zustand:**
+
 - Grüner Haken + "In ZEP" Badge (unverändert)
 - Neuer Bearbeiten-Button (Stift-Icon) rechts neben dem Badge
 - Klick auf Bearbeiten:
@@ -56,10 +60,7 @@ interface ModifyProjektzeitResponse {
   responseHeader: ResponseHeader;
 }
 
-export async function modifyProjektzeit(
-  token: string,
-  projektzeit: SoapProjektzeit
-): Promise<void>
+export async function modifyProjektzeit(token: string, projektzeit: SoapProjektzeit): Promise<void>;
 ```
 
 ### 2. API Route (`app/api/zep/timeentries/route.ts`)
@@ -86,15 +87,15 @@ const [editingAppointments, setEditingAppointments] = useState<Set<string>>(new 
 const [modifiedEntries, setModifiedEntries] = useState<Map<string, ModifiedEntry>>(new Map());
 
 interface ModifiedEntry {
-  zepId: number;              // ZEP Projektzeit ID
+  zepId: number; // ZEP Projektzeit ID
   originalProjectId: number;
   originalTaskId: number;
   originalActivityId: string;
   newProjectId: number | null;
   newTaskId: number | null;
   newActivityId: string;
-  newProjektNr: string;       // Für SOAP API
-  newVorgangNr: string;       // Für SOAP API
+  newProjektNr: string; // Für SOAP API
+  newVorgangNr: string; // Für SOAP API
 }
 ```
 
@@ -103,17 +104,17 @@ Neue Funktionen:
 ```typescript
 // Bearbeitung starten
 const startEditingSyncedAppointment = (appointmentId: string) => {
-  setEditingAppointments(prev => new Set(prev).add(appointmentId));
+  setEditingAppointments((prev) => new Set(prev).add(appointmentId));
 };
 
 // Bearbeitung abbrechen
 const cancelEditingSyncedAppointment = (appointmentId: string) => {
-  setEditingAppointments(prev => {
+  setEditingAppointments((prev) => {
     const next = new Set(prev);
     next.delete(appointmentId);
     return next;
   });
-  setModifiedEntries(prev => {
+  setModifiedEntries((prev) => {
     const next = new Map(prev);
     next.delete(appointmentId);
     return next;
@@ -122,7 +123,7 @@ const cancelEditingSyncedAppointment = (appointmentId: string) => {
 
 // Änderung speichern (lokal)
 const updateModifiedEntry = (appointmentId: string, changes: Partial<ModifiedEntry>) => {
-  setModifiedEntries(prev => {
+  setModifiedEntries((prev) => {
     const next = new Map(prev);
     const existing = next.get(appointmentId) || createInitialModifiedEntry(appointmentId);
     next.set(appointmentId, { ...existing, ...changes });
@@ -136,7 +137,7 @@ const updateModifiedEntry = (appointmentId: string, changes: Partial<ModifiedEnt
 ```typescript
 const submitToZep = async (appointmentsToSync: Appointment[]) => {
   // 1. Neue Einträge erstellen (wie bisher)
-  const newEntries = appointmentsToSync.filter(apt => !isAppointmentSynced(apt, syncedEntries));
+  const newEntries = appointmentsToSync.filter((apt) => !isAppointmentSynced(apt, syncedEntries));
   // ... createProjektzeit für jeden
 
   // 2. Geänderte Einträge aktualisieren (NEU)
@@ -156,7 +157,7 @@ const submitToZep = async (appointmentsToSync: Appointment[]) => {
   // 3. States zurücksetzen
   setEditingAppointments(new Set());
   setModifiedEntries(new Map());
-  
+
   // 4. Sync-Status neu laden
   // ...
 };
@@ -167,11 +168,11 @@ const submitToZep = async (appointmentsToSync: Appointment[]) => {
 ```typescript
 interface AppointmentRowProps {
   // ... existing props
-  isEditing?: boolean;           // Wird gerade bearbeitet
-  isModified?: boolean;          // Hat ungespeicherte Änderungen
+  isEditing?: boolean; // Wird gerade bearbeitet
+  isModified?: boolean; // Hat ungespeicherte Änderungen
   modifiedValues?: ModifiedEntry; // Die geänderten Werte
-  onStartEdit?: () => void;      // Bearbeiten-Button geklickt
-  onCancelEdit?: () => void;     // Abbrechen-Button geklickt
+  onStartEdit?: () => void; // Bearbeiten-Button geklickt
+  onCancelEdit?: () => void; // Abbrechen-Button geklickt
   onModifyProject?: (projectId: number | null) => void;
   onModifyTask?: (taskId: number | null) => void;
   onModifyActivity?: (activityId: string) => void;
@@ -181,6 +182,7 @@ interface AppointmentRowProps {
 ### 6. SyncConfirmDialog erweitern
 
 Dialog zeigt zwei Sektionen:
+
 - "Neue Einträge erstellen" (Anzahl + Liste)
 - "Einträge aktualisieren" (Anzahl + Liste mit Änderungen)
 

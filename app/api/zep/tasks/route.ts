@@ -1,33 +1,32 @@
-import { NextResponse } from "next/server";
-import { getProjectTasks, readProjekte, mapVorgangToRestFormat, findEmployeeByEmail } from "@/lib/zep-soap";
-import { getAuthenticatedUser } from "@/lib/auth-helper";
+import { NextResponse } from 'next/server';
+import {
+  getProjectTasks,
+  readProjekte,
+  mapVorgangToRestFormat,
+  findEmployeeByEmail,
+} from '@/lib/zep-soap';
+import { getAuthenticatedUser } from '@/lib/auth-helper';
 
 export async function GET(request: Request) {
   // Check authentication (supports both NextAuth and Teams SSO)
   const user = await getAuthenticatedUser(request);
   if (!user?.email) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const token = process.env.ZEP_SOAP_TOKEN;
   const { searchParams } = new URL(request.url);
-  const projectId = searchParams.get("projectId");
-  const projektNr = searchParams.get("projektNr");
-  const userId = searchParams.get("userId"); // Employee filter
-  const dateStr = searchParams.get("date"); // Reference date for filtering (YYYY-MM-DD)
+  const projectId = searchParams.get('projectId');
+  const projektNr = searchParams.get('projektNr');
+  const userId = searchParams.get('userId'); // Employee filter
+  const dateStr = searchParams.get('date'); // Reference date for filtering (YYYY-MM-DD)
 
   if (!token) {
-    return NextResponse.json(
-      { error: "Server configuration error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
   }
 
   if (!projectId && !projektNr) {
-    return NextResponse.json(
-      { error: "projectId or projektNr required" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: 'projectId or projektNr required' }, { status: 400 });
   }
 
   // Security: If userId is provided, validate it matches the logged-in user
@@ -36,38 +35,34 @@ export async function GET(request: Request) {
       const employee = await findEmployeeByEmail(token, user.email);
       if (!employee) {
         return NextResponse.json(
-          { error: "Kein ZEP-Benutzer für diesen Account gefunden" },
-          { status: 403 }
+          { error: 'Kein ZEP-Benutzer für diesen Account gefunden' },
+          { status: 403 },
         );
       }
       if (employee.userId !== userId) {
-        console.warn(`Security: User ${user.email} (ZEP: ${employee.userId}) tried to access tasks for ${userId}`);
+        console.warn(
+          `Security: User ${user.email} (ZEP: ${employee.userId}) tried to access tasks for ${userId}`,
+        );
         return NextResponse.json(
-          { error: "Zugriff verweigert: Sie können nur Ihre eigenen Tasks abrufen" },
-          { status: 403 }
+          { error: 'Zugriff verweigert: Sie können nur Ihre eigenen Tasks abrufen' },
+          { status: 403 },
         );
       }
     } catch (error) {
-      console.error("Employee validation error:", error);
-      return NextResponse.json(
-        { error: "Fehler bei der Benutzervalidierung" },
-        { status: 500 }
-      );
+      console.error('Employee validation error:', error);
+      return NextResponse.json({ error: 'Fehler bei der Benutzervalidierung' }, { status: 500 });
     }
   }
 
   try {
     let searchProjektNr = projektNr;
-    
+
     // Prefer projektNr (no additional SOAP call needed)
     // Only look up by projectId if projektNr is not provided
     if (!projektNr && projectId) {
       const projekte = await readProjekte(token, { id: parseInt(projectId, 10) });
       if (projekte.length === 0) {
-        return NextResponse.json(
-          { error: "Project not found" },
-          { status: 404 }
-        );
+        return NextResponse.json({ error: 'Project not found' }, { status: 404 });
       }
       searchProjektNr = projekte[0].projektNr;
     }
@@ -86,10 +81,7 @@ export async function GET(request: Request) {
     const tasks = vorgaenge.map(mapVorgangToRestFormat);
     return NextResponse.json(tasks);
   } catch (error) {
-    console.error("ZEP tasks fetch error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch ZEP tasks" },
-      { status: 500 }
-    );
+    console.error('ZEP tasks fetch error:', error);
+    return NextResponse.json({ error: 'Failed to fetch ZEP tasks' }, { status: 500 });
   }
 }

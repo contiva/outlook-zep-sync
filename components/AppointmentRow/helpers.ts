@@ -1,6 +1,6 @@
 // Helper: Check if domain is internal (contiva.com or subdomains)
 export function isInternalDomain(domain: string): boolean {
-  return domain === "contiva.com" || domain.endsWith(".contiva.com");
+  return domain === 'contiva.com' || domain.endsWith('.contiva.com');
 }
 
 // Helper: Format name from "Nachname, Vorname" to "Vorname Nachname"
@@ -17,7 +17,10 @@ export function formatName(name?: string | null): string | null {
 // Helper: Determine if user can change billable status
 // Values 1 and 3 are editable, values 2 and 4 are locked
 // Note: ZEP SOAP API returns these as strings, so we convert to number
-export function canChangeBillableForTask(projektFakt?: number | string, vorgangFakt?: number | string): boolean {
+export function canChangeBillableForTask(
+  projektFakt?: number | string,
+  vorgangFakt?: number | string,
+): boolean {
   const pFakt = projektFakt !== undefined ? Number(projektFakt) : undefined;
   const vFakt = vorgangFakt !== undefined ? Number(vorgangFakt) : undefined;
 
@@ -55,7 +58,10 @@ export function extractZoomUrl(text?: string): string | null {
 }
 
 // Helper: Get body text from appointment (combines bodyPreview and full body)
-export function getBodyText(appointment: { bodyPreview?: string; body?: { content?: string } }): string {
+export function getBodyText(appointment: {
+  bodyPreview?: string;
+  body?: { content?: string };
+}): string {
   // Prefer full body content, fall back to preview
   return appointment.body?.content?.toLowerCase() || appointment.bodyPreview?.toLowerCase() || '';
 }

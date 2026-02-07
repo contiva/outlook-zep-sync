@@ -15,10 +15,7 @@
       "durationMinutes": 48,
       "type": "ScreenShare",
       "direction": "outgoing",
-      "participants": [
-        "Robert Fels",
-        "Sven Brandt (+491732664078)"
-      ],
+      "participants": ["Robert Fels", "Sven Brandt (+491732664078)"],
       "organizer": "Robert Fels"
     },
     {
@@ -28,10 +25,7 @@
       "durationMinutes": 15,
       "type": "Phone",
       "direction": "outgoing",
-      "participants": [
-        "Robert Fels",
-        "Brommont, Thomas"
-      ],
+      "participants": ["Robert Fels", "Brommont, Thomas"],
       "organizer": "Robert Fels"
     },
     {
@@ -41,10 +35,7 @@
       "durationMinutes": 8,
       "type": "Phone",
       "direction": "outgoing",
-      "participants": [
-        "Robert Fels",
-        "Xenia Dik"
-      ],
+      "participants": ["Robert Fels", "Xenia Dik"],
       "organizer": "Robert Fels"
     },
     {
@@ -54,10 +45,7 @@
       "durationMinutes": 6,
       "type": "ScreenShare",
       "direction": "outgoing",
-      "participants": [
-        "Robert Fels",
-        "Armin Sadri"
-      ],
+      "participants": ["Robert Fels", "Armin Sadri"],
       "organizer": "Robert Fels"
     },
     {
@@ -67,10 +55,7 @@
       "durationMinutes": 7,
       "type": "Phone",
       "direction": "outgoing",
-      "participants": [
-        "Robert Fels",
-        "Jan Schmidthaus (+491736078565)"
-      ],
+      "participants": ["Robert Fels", "Jan Schmidthaus (+491736078565)"],
       "organizer": "Robert Fels"
     },
     {
@@ -80,10 +65,7 @@
       "durationMinutes": 20,
       "type": "ScreenShare",
       "direction": "outgoing",
-      "participants": [
-        "Robert Fels",
-        "Amir Abassi"
-      ],
+      "participants": ["Robert Fels", "Amir Abassi"],
       "organizer": "Robert Fels"
     },
     {
@@ -93,10 +75,7 @@
       "durationMinutes": 7,
       "type": "Video",
       "direction": "outgoing",
-      "participants": [
-        "Robert Fels",
-        "Arbach, Souha"
-      ],
+      "participants": ["Robert Fels", "Arbach, Souha"],
       "organizer": "Robert Fels"
     },
     {
@@ -106,10 +85,7 @@
       "durationMinutes": 30,
       "type": "ScreenShare",
       "direction": "outgoing",
-      "participants": [
-        "Robert Fels",
-        "Jan Schmidthaus (+491736078565)"
-      ],
+      "participants": ["Robert Fels", "Jan Schmidthaus (+491736078565)"],
       "organizer": "Robert Fels"
     },
     {
@@ -119,9 +95,7 @@
       "durationMinutes": 27,
       "type": "ScreenShare",
       "direction": "incoming",
-      "participants": [
-        "Robert Fels"
-      ],
+      "participants": ["Robert Fels"],
       "organizer": "Horn, Markus"
     },
     {
@@ -131,10 +105,7 @@
       "durationMinutes": 7,
       "type": "Video",
       "direction": "outgoing",
-      "participants": [
-        "Robert Fels",
-        "Arson Nezovski"
-      ],
+      "participants": ["Robert Fels", "Arson Nezovski"],
       "organizer": "Robert Fels"
     },
     {
@@ -144,12 +115,7 @@
       "durationMinutes": 16,
       "type": "ScreenShare",
       "direction": "incoming",
-      "participants": [
-        "Sven Brandt",
-        "Nic Frigius",
-        "Robert Fels (+491707004330)",
-        "Robert Fels"
-      ],
+      "participants": ["Sven Brandt", "Nic Frigius", "Robert Fels (+491707004330)", "Robert Fels"],
       "organizer": "Nic Frigius"
     },
     {
@@ -159,10 +125,7 @@
       "durationMinutes": 9,
       "type": "Phone",
       "direction": "outgoing",
-      "participants": [
-        "Robert Fels",
-        "+491726217151"
-      ],
+      "participants": ["Robert Fels", "+491726217151"],
       "organizer": "Robert Fels"
     },
     {
@@ -172,10 +135,7 @@
       "durationMinutes": 6,
       "type": "Phone",
       "direction": "outgoing",
-      "participants": [
-        "Robert Fels",
-        "+491726217151"
-      ],
+      "participants": ["Robert Fels", "+491726217151"],
       "organizer": "Robert Fels"
     },
     {
@@ -185,10 +145,7 @@
       "durationMinutes": 21,
       "type": "Phone",
       "direction": "outgoing",
-      "participants": [
-        "Robert Fels",
-        "Leo Green"
-      ],
+      "participants": ["Robert Fels", "Leo Green"],
       "organizer": "Robert Fels"
     },
     {
@@ -198,9 +155,7 @@
       "durationMinutes": 45,
       "type": "ScreenShare",
       "direction": "incoming",
-      "participants": [
-        "Robert Fels"
-      ],
+      "participants": ["Robert Fels"],
       "organizer": "Horn, Markus"
     },
     {
@@ -210,10 +165,7 @@
       "durationMinutes": 33,
       "type": "Phone",
       "direction": "outgoing",
-      "participants": [
-        "Robert Fels",
-        "Xenia Dik"
-      ],
+      "participants": ["Robert Fels", "Xenia Dik"],
       "organizer": "Robert Fels"
     },
     {
@@ -223,10 +175,7 @@
       "durationMinutes": 7,
       "type": "Phone",
       "direction": "outgoing",
-      "participants": [
-        "Robert Fels",
-        "+491726217151"
-      ],
+      "participants": ["Robert Fels", "+491726217151"],
       "organizer": "Robert Fels"
     },
     {
@@ -236,10 +185,7 @@
       "durationMinutes": 7,
       "type": "Phone",
       "direction": "outgoing",
-      "participants": [
-        "Robert Fels",
-        "+491726217151"
-      ],
+      "participants": ["Robert Fels", "+491726217151"],
       "organizer": "Robert Fels"
     },
     {
@@ -249,10 +195,7 @@
       "durationMinutes": 12,
       "type": "ScreenShare",
       "direction": "outgoing",
-      "participants": [
-        "Robert Fels",
-        "Jan Schmidthaus (+491736078565)"
-      ],
+      "participants": ["Robert Fels", "Jan Schmidthaus (+491736078565)"],
       "organizer": "Robert Fels"
     },
     {
@@ -277,10 +220,7 @@
       "durationMinutes": 13,
       "type": "Phone",
       "direction": "outgoing",
-      "participants": [
-        "Robert Fels",
-        "0918190914665"
-      ],
+      "participants": ["Robert Fels", "0918190914665"],
       "organizer": "Robert Fels"
     },
     {
@@ -290,10 +230,7 @@
       "durationMinutes": 25,
       "type": "Phone",
       "direction": "outgoing",
-      "participants": [
-        "Robert Fels",
-        "+491726217151"
-      ],
+      "participants": ["Robert Fels", "+491726217151"],
       "organizer": "Robert Fels"
     },
     {
@@ -303,10 +240,7 @@
       "durationMinutes": 26,
       "type": "Phone",
       "direction": "outgoing",
-      "participants": [
-        "Robert Fels",
-        "König, Sara"
-      ],
+      "participants": ["Robert Fels", "König, Sara"],
       "organizer": "Robert Fels"
     },
     {
@@ -316,10 +250,7 @@
       "durationMinutes": 58,
       "type": "ScreenShare",
       "direction": "outgoing",
-      "participants": [
-        "Robert Fels",
-        "Sven Brandt (+491732664078)"
-      ],
+      "participants": ["Robert Fels", "Sven Brandt (+491732664078)"],
       "organizer": "Robert Fels"
     },
     {
@@ -329,10 +260,7 @@
       "durationMinutes": 23,
       "type": "Phone",
       "direction": "outgoing",
-      "participants": [
-        "Robert Fels",
-        "Leo Green"
-      ],
+      "participants": ["Robert Fels", "Leo Green"],
       "organizer": "Robert Fels"
     },
     {
@@ -342,9 +270,7 @@
       "durationMinutes": 18,
       "type": "ScreenShare",
       "direction": "incoming",
-      "participants": [
-        "Robert Fels"
-      ],
+      "participants": ["Robert Fels"],
       "organizer": "Horn, Markus"
     },
     {
@@ -354,10 +280,7 @@
       "durationMinutes": 27,
       "type": "ScreenShare",
       "direction": "outgoing",
-      "participants": [
-        "Robert Fels",
-        "Sven Brandt (+491732664078)"
-      ],
+      "participants": ["Robert Fels", "Sven Brandt (+491732664078)"],
       "organizer": "Robert Fels"
     },
     {
@@ -367,10 +290,7 @@
       "durationMinutes": 24,
       "type": "ScreenShare",
       "direction": "outgoing",
-      "participants": [
-        "Robert Fels",
-        "Xenia Dik (+4915170667140)"
-      ],
+      "participants": ["Robert Fels", "Xenia Dik (+4915170667140)"],
       "organizer": "Robert Fels"
     },
     {
@@ -380,10 +300,7 @@
       "durationMinutes": 10,
       "type": "ScreenShare",
       "direction": "outgoing",
-      "participants": [
-        "Robert Fels",
-        "Xenia Dik (+4915170667140)"
-      ],
+      "participants": ["Robert Fels", "Xenia Dik (+4915170667140)"],
       "organizer": "Robert Fels"
     },
     {
@@ -393,10 +310,7 @@
       "durationMinutes": 12,
       "type": "ScreenShare",
       "direction": "outgoing",
-      "participants": [
-        "Robert Fels",
-        "Sven Brandt (+491732664078)"
-      ],
+      "participants": ["Robert Fels", "Sven Brandt (+491732664078)"],
       "organizer": "Robert Fels"
     },
     {
@@ -406,10 +320,7 @@
       "durationMinutes": 6,
       "type": "Phone",
       "direction": "outgoing",
-      "participants": [
-        "Robert Fels",
-        "Jan Schmidthaus (+491736078565)"
-      ],
+      "participants": ["Robert Fels", "Jan Schmidthaus (+491736078565)"],
       "organizer": "Robert Fels"
     },
     {
@@ -419,10 +330,7 @@
       "durationMinutes": 10,
       "type": "Phone",
       "direction": "outgoing",
-      "participants": [
-        "Robert Fels",
-        "+491726217151"
-      ],
+      "participants": ["Robert Fels", "+491726217151"],
       "organizer": "Robert Fels"
     },
     {
@@ -432,10 +340,7 @@
       "durationMinutes": 33,
       "type": "ScreenShare",
       "direction": "outgoing",
-      "participants": [
-        "Robert Fels",
-        "Jan Schmidthaus (+491736078565)"
-      ],
+      "participants": ["Robert Fels", "Jan Schmidthaus (+491736078565)"],
       "organizer": "Robert Fels"
     },
     {
@@ -460,10 +365,7 @@
       "durationMinutes": 11,
       "type": "ScreenShare",
       "direction": "outgoing",
-      "participants": [
-        "Robert Fels",
-        "Xenia Dik (+4915170667140)"
-      ],
+      "participants": ["Robert Fels", "Xenia Dik (+4915170667140)"],
       "organizer": "Robert Fels"
     },
     {
@@ -473,9 +375,7 @@
       "durationMinutes": 17,
       "type": "ScreenShare",
       "direction": "incoming",
-      "participants": [
-        "Robert Fels"
-      ],
+      "participants": ["Robert Fels"],
       "organizer": "Horn, Markus"
     },
     {
@@ -485,10 +385,7 @@
       "durationMinutes": 24,
       "type": "Phone",
       "direction": "outgoing",
-      "participants": [
-        "Robert Fels",
-        "Sven Brandt (+491732664078)"
-      ],
+      "participants": ["Robert Fels", "Sven Brandt (+491732664078)"],
       "organizer": "Robert Fels"
     },
     {
@@ -498,10 +395,7 @@
       "durationMinutes": 46,
       "type": "ScreenShare",
       "direction": "outgoing",
-      "participants": [
-        "Robert Fels",
-        "Xenia Dik (+4915170667140)"
-      ],
+      "participants": ["Robert Fels", "Xenia Dik (+4915170667140)"],
       "organizer": "Robert Fels"
     },
     {
@@ -526,10 +420,7 @@
       "durationMinutes": 53,
       "type": "ScreenShare",
       "direction": "outgoing",
-      "participants": [
-        "Robert Fels",
-        "Simon Rehr (+491715457265)"
-      ],
+      "participants": ["Robert Fels", "Simon Rehr (+491715457265)"],
       "organizer": "Robert Fels"
     },
     {
@@ -539,10 +430,7 @@
       "durationMinutes": 53,
       "type": "ScreenShare",
       "direction": "outgoing",
-      "participants": [
-        "Robert Fels",
-        "Sven Brandt (+491732664078)"
-      ],
+      "participants": ["Robert Fels", "Sven Brandt (+491732664078)"],
       "organizer": "Robert Fels"
     },
     {
@@ -568,10 +456,7 @@
       "durationMinutes": 17,
       "type": "Phone",
       "direction": "outgoing",
-      "participants": [
-        "Robert Fels",
-        "Sven Brandt (+491732664078)"
-      ],
+      "participants": ["Robert Fels", "Sven Brandt (+491732664078)"],
       "organizer": "Robert Fels"
     },
     {
@@ -581,10 +466,7 @@
       "durationMinutes": 17,
       "type": "Phone",
       "direction": "outgoing",
-      "participants": [
-        "Robert Fels",
-        "Simon Rehr (+491715457265)"
-      ],
+      "participants": ["Robert Fels", "Simon Rehr (+491715457265)"],
       "organizer": "Robert Fels"
     },
     {
@@ -594,10 +476,7 @@
       "durationMinutes": 19,
       "type": "ScreenShare",
       "direction": "outgoing",
-      "participants": [
-        "Robert Fels",
-        "Simon Rehr (+491715457265)"
-      ],
+      "participants": ["Robert Fels", "Simon Rehr (+491715457265)"],
       "organizer": "Robert Fels"
     },
     {
@@ -622,9 +501,7 @@
       "durationMinutes": 41,
       "type": "ScreenShare",
       "direction": "incoming",
-      "participants": [
-        "Robert Fels"
-      ],
+      "participants": ["Robert Fels"],
       "organizer": "Horn, Markus"
     },
     {
@@ -634,10 +511,7 @@
       "durationMinutes": 11,
       "type": "Phone",
       "direction": "outgoing",
-      "participants": [
-        "Robert Fels",
-        "+4915144377998"
-      ],
+      "participants": ["Robert Fels", "+4915144377998"],
       "organizer": "Robert Fels"
     },
     {
@@ -662,10 +536,7 @@
       "durationMinutes": 9,
       "type": "Phone",
       "direction": "outgoing",
-      "participants": [
-        "Robert Fels",
-        "Benedikt Koch"
-      ],
+      "participants": ["Robert Fels", "Benedikt Koch"],
       "organizer": "Robert Fels"
     },
     {
@@ -675,10 +546,7 @@
       "durationMinutes": 12,
       "type": "Phone",
       "direction": "outgoing",
-      "participants": [
-        "Robert Fels",
-        "Sven Brandt (+491732664078)"
-      ],
+      "participants": ["Robert Fels", "Sven Brandt (+491732664078)"],
       "organizer": "Robert Fels"
     },
     {
@@ -688,10 +556,7 @@
       "durationMinutes": 45,
       "type": "ScreenShare",
       "direction": "outgoing",
-      "participants": [
-        "Robert Fels",
-        "Sven Brandt (+491732664078)"
-      ],
+      "participants": ["Robert Fels", "Sven Brandt (+491732664078)"],
       "organizer": "Robert Fels"
     },
     {
@@ -701,10 +566,7 @@
       "durationMinutes": 14,
       "type": "ScreenShare",
       "direction": "outgoing",
-      "participants": [
-        "Robert Fels",
-        "Sven Brandt (+491732664078)"
-      ],
+      "participants": ["Robert Fels", "Sven Brandt (+491732664078)"],
       "organizer": "Robert Fels"
     },
     {
@@ -714,10 +576,7 @@
       "durationMinutes": 15,
       "type": "Video",
       "direction": "outgoing",
-      "participants": [
-        "Robert Fels",
-        "Lukas Henkel"
-      ],
+      "participants": ["Robert Fels", "Lukas Henkel"],
       "organizer": "Robert Fels"
     }
   ]

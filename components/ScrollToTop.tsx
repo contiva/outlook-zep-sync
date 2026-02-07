@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useEffect, useState, useRef } from "react";
-import { ArrowUp } from "lucide-react";
+import { useEffect, useState, useRef } from 'react';
+import { ArrowUp } from 'lucide-react';
 
 export default function ScrollToTop() {
   const [isVisible, setIsVisible] = useState(false);
@@ -24,9 +24,9 @@ export default function ScrollToTop() {
       });
     };
 
-    window.addEventListener("scroll", toggleVisibility, { passive: true });
+    window.addEventListener('scroll', toggleVisibility, { passive: true });
     return () => {
-      window.removeEventListener("scroll", toggleVisibility);
+      window.removeEventListener('scroll', toggleVisibility);
       if (rafId) cancelAnimationFrame(rafId);
     };
   }, []);
@@ -34,7 +34,7 @@ export default function ScrollToTop() {
   const scrollToTop = () => {
     window.scrollTo({
       top: 0,
-      behavior: "smooth",
+      behavior: 'smooth',
     });
   };
 
@@ -42,7 +42,7 @@ export default function ScrollToTop() {
     <button
       onClick={scrollToTop}
       className={`fixed bottom-6 right-6 p-3 bg-white text-gray-600 rounded-full shadow-lg border border-gray-200 hover:bg-gray-50 hover:text-gray-900 hover:shadow-xl transition-all z-50 ${
-        isVisible ? "opacity-100" : "opacity-0 pointer-events-none"
+        isVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
       }`}
       aria-label="Nach oben scrollen"
       title="Nach oben"
